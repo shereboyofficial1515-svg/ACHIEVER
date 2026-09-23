@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as c from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { authLimiter, otpLimiter, passwordResetLimiter } from '../middleware/rateLimiters.js';
+import { authLimiter, otpLimiter, passwordResetLimiter, refreshLimiter } from '../middleware/rateLimiters.js';
 import * as s from '../validators/authValidators.js';
 
 const r = Router();
@@ -10,7 +10,7 @@ const r = Router();
 r.get('/csrf', c.csrf);
 r.post('/register', authLimiter, validate({ body: s.register }), c.register);
 r.post('/login', authLimiter, validate({ body: s.login }), c.login);
-r.post('/refresh', authLimiter, c.refresh);
+r.post('/refresh', refreshLimiter, c.refresh);
 r.post('/logout', (req, res, next) => authenticate(req, res, () => next()), c.logout);
 r.get('/me', authenticate, c.me);
 

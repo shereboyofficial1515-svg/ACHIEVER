@@ -11,21 +11,30 @@ import * as onboardingService from './onboardingService.js';
  */
 export async function forUser(user) {
   const roles = user.roles;
-  const [memberships, adminGroups, recent, pendingContribs, upcomingPayouts] = await Promise.all([
+  // Independent reads run concurrently: each is a network round-trip to Supabase.
+  const adminGroupsPromise = roles.includes(ROLES.OSUSU_ADMIN)
+    ? osusuRepo.listGroups({ adminId: user.id, page: 1, pageSize: 50 })
+    : Promise.resolve({ rows: [] });
+  // Group summaries depend only on the admin group list; start them as soon as it arrives.
+  const summariesPromise = adminGroupsPromise.then((g) =>
+    Promise.all(g.rows.filter((x) => x.status === 'active').map((x) => osusuRepo.groupSummary(x.id))));
+  const [memberships, adminGroups, recent, pendingContribs, upcomingPayouts, totalContributed, totalReceived, plans, collectorDash, onboarding, summaries] = await Promise.all([
     osusuRepo.listMemberships(user.id),
-    roles.includes(ROLES.OSUSU_ADMIN) ? osusuRepo.listGroups({ adminId: user.id, page: 1, pageSize: 50 }) : { rows: [] },
+    adminGroupsPromise,
     paymentRepo.listTransactions({ userId: user.id, page: 1, pageSize: 6 }),
     osusuRepo.listContributions({ userId: user.id, statuses: ['pending', 'overdue'], page: 1, pageSize: 100 }),
     osusuRepo.upcomingPayoutsForUser(user.id),
+    paymentRepo.sumTransactions({ userId: user.id, types: ['osusu_contribution', 'collector_savings'] }),
+    paymentRepo.sumTransactions({ userId: user.id, types: ['osusu_payout', 'saver_return'] }),
+    roles.includes(ROLES.SAVER) ? collectorRepo.listPlans({ saverId: user.id, page: 1, pageSize: 50 }) : Promise.resolve({ rows: [] }),
+    roles.includes(ROLES.COLLECTOR) ? collectorService.dashboard(user) : Promise.resolve(null),
+    onboardingService.getStatus(user.id),
+    summariesPromise,
   ]);
 
   const openContributions = pendingContribs.rows.filter((c) => c.status !== 'paid');
   const nextDue = [...openContributions].sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
 
-  const totalContributed = await paymentRepo.sumTransactions({ userId: user.id, types: ['osusu_contribution', 'collector_savings'] });
-  const totalReceived = await paymentRepo.sumTransactions({ userId: user.id, types: ['osusu_payout', 'saver_return'] });
-
-  const plans = roles.includes(ROLES.SAVER) ? await collectorRepo.listPlans({ saverId: user.id, page: 1, pageSize: 50 }) : { rows: [] };
   const savingsBalance = plans.rows
     .filter((p) => ['active', 'matured', 'return_requested', 'return_processing'].includes(p.status))
     .reduce((s, p) => s + Number(p.balance), 0);
@@ -62,7 +71,6 @@ export async function forUser(user) {
 
   if (roles.includes(ROLES.OSUSU_ADMIN)) {
     const active = adminGroups.rows.filter((g) => g.status === 'active');
-    const summaries = await Promise.all(active.map((g) => osusuRepo.groupSummary(g.id)));
     result.organiser = {
       groups: adminGroups.rows.length,
       activeGroups: active.length,
@@ -81,9 +89,8 @@ export async function forUser(user) {
     };
   }
   if (roles.includes(ROLES.COLLECTOR)) {
-    result.collector = await collectorService.dashboard(user);
+    result.collector = collectorDash;
   }
-  const onboarding = await onboardingService.getStatus(user.id);
   result.onboarding = { operators: onboarding.operators, phoneVerified: onboarding.phoneVerified, identity: onboarding.identity };
   return result;
 }

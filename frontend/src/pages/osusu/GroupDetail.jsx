@@ -36,7 +36,14 @@ function Overview({ group, onChanged, conversationId }) {
   const [paying, setPaying] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [pending, setPending] = useState(false);
-  const mine = useAsync(() => (group.membership?.status === 'active' ? api.get(`/osusu/groups/${group.id}/contributions`, { pageSize: 5 }) : Promise.resolve({ data: [] })), [group.id]);
+  const { user } = useAuth();
+  // Always scope to the signed-in user: organisers can list everyone's rows.
+  const mine = useAsync(
+    () => (group.membership?.status === 'active'
+      ? api.get(`/osusu/groups/${group.id}/contributions`, { userId: user.id, statuses: undefined, pageSize: 20 })
+      : Promise.resolve({ data: [] })),
+    [group.id, user.id],
+  );
   const openMine = (mine.data || []).filter((c) => c.status !== 'paid');
 
   const act = async () => {

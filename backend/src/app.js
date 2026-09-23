@@ -12,6 +12,7 @@ import { apiLimiter, webhookLimiter } from './middleware/rateLimiters.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import * as paymentController from './controllers/paymentController.js';
 import api from './routes/index.js';
+import { readiness } from './services/healthService.js';
 
 export function createApp() {
   const app = express();
@@ -55,7 +56,19 @@ export function createApp() {
   );
   app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/events') && compression.filter(req, res) }));
 
-  app.get('/api/health', (_req, res) => res.json({ success: true, message: 'ok', data: { status: 'up', time: new Date().toISOString() } }));
+  // Liveness: the process is up. Identifies the service so a port clash with
+  // another local API is obvious.
+  app.get('/api/health', (_req, res) =>
+    res.json({ success: true, message: 'ACHIEVER API is running', data: { service: 'achiever-api', status: 'up', time: new Date().toISOString() } }));
+  // Readiness: can we actually serve requests (database privileges, integrations)?
+  app.get('/api/health/ready', async (_req, res) => {
+    const result = await readiness();
+    res.status(result.ready ? 200 : 503).json({
+      success: result.ready,
+      message: result.ready ? 'ACHIEVER API is ready' : 'ACHIEVER API is not ready',
+      data: result,
+    });
+  });
 
   // Webhooks need the exact raw bytes for signature verification, so they are
   // mounted BEFORE the JSON parser and are exempt from CSRF (they are

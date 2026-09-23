@@ -7,6 +7,9 @@ import { logger } from '../../utils/logger.js';
  * (https://paystack.com/docs/api/). Secret key never leaves the server.
  */
 async function request(method, path, body, { timeoutMs = 20000 } = {}) {
+  if (!env.features.payments) {
+    throw AppError.unavailable('Payments are not configured on this server yet.', 'PAYMENTS_NOT_CONFIGURED');
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res;

@@ -45,7 +45,8 @@ Generate secrets with `openssl rand -hex 32`.
    supabase link --project-ref <ref>
    supabase db push
    ```
-   or run the four files in `supabase/migrations/` in the SQL editor in filename order.
+   or run the five files in `supabase/migrations/` in the SQL editor in filename order.
+   Migration `…005_api_role_grants.sql` is required: newer Supabase projects do not grant table privileges to the API roles automatically, and without it every API query fails with `permission denied for table …`. `GET /api/health/ready` reports this as `DATABASE_PRIVILEGES`.
 4. **Storage**: migration `…004_storage.sql` creates buckets. Public: `avatars`, `group-images`. Private: `message-attachments`, `verification-documents`, `receipts`. No storage policies are granted to browser roles; the API uploads with the service role after validating type/size, and serves private files via short-lived signed URLs.
 5. **Realtime**: migration `…003` adds `messages`, `notifications`, `calls`, `call_participants` to the `supabase_realtime` publication. Confirm under **Database → Replication**.
 6. Create your first user through the app, then grant platform access from a trusted machine:
@@ -83,14 +84,14 @@ The default `manual` provider queues every submission for staff review of an upl
 # backend
 cd backend && cp .env.example .env   # fill in values
 npm install
-npm run dev                           # http://localhost:4000
+npm run dev                           # http://localhost:4100
 
 # frontend (second terminal)
 cd frontend && cp .env.example .env
 npm install
-npm run dev                           # http://localhost:5173 (proxies /api → :4000)
+npm run dev                           # http://localhost:5173 (proxies /api → 127.0.0.1:4100)
 ```
-`frontend/vite.config.js` reads `API_PROXY_TARGET` if your API runs elsewhere. Without Resend/Termii configured in development, OTP codes are written to the API log (never in production).
+ACHIEVER's API uses port 4100 so it does not collide with other local APIs on the common 4000/5000 ports (on Windows two servers can bind the same port on different interfaces and silently split traffic). If you change `PORT`, set `API_PROXY_TARGET` for the Vite dev server to match. Check the backend with `GET /api/health` (liveness) and `GET /api/health/ready` (database privileges and integration status). Without Resend/Termii configured in development, OTP codes are written to the API log (never in production).
 
 ## 11. Testing
 ```bash
@@ -126,6 +127,9 @@ Covered edge cases include: webhook delivered twice, amount mismatch, duplicate 
 | Symptom | Likely cause |
 |---|---|
 | `Invalid environment configuration` on start | a required variable is missing/short — the message lists which |
+| Vite shows `http proxy error … ECONNRESET/ECONNREFUSED` | the API is not running on the proxy target, was restarting, or another local server shares the port. Check `http://127.0.0.1:4100/api/health` returns `ACHIEVER API is running` |
+| `permission denied for table …` / readiness `DATABASE_PRIVILEGES` | apply `supabase/migrations/20260923000005_api_role_grants.sql` |
+| Payments return `PAYMENTS_NOT_CONFIGURED` | `PAYSTACK_SECRET_KEY` is not an `sk_test_…`/`sk_live_…` key |
 | Every POST returns `CSRF_INVALID` | cookies blocked (cross-site deployment) or the client did not call `/auth/csrf` |
 | Login works but next request is 401 | API and app on different sites; cookies not sent. Use same-site hosting |
 | Payment stuck on "Processing payment…" | webhook not reaching the API; the reconciliation job verifies after 10 minutes. Check Paystack webhook logs |

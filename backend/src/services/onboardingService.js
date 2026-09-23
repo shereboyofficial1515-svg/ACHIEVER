@@ -175,6 +175,8 @@ export async function documentUrl(actor, id, req) {
 
 export async function decide(actor, id, { decision, note }, req) {
   const record = await getForReview(id);
+  // Separation of duties: nobody may approve (or reject) their own identity.
+  if (record.user_id === actor.id) throw AppError.forbidden('You cannot review your own identity verification', 'SELF_REVIEW_FORBIDDEN');
   if (!['pending', 'manual_review'].includes(record.status)) throw AppError.conflict('This record has already been decided', 'ALREADY_DECIDED');
   const updated = await verificationRepo.update(id, {
     status: decision,

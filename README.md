@@ -25,7 +25,7 @@ A Nigerian digital **Susu / Ajo** platform: rotational **Osusu** groups, individ
 
 ## Quick start
 ```bash
-# 1. Database: apply supabase/migrations/*.sql to your Supabase project (docs/SETUP.md §3)
+# 1. Database: apply all five supabase/migrations/*.sql files in order (docs/SETUP.md §3)
 # 2. API
 cd backend && cp .env.example .env && npm install && npm run dev
 # 3. Web app
@@ -36,7 +36,8 @@ cd backend && npm run grant-role -- you@example.com SUPER_ADMIN
 
 ## Tests
 ```bash
-cd backend && npm test      # 89 tests: payments, idempotency, authorisation, sessions, payouts, HTTP security
+cd backend && npm test      # 94 tests: payments, idempotency, authorisation, sessions, payouts, HTTP security, health
+cd backend && npm run check:queries   # every repository query against your live Supabase schema (read-only)
 cd frontend && npm test     # money parsing
 supabase test db            # pgTAP: 46 financial-rule assertions + 14 RLS assertions
 ```

@@ -19,6 +19,9 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 * Common error codes: `VALIDATION_ERROR` 400, `UNAUTHENTICATED` / `TOKEN_EXPIRED` / `SESSION_EXPIRED` / `SESSION_REVOKED` 401, `FORBIDDEN` / `EMAIL_NOT_VERIFIED` / `OPERATOR_ONBOARDING_INCOMPLETE` / `CSRF_INVALID` 403, `NOT_FOUND` 404, `CONFLICT` / `DUPLICATE` / business codes 409, 422 business rule violations, `RATE_LIMITED` 429, `SERVICE_UNAVAILABLE` 503.
 * Legend: 🔓 public · 🔑 signed in · ✅ signed in + verified email · role names = additional role requirement.
 
+## Health
+`GET /health` → `{ success, message: "ACHIEVER API is running" }` (liveness) · `GET /health/ready` → 200/503 with database privilege and integration checks (names only, never secret values).
+
 ## Auth — `/auth`
 | Method | Path | Access | Body / notes |
 |---|---|---|---|

@@ -39,8 +39,9 @@ export default function VerifyEmail() {
   const resend = async () => {
     setResending(true);
     try {
-      await api.post('/auth/email/resend');
-      toast.success('A new code has been sent.');
+      const { data } = await api.post('/auth/email/resend');
+      if (data?.sent) toast.success('A new code has been sent.');
+      else toast.error('We could not send the email right now. Please try again shortly or contact support.');
     } catch (err) {
       toast.error(err);
     } finally {

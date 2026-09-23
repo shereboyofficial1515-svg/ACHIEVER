@@ -1,5 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { z } from 'zod';
+
+// Tests must be hermetic: never read a developer's real backend/.env.
+if (process.env.NODE_ENV !== 'test') dotenv.config();
 
 const bool = (def) =>
   z
@@ -14,11 +17,11 @@ const required = isTest ? z.string().default('test') : z.string().min(1);
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().int().positive().default(4000),
+  PORT: z.coerce.number().int().positive().default(4100),
   LOG_LEVEL: z.string().default('info'),
 
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
-  SERVER_URL: z.string().url().default('http://localhost:4000'),
+  SERVER_URL: z.string().url().default('http://localhost:4100'),
   CORS_EXTRA_ORIGINS: z.string().optional().default(''),
 
   SUPABASE_URL: isTest ? z.string().default('http://localhost:54321') : z.string().url(),
@@ -75,6 +78,8 @@ export const env = Object.freeze({
   isTest: parsed.data.NODE_ENV === 'test',
   corsOrigins: [parsed.data.CLIENT_URL, ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
   features: {
+    // Real Paystack secret keys look like sk_test_... / sk_live_...; anything else is a placeholder.
+    payments: /^sk_(test|live)_[A-Za-z0-9]+$/.test(parsed.data.PAYSTACK_SECRET_KEY.trim()),
     email: Boolean(parsed.data.RESEND_API_KEY),
     sms: Boolean(parsed.data.TERMII_API_KEY && parsed.data.TERMII_SENDER_ID),
     calls: Boolean(parsed.data.LIVEKIT_API_KEY && parsed.data.LIVEKIT_API_SECRET && parsed.data.LIVEKIT_URL),

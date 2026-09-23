@@ -6,7 +6,7 @@ const PROFILE_COLUMNS =
   'email_verified_at, phone_verified_at, failed_login_count, locked_until, last_login_at, last_seen_at, sessions_revoked_at, created_at';
 
 export async function findById(id) {
-  return one(db.from('profiles').select(`${PROFILE_COLUMNS}, user_roles(role_code)`).eq('id', id).maybeSingle());
+  return one(db.from('profiles').select(`${PROFILE_COLUMNS}, user_roles!user_roles_user_id_fkey(role_code)`).eq('id', id).maybeSingle());
 }
 
 export async function findByEmail(email) {
@@ -60,7 +60,7 @@ export async function search({ search, role, status, page, pageSize }) {
   let q = db
     .from('profiles')
     .select(`id, full_name, email, phone, account_status, primary_account_type, email_verified_at, phone_verified_at,
-             last_seen_at, created_at, user_roles${role ? '!inner' : ''}(role_code)`, { count: 'exact' })
+             last_seen_at, created_at, user_roles!user_roles_user_id_fkey${role ? '!inner' : ''}(role_code)`, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
   if (search) q = q.or(`full_name.ilike.${likePattern(search)},email.ilike.${likePattern(search)},phone.ilike.${likePattern(search)}`);

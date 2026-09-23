@@ -22,6 +22,8 @@ function unavailable(status = 0) {
   });
 }
 
+const NO_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/csrf', '/auth/password/forgot', '/auth/password/reset'];
+
 let csrfToken = null;
 let csrfPromise = null;
 let refreshPromise = null;
@@ -106,7 +108,10 @@ async function request(method, path, { body, params, raw = false, retry = true, 
       await ensureCsrf(true);
       return request(method, path, { body, params, raw, retry: false, signal });
     }
-    if (retry && res.status === 401 && ['TOKEN_EXPIRED', 'UNAUTHENTICATED'].includes(error.code) && !path.startsWith('/auth/')) {
+    // Access cookies expire with the token (~1h); the refresh cookie lasts much
+    // longer. Refresh for every call — including /auth/me on page load — except
+    // the credential endpoints themselves.
+    if (retry && res.status === 401 && ['TOKEN_EXPIRED', 'UNAUTHENTICATED'].includes(error.code) && !NO_REFRESH.some((p) => path.startsWith(p))) {
       if (await refreshSession()) return request(method, path, { body, params, raw, retry: false, signal });
       onSessionEnded();
     } else if (res.status === 401 && ['SESSION_EXPIRED', 'SESSION_REVOKED'].includes(error.code)) {

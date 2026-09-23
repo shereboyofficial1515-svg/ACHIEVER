@@ -11,7 +11,8 @@ export const REDACT_PATHS = [
   '*.password',
   '*.newPassword',
   '*.currentPassword',
-  '*.code',
+  // OTP codes only ever appear in request bodies, which are not logged.
+  'req.body.code',
   '*.otp',
   '*.token',
   '*.accessToken',

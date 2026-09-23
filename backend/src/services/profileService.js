@@ -11,8 +11,7 @@ import { AppError } from '../utils/AppError.js';
 import { maskEmail, maskPhone } from '../utils/sanitize.js';
 
 export async function me(userId) {
-  const profile = await userRepo.findById(userId);
-  const onboarding = await onboardingService.getStatus(userId);
+  const [profile, onboarding] = await Promise.all([userRepo.findById(userId), onboardingService.getStatus(userId)]);
   return {
     id: profile.id,
     fullName: profile.full_name,

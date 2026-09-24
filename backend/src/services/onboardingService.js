@@ -7,6 +7,8 @@ import * as authService from './authService.js';
 import * as notificationService from './notificationService.js';
 import * as settingsService from './settingsService.js';
 import * as storageService from './storageService.js';
+import * as kycService from './kycService.js';
+import * as securityService from './securityService.js';
 import { AppError } from '../utils/AppError.js';
 import { hashIdentityNumber, sha256 } from '../utils/crypto.js';
 
@@ -34,19 +36,22 @@ export async function currentUndertaking() {
 }
 
 export async function getStatus(userId) {
-  const [profile, identity, undertakings, undertaking] = await Promise.all([
+  const [profile, identity, undertakings, undertaking, kyc] = await Promise.all([
     userRepo.findById(userId),
     verificationRepo.latestForUser(userId),
     verificationRepo.undertakingsForUser(userId),
     currentUndertaking(),
+    kycService.summary(userId),
   ]);
   const roles = (profile.user_roles || []).map((r) => r.role_code);
   const accepted = (role) => undertakings.some((u) => u.role_context === role && u.undertaking_version === undertaking.version);
-  const identityVerified = identity?.status === 'verified';
+  const operatorLevel = Number(kyc.requiredLevels?.operator ?? 2);
+  const kycOk = kyc.level >= operatorLevel && !kyc.restricted;
   const operators = OPERATOR_ROLES.filter((r) => roles.includes(r)).map((role) => ({
     role,
     undertakingAccepted: accepted(role),
-    active: Boolean(profile.phone_verified_at) && identityVerified && accepted(role),
+    kycLevelRequired: operatorLevel,
+    active: Boolean(profile.phone_verified_at) && kycOk && accepted(role),
   }));
   return {
     emailVerified: Boolean(profile.email_verified_at),
@@ -56,12 +61,18 @@ export async function getStatus(userId) {
           status: identity.status,
           idType: identity.id_type,
           last4: identity.id_last4,
+          documentNumberMasked: identity.document_number_masked,
+          issuingCountry: identity.issuing_country,
+          expiryDate: identity.expiry_date,
+          liveness: identity.liveness_status,
           documentUploaded: Boolean(identity.document_path),
           failureReason: identity.status === 'failed' ? identity.failure_reason || identity.review_note : null,
           submittedAt: identity.created_at,
         }
       : null,
     identityDocumentRequired: getIdentityProvider().requiresDocument === true,
+    kyc,
+    livenessAvailable: false,
     undertakingVersion: undertaking.version,
     operators,
     roles,
@@ -82,47 +93,74 @@ function clearOperatorCache(userId) {
   for (const key of operatorCache.keys()) if (key.startsWith(`${userId}:`)) operatorCache.delete(key);
 }
 
-export async function submitIdentity(user, { idType, idNumber, firstName, lastName, dateOfBirth }, req) {
+function maskDocumentNumber(value) {
+  const v = String(value);
+  return `${'•'.repeat(Math.max(0, v.length - 4))}${v.slice(-4)}`;
+}
+
+export async function submitIdentity(user, { idType, idNumber, firstName, lastName, dateOfBirth, issuingCountry, issueDate, expiryDate }, req) {
+  const normalised = String(idNumber).toUpperCase().replace(/\s+/g, '');
   const latest = await verificationRepo.latestForUser(user.id);
   if (latest?.status === 'verified') throw AppError.conflict('Your identity is already verified', 'ALREADY_VERIFIED');
   if (latest && ['pending', 'manual_review'].includes(latest.status)) {
     throw AppError.conflict('Your identity verification is already under review', 'VERIFICATION_IN_PROGRESS');
   }
-  const hash = hashIdentityNumber(idType, idNumber);
+  const hash = hashIdentityNumber(idType, normalised);
   if (await verificationRepo.identityUsedByOther(idType, hash, user.id)) {
     await auditService.record({ actorId: user.id, action: 'verification.submit', resourceType: 'verification_record', result: 'denied', metadata: { reason: 'identity_in_use', idType }, req });
     throw AppError.conflict('This identity cannot be used for verification. Contact support if you believe this is an error.', 'IDENTITY_UNAVAILABLE');
   }
 
   const provider = getIdentityProvider();
-  const outcome = await provider.verify({ idType, idNumber, firstName, lastName, dateOfBirth });
+  // Documents other than BVN/NIN cannot be checked automatically: staff review them.
+  const automated = ['bvn', 'nin'].includes(idType);
+  const outcome = automated
+    ? await provider.verify({ idType, idNumber: normalised, firstName, lastName, dateOfBirth })
+    : { status: 'manual_review', reason: 'Awaiting document review by ACHIEVER staff' };
   const record = await verificationRepo.insert({
     user_id: user.id,
     id_type: idType,
     id_number_hash: hash,
-    id_last4: idNumber.slice(-4),
-    provider: provider.name,
+    id_last4: normalised.slice(-4),
+    document_number_masked: maskDocumentNumber(normalised),
+    issuing_country: issuingCountry ?? 'NG',
+    issue_date: issueDate ?? null,
+    expiry_date: expiryDate ?? null,
+    provider: automated ? provider.name : 'manual',
     provider_reference: outcome.providerReference ?? null,
     status: outcome.status,
     name_match: outcome.nameMatch ?? null,
     failure_reason: outcome.status === 'failed' ? outcome.reason ?? 'Verification failed' : null,
     verified_at: outcome.status === 'verified' ? new Date().toISOString() : null,
   });
-  if (dateOfBirth) await userRepo.update(user.id, { date_of_birth: dateOfBirth });
+  const profile = await userRepo.findById(user.id);
+  const fill = {};
+  if (dateOfBirth && !profile.date_of_birth) fill.date_of_birth = dateOfBirth;
+  if (firstName && !profile.first_name) fill.first_name = firstName;
+  if (lastName && !profile.last_name) fill.last_name = lastName;
+  if (Object.keys(fill).length) await userRepo.update(user.id, fill);
+  if (outcome.status === 'failed') {
+    await securityService.recordEvent({
+      userId: user.id, type: 'identity_verification_failure', severity: 'low',
+      description: 'An identity verification attempt was unsuccessful.', metadata: { idType },
+    });
+  }
+  await kycService.recompute(user.id);
   clearOperatorCache(user.id);
   await auditService.record({ actorId: user.id, action: 'verification.submit', resourceType: 'verification_record', resourceId: record.id, metadata: { idType, provider: provider.name, status: outcome.status }, req });
-  return { status: record.status, idType: record.id_type, last4: record.id_last4, documentRequired: provider.requiresDocument === true };
+  return { status: record.status, idType: record.id_type, last4: record.id_last4, documentRequired: !automated || provider.requiresDocument === true };
 }
 
 export async function uploadIdentityDocument(user, file, req) {
   const latest = await verificationRepo.latestForUser(user.id);
   if (!latest || !['pending', 'manual_review'].includes(latest.status)) {
-    throw AppError.unprocessable('Submit your BVN or NIN details before uploading a document', 'NO_PENDING_VERIFICATION');
+    throw AppError.unprocessable('Submit your identity document details before uploading a document', 'NO_PENDING_VERIFICATION');
   }
   const path = storageService.objectPath(user.id, file.detectedExt);
   await storageService.upload(BUCKETS.verification, path, file);
   if (latest.document_path) await storageService.remove(BUCKETS.verification, latest.document_path);
   await verificationRepo.update(latest.id, { document_path: path, status: 'manual_review' });
+  await kycService.recompute(user.id);
   await auditService.record({ actorId: user.id, action: 'verification.document_upload', resourceType: 'verification_record', resourceId: latest.id, req });
   return { uploaded: true };
 }
@@ -166,9 +204,18 @@ export async function getForReview(id) {
   return record;
 }
 
-export async function documentUrl(actor, id, req) {
+/**
+ * Liveness / selfie verification needs a licensed provider. None is
+ * configured, so this reports that honestly instead of simulating a pass.
+ */
+export async function startLiveness() {
+  throw AppError.unavailable('Liveness verification is not available yet. A verification provider has not been configured.', 'LIVENESS_PROVIDER_NOT_CONFIGURED');
+}
+
+export async function documentUrl(actor, id, reason, req) {
   const record = await getForReview(id);
   if (!record.document_path) throw AppError.notFound('No document uploaded');
+  await securityService.logDataAccess({ actor, subjectUserId: record.user_id, resourceType: 'verification_document', resourceId: id, fields: ['document'], reason, req });
   await auditService.record({ actorId: actor.id, action: 'verification.document_view', resourceType: 'verification_record', resourceId: id, req });
   return storageService.signedUrl(BUCKETS.verification, record.document_path, 120);
 }
@@ -185,6 +232,13 @@ export async function decide(actor, id, { decision, note }, req) {
     failure_reason: decision === 'failed' ? note ?? 'Verification could not be completed' : null,
     verified_at: decision === 'verified' ? new Date().toISOString() : null,
   });
+  await kycService.recompute(record.user_id);
+  if (decision === 'failed') {
+    await securityService.recordEvent({
+      userId: record.user_id, type: 'identity_verification_failure', severity: 'low', source: 'admin',
+      description: 'An identity document could not be verified on review.', metadata: { verification_id: id },
+    });
+  }
   clearOperatorCache(record.user_id);
   await auditService.record({ actorId: actor.id, action: `verification.${decision}`, resourceType: 'verification_record', resourceId: id, metadata: { subject: record.user_id }, req });
   await notificationService.notify(record.user_id, {

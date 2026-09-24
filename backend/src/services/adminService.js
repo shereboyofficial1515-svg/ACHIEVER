@@ -11,6 +11,13 @@ import * as auditService from './auditService.js';
 import * as notificationService from './notificationService.js';
 import * as osusuService from './osusuService.js';
 import * as collectorService from './collectorService.js';
+import * as complianceRepo from '../repositories/complianceRepository.js';
+import * as securityService from './securityService.js';
+import * as sessionService from './sessionService.js';
+import * as kycService from './kycService.js';
+import * as riskService from './riskService.js';
+import { can } from './permissionService.js';
+import { maskEmail, maskPhone } from '../utils/sanitize.js';
 import { AppError } from '../utils/AppError.js';
 import { pageMeta } from '../utils/pagination.js';
 
@@ -18,14 +25,16 @@ export function overview() {
   return rpc('platform_overview');
 }
 
-export async function listUsers(filters) {
+export async function listUsers(actor, filters) {
   const result = await userRepo.search(filters);
+  // Contact details are masked unless the viewer may read sensitive profile data.
+  const full = can(actor, 'users.read_sensitive');
   return {
     items: result.rows.map((u) => ({
       id: u.id,
       fullName: u.full_name,
-      email: u.email,
-      phone: u.phone,
+      email: full ? u.email : maskEmail(u.email),
+      phone: full ? u.phone : maskPhone(u.phone),
       status: u.account_status,
       primaryAccountType: u.primary_account_type,
       emailVerified: Boolean(u.email_verified_at),
@@ -41,31 +50,74 @@ export async function listUsers(filters) {
 export async function getUser(actor, id, req) {
   const profile = await userRepo.findById(id);
   if (!profile) throw AppError.notFound('User not found');
-  const [identity, flags, memberships, plans] = await Promise.all([
+  const [identity, flags, memberships, plans, kyc, riskStatus] = await Promise.all([
     verificationRepo.latestForUser(id),
     riskRepo.openForUser(id),
     osusuRepo.listMemberships(id),
     collectorRepo.listPlans({ saverId: id, page: 1, pageSize: 50 }),
+    kycService.levelOf(id),
+    riskService.statusOf(id),
   ]);
   await auditService.record({ actorId: actor.id, action: 'admin.user.view', resourceType: 'profile', resourceId: id, req });
   return {
     id: profile.id,
     fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-    address: profile.address,
+    email: maskEmail(profile.email),
+    phone: maskPhone(profile.phone),
     status: profile.account_status,
     statusReason: profile.status_reason,
+    deactivatedAt: profile.deactivated_at,
     roles: (profile.user_roles || []).map((r) => r.role_code),
     emailVerified: Boolean(profile.email_verified_at),
     phoneVerified: Boolean(profile.phone_verified_at),
     lastLoginAt: profile.last_login_at,
     createdAt: profile.created_at,
-    identity: identity ? { status: identity.status, idType: identity.id_type, last4: identity.id_last4 } : null,
+    kyc,
+    riskStatus,
+    identity: identity ? { status: identity.status, idType: identity.id_type, last4: identity.id_last4, expiryDate: identity.expiry_date } : null,
     openRiskFlags: flags,
     groupMemberships: memberships.length,
     savingsPlans: plans.total,
+    canViewSensitive: can(actor, 'users.read_sensitive'),
   };
+}
+
+/** Private profile data. Requires a reason, which is written to the data access log first. */
+export async function getUserSensitive(actor, id, reason, req) {
+  const profile = await userRepo.findWithLocation(id);
+  if (!profile) throw AppError.notFound('User not found');
+  const fields = ['email', 'phone', 'date_of_birth', 'address', 'state', 'lga', 'city', 'gender', 'nationality'];
+  await securityService.logDataAccess({ actor, subjectUserId: id, resourceType: 'profile', resourceId: id, fields, reason, req });
+  await auditService.record({ actorId: actor.id, action: 'admin.user.view_sensitive', resourceType: 'profile', resourceId: id, metadata: { reason }, req });
+  return {
+    id: profile.id,
+    firstName: profile.first_name,
+    middleName: profile.middle_name,
+    lastName: profile.last_name,
+    email: profile.email,
+    phone: profile.phone,
+    dateOfBirth: profile.date_of_birth,
+    gender: profile.gender,
+    nationality: profile.nationality,
+    occupation: profile.occupation,
+    address: profile.address,
+    addressUnit: profile.address_unit,
+    city: profile.city,
+    state: profile.state?.name ?? null,
+    lga: profile.lga?.name ?? null,
+    postalCode: profile.postal_code,
+    addressVerification: profile.address_verification_status,
+  };
+}
+
+export async function userSecurity(actor, id, req) {
+  const [sessions, changes, events] = await Promise.all([
+    sessionService.list({ id, sessionId: null }),
+    securityService.accountChanges(id),
+    securityService.listEvents({ userId: id, page: 1, pageSize: 50 }),
+  ]);
+  await auditService.record({ actorId: actor.id, action: 'admin.user.security_view', resourceType: 'profile', resourceId: id, req });
+  return { sessions, accountChanges: changes, securityEvents: events.items };
 }
 
 export async function setUserStatus(actor, id, { status, reason }, req) {
@@ -73,10 +125,21 @@ export async function setUserStatus(actor, id, { status, reason }, req) {
   const profile = await userRepo.findById(id);
   if (!profile) throw AppError.notFound('User not found');
   const targetRoles = (profile.user_roles || []).map((r) => r.role_code);
-  if (targetRoles.includes(ROLES.SUPER_ADMIN) && !actor.roles.includes(ROLES.SUPER_ADMIN)) throw AppError.forbidden();
+  if (targetRoles.some((r) => STAFF_ROLES.includes(r)) && !can(actor, 'roles.manage')) {
+    throw AppError.forbidden('Only a super admin can change the status of a staff account');
+  }
   const patch = { account_status: status, status_reason: reason ?? null };
   if (status === 'suspended' || status === 'closed') patch.sessions_revoked_at = new Date().toISOString();
+  if (status === 'active' && profile.deactivated_at) {
+    patch.deactivated_at = null;
+    patch.deactivation_reason = null;
+  }
   await userRepo.update(id, patch);
+  if (status === 'suspended' || status === 'closed') await sessionService.revokeAll(id, `account_${status}`);
+  await securityService.recordEvent({
+    userId: id, type: 'admin_action', severity: status === 'active' ? 'low' : 'medium', source: 'admin',
+    description: `Account status set to ${status} by staff.`, metadata: { actor_id: actor.id, reason },
+  });
   authService.invalidateUserCache(id);
   await auditService.record({ actorId: actor.id, action: 'admin.user.status', resourceType: 'profile', resourceId: id, metadata: { status, reason }, req });
   await notificationService.notify(id, {
@@ -87,17 +150,21 @@ export async function setUserStatus(actor, id, { status, reason }, req) {
 }
 
 export async function grantRole(actor, id, role, req) {
-  if (STAFF_ROLES.includes(role) && !actor.roles.includes(ROLES.SUPER_ADMIN)) {
+  if (STAFF_ROLES.includes(role) && !can(actor, 'roles.manage')) {
     throw AppError.forbidden('Only a super admin can grant staff roles');
   }
+  if (id === actor.id && STAFF_ROLES.includes(role)) throw AppError.forbidden('You cannot grant yourself a staff role', 'SELF_GRANT_FORBIDDEN');
   if (!(await userRepo.findById(id))) throw AppError.notFound('User not found');
   await userRepo.addRole(id, role, actor.id);
+  if (STAFF_ROLES.includes(role)) {
+    await securityService.recordEvent({ userId: id, type: 'admin_action', severity: 'medium', source: 'admin', description: `Staff role ${role} granted.`, metadata: { actor_id: actor.id, role } });
+  }
   authService.invalidateUserCache(id);
   await auditService.record({ actorId: actor.id, action: 'admin.role.grant', resourceType: 'profile', resourceId: id, metadata: { role }, req });
 }
 
 export async function revokeRole(actor, id, role, req) {
-  if (STAFF_ROLES.includes(role) && !actor.roles.includes(ROLES.SUPER_ADMIN)) throw AppError.forbidden();
+  if (STAFF_ROLES.includes(role) && !can(actor, 'roles.manage')) throw AppError.forbidden();
   if (id === actor.id && role === ROLES.SUPER_ADMIN) throw AppError.badRequest('You cannot remove your own super admin role');
   await userRepo.removeRole(id, role);
   authService.invalidateUserCache(id);
@@ -120,11 +187,50 @@ export async function listCollectors(filters) {
   };
 }
 
+/**
+ * Collector onboarding & status. Revocation is not possible here: it needs a
+ * two-person approval (sensitive action "collector_revoke").
+ */
+const COLLECTOR_TRANSITIONS = {
+  verified: { permission: 'collectors.review', from: ['pending_review'] },
+  rejected: { permission: 'collectors.review', from: ['pending_review', 'verified'] },
+  active: { permission: 'collectors.review', from: ['pending_review', 'verified', 'restricted', 'suspended'] },
+  restricted: { permission: 'collectors.status', from: ['active'] },
+  suspended: { permission: 'collectors.status', from: ['active', 'restricted'] },
+};
+
 export async function setCollectorStatus(actor, accountId, status, reason, req) {
   const account = await collectorRepo.findAccount(accountId);
   if (!account) throw AppError.notFound('Collector account not found');
-  await collectorRepo.updateAccount(accountId, { status });
+  if (account.collector_id === actor.id) throw AppError.forbidden('You cannot review your own collector account', 'SELF_REVIEW_FORBIDDEN');
+  const rule = COLLECTOR_TRANSITIONS[status];
+  if (!rule) throw AppError.badRequest('Use a revocation request to revoke a collector', 'APPROVAL_REQUIRED');
+  // Reinstating a restricted/suspended collector is a status decision, not an application review.
+  const permission = status === 'active' && ['restricted', 'suspended'].includes(account.status) ? 'collectors.status' : rule.permission;
+  if (!can(actor, permission)) throw AppError.forbidden('You do not have permission to perform this action', 'PERMISSION_DENIED');
+  if (!rule.from.includes(account.status)) {
+    throw AppError.conflict(`A collector that is ${account.status.replace('_', ' ')} cannot be set to ${status}`, 'INVALID_TRANSITION');
+  }
+  if (status === 'active' && ['pending_review', 'verified'].includes(account.status)) {
+    const { level } = await kycService.levelOf(account.collector_id);
+    const levels = await kycService.requiredLevels();
+    if (level < Number(levels.operator ?? 2)) {
+      throw AppError.conflict(`The applicant must reach verification level ${levels.operator ?? 2} before approval`, 'KYC_LEVEL_REQUIRED');
+    }
+  }
+  const result = await complianceRepo.setCollectorStatus(accountId, status, actor.id, reason);
   await auditService.record({ actorId: actor.id, action: 'admin.collector.status', resourceType: 'collector_account', resourceId: accountId, metadata: { status, reason }, req });
+  authService.invalidateUserCache(account.collector_id);
+  notificationService.kickDispatcher();
+  return result;
+}
+
+export async function collectorDetail(actor, accountId) {
+  return collectorService.trust(actor, accountId);
+}
+
+export async function complianceOverview() {
+  return complianceRepo.complianceOverview();
 }
 
 export async function listTransactions(filters) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Banknote } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, DataTable, EmptyState, Input, Modal, PageHeader, StatusBadge, Tabs, Textarea } from '../../components/ui/index.js';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -17,21 +17,40 @@ export default function AdminPayouts() {
   const [kind, setKind] = useState('osusu_payout');
   const queue = useAsync(() => api.get('/admin/payouts'), []);
   const [action, setAction] = useState(null); // { type: 'confirm'|'fail', item }
-  const [form, setForm] = useState({ externalReference: '', note: '', reason: '' });
+  const [form, setForm] = useState({ externalReference: '', note: '', reason: '', overrideReason: '' });
   const [pending, setPending] = useState(false);
+  const [approval, setApproval] = useState(null);
+  const [error, setError] = useState(null);
+
+  // A large payout needs a second person's approval; attach it automatically when one exists.
+  useEffect(() => {
+    setApproval(null);
+    setError(null);
+    if (action?.type !== 'confirm') return;
+    api.get('/admin/approvals', { status: 'approved', action: 'large_payout_confirm', pageSize: 100 })
+      .then(({ data }) => setApproval((data || []).find((r) => r.targetId === action.item.id) || null))
+      .catch(() => setApproval(null));
+  }, [action]);
 
   const run = async () => {
     setPending(true);
     try {
       const { item, type } = action;
-      if (type === 'confirm') await api.post(`/admin/payouts/${item.kind}/${item.id}/confirm`, { externalReference: form.externalReference, note: form.note || null });
+      if (type === 'confirm') {
+        await api.post(`/admin/payouts/${item.kind}/${item.id}/confirm`, {
+          externalReference: form.externalReference,
+          note: form.note || null,
+          overrideReason: form.overrideReason.trim() || undefined,
+          approvalRequestId: approval?.id,
+        });
+      }
       if (type === 'fail') await api.post(`/admin/payouts/${item.kind}/${item.id}/fail`, { reason: form.reason });
       toast.success(type === 'confirm' ? 'Recorded as paid' : 'Marked as failed');
       setAction(null);
-      setForm({ externalReference: '', note: '', reason: '' });
+      setForm({ externalReference: '', note: '', reason: '', overrideReason: '' });
       queue.reload();
     } catch (err) {
-      toast.error(err);
+      setError(err);
     } finally {
       setPending(false);
     }
@@ -65,6 +84,7 @@ export default function AdminPayouts() {
               { key: 'a', label: 'Amount', align: 'right', render: (i) => <span className="money">{naira(i.amount)}</span> },
               { key: 'ref', label: 'Reference', render: (i) => <span className="mono xsmall">{i.reference}</span> },
               { key: 'm', label: 'Mode', render: (i) => i.executionMode?.replace('_', ' ') },
+              { key: 'h', label: 'Review', render: (i) => (i.holdReason ? <span className="stack-sm"><StatusBadge status="review_required" label="Held" /><span className="xsmall muted">{i.holdReason}</span></span> : '—') },
               { key: 's', label: 'Status', render: (i) => <span className="stack-sm"><StatusBadge status={i.status} />{i.failureReason && <span className="xsmall muted">{i.failureReason}</span>}</span> },
               { key: 'u', label: 'Updated', render: (i) => formatDateTime(i.updatedAt) },
               {
@@ -102,8 +122,19 @@ export default function AdminPayouts() {
             <p>
               {naira(action.item.amount)} to <strong>{action.item.recipient.name}</strong>
             </p>
+            {error && <Alert tone="danger">{error.message}</Alert>}
             {action.type === 'confirm' ? (
               <>
+                {(action.item.holdReason || error?.code === 'PAYOUT_HELD') && (
+                  <>
+                    <Alert tone="warning">Held for review: {action.item.holdReason || error.message}</Alert>
+                    <Textarea label="Override reason (required, audited)" rows={2} value={form.overrideReason} onChange={(e) => setForm({ ...form, overrideReason: e.target.value })} />
+                  </>
+                )}
+                {approval && <Alert tone="success">Second approval attached: approved by {approval.decidedBy?.name}.</Alert>}
+                {error?.code === 'APPROVAL_REQUIRED' && !approval && (
+                  <Alert tone="info">Create a “Confirm a large payout” request in Approvals for payout ID {action.item.id}, and have another authorised person approve it.</Alert>
+                )}
                 <Input label="Bank / transfer reference" value={form.externalReference} onChange={(e) => setForm({ ...form, externalReference: e.target.value })} />
                 <Textarea label="Note (optional)" rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </>

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import * as c from '../controllers/collectorController.js';
+import * as sc from '../controllers/securityController.js';
+import { idParam } from '../validators/common.js';
 import { ROLES } from '../config/constants.js';
 import { requireActiveOperator, requireRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -16,6 +18,7 @@ r.get('/account', collector, c.getAccount);
 r.post('/account', requireActiveOperator(ROLES.COLLECTOR), validate({ body: s.createAccount }), c.createAccount);
 r.patch('/account', collector, validate({ body: s.updateAccount }), c.updateAccount);
 r.get('/dashboard', collector, c.dashboard);
+r.get('/accounts/:id/trust', validate({ params: idParam }), sc.collectorTrust);
 
 // Savers (plans managed by this collector)
 r.get('/savers', collector, validate({ query: s.listPlans }), c.listSavers);

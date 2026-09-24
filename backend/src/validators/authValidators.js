@@ -1,23 +1,36 @@
 import { z } from 'zod';
-import { email, isoDate, line, otpCode, password, phone, optionalText } from './common.js';
+import { adultDob, countryCode, email, employmentStatus, gender, lgaId, line, otpCode, password, personName, phone, optionalText, stateCode } from './common.js';
 
+// Multi-step registration: account type → identity → contact → address → security.
 export const register = z
   .object({
     accountType: z.enum(['osusu', 'collector', 'personal']),
     role: z.enum(['organizer', 'member', 'collector', 'saver', 'personal']),
-    fullName: line(2, 120),
+    firstName: personName(),
+    middleName: personName().optional().or(z.literal('')),
+    lastName: personName(),
+    preferredName: line(1, 60).optional().or(z.literal('')),
+    gender,
+    dateOfBirth: adultDob,
+    nationality: countryCode.default('NG'),
+    occupation: line(2, 80).optional().or(z.literal('')),
+    employmentStatus: employmentStatus.optional(),
+    businessName: line(2, 120).optional().or(z.literal('')),
     email,
     phone,
-    password,
+    stateCode,
+    lgaId,
+    city: line(2, 80),
     address: optionalText(300),
-    dateOfBirth: isoDate.optional().nullable(),
+    addressUnit: line(1, 40).optional().or(z.literal('')),
+    postalCode: z.string().trim().regex(/^\d{6}$/, 'Nigerian postal codes are 6 digits').optional().or(z.literal('')),
+    password,
     acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms to continue' }) }),
+    acceptPrivacy: z.literal(true, { errorMap: () => ({ message: 'You must accept the privacy notice to continue' }) }),
   })
-  .refine((v) => {
-    if (!v.dateOfBirth) return true;
-    const age = (Date.now() - Date.parse(v.dateOfBirth)) / (365.25 * 86400000);
-    return age >= 18 && age < 120;
-  }, { message: 'You must be at least 18 years old', path: ['dateOfBirth'] });
+  .refine((v) => !(['organizer', 'collector'].includes(v.role)) || (v.address && v.address.length >= 5), {
+    message: 'Operators must provide a residential address', path: ['address'],
+  });
 
 export const login = z.object({ email, password: z.string().min(1).max(128) });
 export const verifyCode = z.object({ code: otpCode });

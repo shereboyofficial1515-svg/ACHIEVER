@@ -3,7 +3,8 @@ import { toRange } from '../utils/pagination.js';
 
 // Never select id_number_hash into API responses.
 const SAFE_COLUMNS =
-  'id, user_id, id_type, id_last4, provider, status, name_match, document_path, failure_reason, review_note, created_at, verified_at';
+  'id, user_id, id_type, id_last4, provider, status, name_match, document_path, failure_reason, review_note, created_at, verified_at, ' +
+  'document_number_masked, issuing_country, issue_date, expiry_date, liveness_status, liveness_checked_at';
 
 export async function latestForUser(userId) {
   return one(
@@ -29,7 +30,7 @@ export async function update(id, patch) {
 }
 
 export async function find(id) {
-  return one(db.from('verification_records').select(`${SAFE_COLUMNS}, user:profiles!verification_records_user_id_fkey(id, full_name, email, date_of_birth, address)`).eq('id', id).maybeSingle());
+  return one(db.from('verification_records').select(`${SAFE_COLUMNS}, user:profiles!verification_records_user_id_fkey(id, full_name, first_name, last_name, email, date_of_birth)`).eq('id', id).maybeSingle());
 }
 
 export async function list({ status, page, pageSize }) {

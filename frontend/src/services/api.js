@@ -11,6 +11,7 @@ export class ApiError extends Error {
     this.status = status;
     this.code = body?.error?.code || 'REQUEST_FAILED';
     this.fields = body?.error?.details?.fields || null;
+    this.details = body?.error?.details || null;
     this.requestId = body?.error?.requestId;
   }
 }
@@ -28,6 +29,12 @@ let csrfToken = null;
 let csrfPromise = null;
 let refreshPromise = null;
 let onSessionEnded = () => {};
+let onStepUpRequired = null;
+
+/** Register a UI handler that asks for the password again; resolves true when confirmed. */
+export function setStepUpHandler(fn) {
+  onStepUpRequired = fn;
+}
 
 export function setSessionEndedHandler(fn) {
   onSessionEnded = fn;
@@ -104,6 +111,9 @@ async function request(method, path, { body, params, raw = false, retry = true, 
   if (!res.ok) {
     // Non-JSON errors come from proxies/load balancers, not the API itself.
     const error = payload ? new ApiError(res.status, payload) : unavailable(res.status);
+    if (retry && error.code === 'STEP_UP_REQUIRED' && onStepUpRequired) {
+      if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, signal });
+    }
     if (retry && error.code === 'CSRF_INVALID') {
       await ensureCsrf(true);
       return request(method, path, { body, params, raw, retry: false, signal });

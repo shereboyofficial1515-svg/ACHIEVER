@@ -1,5 +1,7 @@
-import { BUCKETS, ROLES, STAFF_ROLES, FINANCE_STAFF_ROLES } from '../config/constants.js';
+import { BUCKETS, ROLES } from '../config/constants.js';
+import { can, canOversee } from './permissionService.js';
 import * as collectorRepo from '../repositories/collectorRepository.js';
+import * as complianceRepo from '../repositories/complianceRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as authService from './authService.js';
 import * as auditService from './auditService.js';
@@ -13,8 +15,8 @@ import { AppError } from '../utils/AppError.js';
 import { calcCollectorCommission } from '../utils/money.js';
 import { pageMeta } from '../utils/pagination.js';
 
-const isStaff = (user) => user.roles.some((r) => STAFF_ROLES.includes(r));
-const isFinanceStaff = (user) => user.roles.some((r) => FINANCE_STAFF_ROLES.includes(r));
+const isStaff = (user) => canOversee(user);
+const isFinanceStaff = (user) => can(user, 'finance.payouts.execute');
 
 function lagosToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
@@ -35,6 +37,8 @@ export function formatAccount(a) {
     defaultCommissionType: a.default_commission_type,
     defaultCommissionValue: Number(a.default_commission_value),
     status: a.status,
+    statusReason: ['restricted', 'suspended', 'revoked', 'rejected'].includes(a.status) ? a.status_reason ?? a.rejection_reason ?? null : null,
+    approvedAt: a.approved_at ?? null,
     createdAt: a.created_at,
   };
 }
@@ -100,6 +104,11 @@ export async function createAccount(user, input, req) {
     default_commission_value: input.defaultCommissionValue,
   });
   await auditService.record({ actorId: user.id, action: 'collector.account.create', resourceType: 'collector_account', resourceId: account.id, req });
+  await notificationService.notify(user.id, {
+    type: 'collector_application', category: 'account', title: 'Collector application received',
+    body: `Your collector account "${account.business_name}" is awaiting review. You can accept savers once it is approved.`,
+    data: { collector_account_id: account.id }, dedupeKey: `collector_application:${account.id}`,
+  });
   return formatAccount(account);
 }
 
@@ -118,10 +127,52 @@ export async function updateAccount(user, patch, req) {
   return formatAccount(updated);
 }
 
+const COLLECTOR_STATUS_MESSAGES = {
+  pending_review: 'Your collector application is awaiting review. You can accept savers once it is approved.',
+  verified: 'Your collector application has been verified and is awaiting activation.',
+  restricted: 'Your collector account is restricted while a review is completed. Existing savers are not affected.',
+  suspended: 'Your collector account is suspended. Contact support for details.',
+  revoked: 'Your collector permission has been revoked.',
+  rejected: 'Your collector application was not approved. Contact support for details.',
+};
+
+/**
+ * Collector trust information. Savers see safe aggregates (no balances,
+ * amounts or complaint details); the collector and oversight staff see all.
+ */
+export async function trust(user, accountId) {
+  const [account, stats] = await Promise.all([collectorRepo.findAccount(accountId), complianceRepo.collectorTrustStats(accountId)]);
+  if (!account || !stats) throw AppError.notFound('Collector not found');
+  const full = account.collector_id === user.id || isStaff(user);
+  const base = {
+    collectorAccountId: account.id,
+    businessName: account.business_name,
+    operatingArea: account.operating_area,
+    status: stats.status,
+    approvedAt: stats.approved_at,
+    membersManaged: Number(stats.members_managed),
+    overdueSettlements: Number(stats.overdue_settlements),
+    openDisputes: Number(stats.open_disputes),
+  };
+  if (!full) return base;
+  const history = await complianceRepo.collectorHistory(accountId);
+  return {
+    ...base,
+    applicationDate: stats.application_date,
+    plansTotal: Number(stats.plans_total),
+    totalProcessed: Number(stats.total_processed),
+    totalSettled: Number(stats.total_settled),
+    outstandingSettlements: Number(stats.outstanding_settlements),
+    complaints: Number(stats.complaints),
+    suspensions: Number(stats.suspensions),
+    statusHistory: history.map((h) => ({ from: h.from_status, to: h.to_status, reason: h.reason, by: h.actor?.full_name, at: h.created_at })),
+  };
+}
+
 export async function requireActiveAccount(user) {
   const account = await collectorRepo.findAccountByCollector(user.id);
   if (!account) throw AppError.notFound('Create your collector account first', 'NO_COLLECTOR_ACCOUNT');
-  if (account.status !== 'active') throw AppError.forbidden('Your collector account is suspended', 'COLLECTOR_SUSPENDED');
+  if (account.status !== 'active') throw AppError.forbidden(COLLECTOR_STATUS_MESSAGES[account.status] ?? 'Your collector account is not active', 'COLLECTOR_NOT_ACTIVE');
   return account;
 }
 
@@ -222,6 +273,10 @@ export async function contribute(user, { planId, amount }) {
   if (!isSaver) throw AppError.forbidden('Only the saver can contribute to this plan');
   if (plan.status !== 'active' || plan.end_date < lagosToday()) {
     throw AppError.conflict('This plan is no longer accepting contributions', 'PLAN_NOT_ACCEPTING');
+  }
+  const account = await collectorRepo.findAccount(plan.collector_account_id);
+  if (!account || ['suspended', 'revoked'].includes(account.status)) {
+    throw AppError.conflict('This collector cannot accept new contributions right now. Your existing balance is unaffected; contact support for help.', 'COLLECTOR_NOT_ACCEPTING');
   }
   return paymentService.initialize({ user, purpose: 'collector_savings', targetId: plan.id, amount, metadata: { plan_id: plan.id } });
 }

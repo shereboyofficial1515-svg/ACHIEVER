@@ -5,9 +5,10 @@
  *   npm run grant-role -- someone@example.com SUPER_ADMIN
  */
 import { supabaseAdmin } from '../src/integrations/supabase/client.js';
+import { STAFF_ROLES } from '../src/config/constants.js';
 
 const [email, role] = process.argv.slice(2);
-const allowed = ['SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN'];
+const allowed = STAFF_ROLES;
 
 if (!email || !allowed.includes(role)) {
   console.error(`Usage: npm run grant-role -- <email> <${allowed.join('|')}>`);

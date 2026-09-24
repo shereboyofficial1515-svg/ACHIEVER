@@ -8,6 +8,10 @@ import * as userRepo from '../repositories/userRepository.js';
 import * as otpService from './otpService.js';
 import * as auditService from './auditService.js';
 import * as storageService from './storageService.js';
+import * as permissionService from './permissionService.js';
+import * as securityService from './securityService.js';
+import * as sessionService from './sessionService.js';
+import * as complianceRepo from '../repositories/complianceRepository.js';
 import { AppError } from '../utils/AppError.js';
 import { sha256 } from '../utils/crypto.js';
 import { sessionMaxAgeMs } from '../utils/cookies.js';
@@ -55,6 +59,7 @@ export function toSessionUser(profile) {
     emailVerified: Boolean(profile.email_verified_at),
     phoneVerified: Boolean(profile.phone_verified_at),
     sessionsRevokedAt: profile.sessions_revoked_at,
+    deactivated: Boolean(profile.deactivated_at),
     avatarUrl: storageService.publicUrl(BUCKETS.avatars, profile.avatar_path),
   };
 }
@@ -65,6 +70,7 @@ async function loadUser(userId) {
   const profile = await userRepo.findById(userId);
   if (!profile) return null;
   const user = toSessionUser(profile);
+  user.permissions = await permissionService.permissionsForRoles(user.roles);
   profileCache.set(userId, { user, until: Date.now() + PROFILE_CACHE_MS });
   prune(profileCache);
   return user;
@@ -96,6 +102,7 @@ export async function resolveUser(accessToken, sessionStartedAt) {
 
   const user = await loadUser(entry.userId);
   if (!user) throw AppError.unauthorized('Account not found', 'UNAUTHENTICATED');
+  const resolved = { ...user };
 
   const started = sessionStartedAt ?? (entry.iat ? entry.iat * 1000 : Date.now());
   if (Date.now() - started > sessionMaxAgeMs()) {
@@ -107,7 +114,7 @@ export async function resolveUser(accessToken, sessionStartedAt) {
   if (user.status === 'suspended' || user.status === 'closed') {
     throw AppError.forbidden('This account is not active. Contact support for help.', 'ACCOUNT_SUSPENDED');
   }
-  return user;
+  return resolved;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,11 +127,58 @@ async function signIn(email, password) {
   return data.session;
 }
 
+/** Re-authentication check (step-up); does not keep the session it creates. */
+export async function verifyPassword(email, password) {
+  const session = await signIn(email, password);
+  if (!session) return false;
+  await supabaseAdmin.auth.admin.signOut(session.access_token, 'local').catch(() => {});
+  return true;
+}
+
+/** Change the sign-in email in Supabase Auth (already verified by ACHIEVER). */
+export async function updateAuthEmail(userId, email) {
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { email, email_confirm: true });
+  if (error) {
+    if (/already/i.test(error.message)) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
+    throw AppError.unavailable('We could not update your email right now. Please try again.', 'EMAIL_UPDATE_FAILED');
+  }
+}
+
+function composeFullName({ firstName, middleName, lastName }) {
+  return [firstName, middleName, lastName].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Identity & address fields captured at registration (service role; not browser-writable). */
+function profileDetails(input) {
+  return {
+    first_name: input.firstName,
+    middle_name: input.middleName || null,
+    last_name: input.lastName,
+    preferred_name: input.preferredName || null,
+    gender: input.gender,
+    nationality: input.nationality || 'NG',
+    occupation: input.occupation || null,
+    employment_status: input.employmentStatus || null,
+    business_name: input.businessName || null,
+    country: 'NG',
+    state_code: input.stateCode,
+    lga_id: input.lgaId,
+    city: input.city,
+    address_unit: input.addressUnit || null,
+    postal_code: input.postalCode || null,
+  };
+}
+
 export async function register(input, req) {
   const roles = REGISTRATION_ROLE_MAP[`${input.accountType}:${input.role}`];
   if (!roles) throw AppError.unprocessable('Choose a valid account type and role', 'INVALID_ACCOUNT_TYPE');
 
   const email = input.email.toLowerCase();
+  const fullName = composeFullName(input);
+  const lga = await complianceRepo.findLga(input.lgaId);
+  if (!lga || lga.state_code !== input.stateCode) {
+    throw AppError.unprocessable('The selected LGA does not belong to the selected state', 'INVALID_LGA');
+  }
   if (await userRepo.findByEmail(email)) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
   if (await userRepo.findByPhone(input.phone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
 
@@ -134,7 +188,7 @@ export async function register(input, req) {
     email,
     password: input.password,
     email_confirm: true,
-    user_metadata: { full_name: input.fullName },
+    user_metadata: { full_name: fullName },
   });
   if (error || !data?.user) {
     if (/already/i.test(error?.message || '')) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
@@ -147,7 +201,7 @@ export async function register(input, req) {
   try {
     await userRepo.createProfileWithRoles({
       p_user_id: userId,
-      p_full_name: input.fullName,
+      p_full_name: fullName,
       p_email: email,
       p_phone: input.phone,
       p_account_type: input.accountType,
@@ -155,6 +209,8 @@ export async function register(input, req) {
       p_address: input.address ?? null,
       p_dob: input.dateOfBirth ?? null,
     });
+    await userRepo.update(userId, profileDetails(input));
+    await complianceRepo.recomputeKyc(userId);
   } catch (err) {
     await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
     throw err;
@@ -182,6 +238,11 @@ export async function login({ email, password }, req) {
       const lockedUntil = await userRepo.registerLoginFailure(profile.id, LOGIN_LOCK.maxFailures, LOGIN_LOCK.lockMinutes);
       await auditService.record({ actorId: profile.id, action: 'auth.login', resourceType: 'profile', resourceId: profile.id, result: 'failure', req });
       if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) {
+        await securityService.recordEvent({
+          userId: profile.id, type: 'account_locked', severity: 'medium',
+          description: `Sign-in was locked for ${LOGIN_LOCK.lockMinutes} minutes after ${LOGIN_LOCK.maxFailures} incorrect password attempts.`,
+          metadata: { ip: req?.ip || null },
+        });
         const t = templates.securityAlert({ name: profile.full_name, event: 'Your account was temporarily locked after several failed sign-in attempts.' });
         sendEmail({ to: profile.email, ...t }).catch(() => {});
       }
@@ -190,7 +251,10 @@ export async function login({ email, password }, req) {
   }
 
   if (profile.account_status === 'suspended' || profile.account_status === 'closed') {
-    throw AppError.forbidden('This account is not active. Contact support for help.', 'ACCOUNT_SUSPENDED');
+    throw AppError.forbidden(
+      profile.deactivated_at ? 'This account has been deactivated. Contact support to reactivate it.' : 'This account is not active. Contact support for help.',
+      'ACCOUNT_SUSPENDED',
+    );
   }
   await userRepo.registerLoginSuccess(profile.id);
   invalidateUserCache(profile.id);
@@ -198,7 +262,7 @@ export async function login({ email, password }, req) {
   return { session, userId: profile.id };
 }
 
-export async function refresh(refreshToken, sessionStartedAt) {
+export async function refresh(refreshToken, sessionStartedAt, sessionId = null) {
   if (!refreshToken || !sessionStartedAt) throw AppError.unauthorized('Please sign in again', 'SESSION_EXPIRED');
   if (Date.now() - sessionStartedAt > sessionMaxAgeMs()) throw AppError.unauthorized('Your session has ended. Please sign in again.', 'SESSION_EXPIRED');
   const client = createAuthClient();
@@ -212,14 +276,16 @@ export async function refresh(refreshToken, sessionStartedAt) {
   if (profile.account_status === 'suspended' || profile.account_status === 'closed') {
     throw AppError.forbidden('This account is not active.', 'ACCOUNT_SUSPENDED');
   }
+  if (sessionId) await sessionService.validate(sessionId, profile.id);
   return data.session;
 }
 
-export async function logout(accessToken, userId, req) {
+export async function logout(accessToken, userId, req, sessionId = null) {
   if (accessToken) {
     await supabaseAdmin.auth.admin.signOut(accessToken, 'local').catch(() => {});
     tokenCache.delete(sha256(accessToken));
   }
+  if (sessionId) await sessionService.end(sessionId, 'logout').catch(() => {});
   if (userId) await auditService.record({ actorId: userId, action: 'auth.logout', resourceType: 'profile', resourceId: userId, req });
 }
 
@@ -247,6 +313,7 @@ export async function verifyEmail(userId, code, req) {
     email_verified_at: new Date().toISOString(),
     account_status: profile.account_status === 'pending_verification' ? 'active' : profile.account_status,
   });
+  await complianceRepo.recomputeKyc(userId);
   invalidateUserCache(userId);
   await auditService.record({ actorId: userId, action: 'auth.email_verified', resourceType: 'profile', resourceId: userId, req });
   sendEmail({ to: profile.email, ...templates.welcome({ name: profile.full_name }) }).catch(() => {});
@@ -270,6 +337,7 @@ export async function sendPhoneOtp(userId) {
 export async function verifyPhone(userId, code, req) {
   await otpService.verify(userId, 'phone_verification', code);
   await userRepo.update(userId, { phone_verified_at: new Date().toISOString() });
+  await complianceRepo.recomputeKyc(userId);
   invalidateUserCache(userId);
   await auditService.record({ actorId: userId, action: 'auth.phone_verified', resourceType: 'profile', resourceId: userId, req });
 }
@@ -292,7 +360,7 @@ export async function forgotPassword(email, req) {
   }
 }
 
-async function setPasswordAndRevoke(profile, newPassword) {
+async function setPasswordAndRevoke(profile, newPassword, reason) {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(profile.id, { password: newPassword });
   if (error) {
     if (/password/i.test(error.message)) throw AppError.unprocessable('Choose a stronger password', 'WEAK_PASSWORD');
@@ -300,6 +368,7 @@ async function setPasswordAndRevoke(profile, newPassword) {
   }
   // Any session started before now is rejected by resolveUser()/refresh().
   await userRepo.update(profile.id, { sessions_revoked_at: new Date().toISOString(), failed_login_count: 0, locked_until: null });
+  await sessionService.revokeAll(profile.id, reason);
   invalidateUserCache(profile.id);
   tokenCache.clear();
 }
@@ -308,7 +377,9 @@ export async function resetPassword({ email, code, newPassword }, req) {
   const profile = await userRepo.findByEmail(email.toLowerCase());
   if (!profile) throw AppError.badRequest('The code is invalid or has expired', 'OTP_INVALID');
   await otpService.verify(profile.id, 'password_reset', code);
-  await setPasswordAndRevoke(profile, newPassword);
+  await setPasswordAndRevoke(profile, newPassword, 'password_reset');
+  await securityService.recordChange({ userId: profile.id, type: 'password_reset', req });
+  await securityService.recordEvent({ userId: profile.id, type: 'password_reset', severity: 'low', description: 'The account password was reset with an emailed code. All sessions were signed out.' });
   await auditService.record({ actorId: profile.id, action: 'auth.password_reset', resourceType: 'profile', resourceId: profile.id, req });
   const t = templates.securityAlert({ name: profile.full_name, event: 'Your ACHIEVER password was reset and all devices were signed out.' });
   sendEmail({ to: profile.email, ...t }).catch(() => {});
@@ -320,7 +391,8 @@ export async function changePassword(userId, { currentPassword, newPassword }, r
     await auditService.record({ actorId: userId, action: 'auth.password_change', resourceType: 'profile', resourceId: userId, result: 'failure', req });
     throw AppError.badRequest('Your current password is incorrect', 'INVALID_CREDENTIALS');
   }
-  await setPasswordAndRevoke(profile, newPassword);
+  await setPasswordAndRevoke(profile, newPassword, 'password_changed');
+  await securityService.recordChange({ userId, type: 'password_changed', req });
   // Give this device a fresh session that post-dates the revocation.
   await new Promise((r) => setTimeout(r, 5));
   const session = await signIn(profile.email, newPassword);

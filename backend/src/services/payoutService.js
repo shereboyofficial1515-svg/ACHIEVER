@@ -6,6 +6,9 @@ import * as userRepo from '../repositories/userRepository.js';
 import * as riskRepo from '../repositories/riskRepository.js';
 import * as notificationService from './notificationService.js';
 import * as auditService from './auditService.js';
+import * as riskService from './riskService.js';
+import * as settingsService from './settingsService.js';
+import * as complianceRepo from '../repositories/complianceRepository.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 
@@ -36,6 +39,14 @@ export async function execute(kind, id) {
   if (!item || item.executionMode !== 'paystack_transfer' || !env.features.transfers) return { executed: false };
   const readyStatus = disbursementRepo.meta(kind).ready;
   if (item.status !== readyStatus || item.transferCode) return { executed: false };
+
+  // Withdrawal security: held items are never sent automatically.
+  const evaluation = await riskService.evaluateDisbursement(item);
+  await riskService.recordEvaluation(kind, id, evaluation);
+  if (evaluation.hold) {
+    const account = evaluation.reasons.some((r) => r.code === 'no_payout_account');
+    if (!account) return { executed: false, reason: 'HELD_FOR_REVIEW', holdReasons: evaluation.reasons };
+  }
 
   const account = await userRepo.getPayoutAccount(item.userId);
   if (!account?.paystack_recipient_code) {
@@ -125,6 +136,9 @@ export async function queue() {
           status: i.status,
           reference: i.reference,
           amount: i.amount,
+          holdReason: i.holdReason,
+          evaluation: i.riskEvaluation,
+          destinationSnapshot: i.destination,
           executionMode: i.executionMode,
           failureReason: i.failureReason,
           updatedAt: i.updatedAt,
@@ -137,15 +151,35 @@ export async function queue() {
   return result;
 }
 
-export async function confirmManual(actor, kind, id, { externalReference, note }, req) {
+export async function confirmManual(actor, kind, id, { externalReference, note, overrideReason, approvalRequestId }, req) {
   assertKind(kind);
   const item = await disbursementRepo.find(kind, id);
   if (!item) throw AppError.notFound('Payout not found');
+  if (item.userId === actor.id) throw AppError.forbidden('You cannot confirm a payout to yourself', 'SELF_PAYOUT_FORBIDDEN');
+
+  // Held items need an explicit, recorded override reason.
+  const evaluation = await riskService.evaluateDisbursement(item);
+  await riskService.recordEvaluation(kind, id, evaluation);
+  if (evaluation.hold && !overrideReason) {
+    throw new AppError(409, 'PAYOUT_HELD', `This payout is held for review: ${evaluation.reasons.map((r) => r.label).join('; ')}. Record an override reason to continue.`, { reasons: evaluation.reasons });
+  }
+  // Large payouts need a second authorised person (two-person rule).
+  const largeThreshold = Number(await settingsService.get('finance.large_payout_threshold_kobo', 100_000_000));
+  if (item.amount >= largeThreshold) {
+    if (!approvalRequestId) {
+      throw AppError.conflict('Payouts of this size need approval from a second authorised person first', 'APPROVAL_REQUIRED');
+    }
+    await complianceRepo.consumeApproval(approvalRequestId, 'large_payout_confirm', id, actor.id);
+  }
   if (item.executionMode === 'paystack_transfer' && item.status === 'processing') {
     throw AppError.conflict('This transfer is in progress with Paystack; wait for its confirmation', 'TRANSFER_IN_PROGRESS');
   }
   const result = await disbursementRepo.complete(kind, id, externalReference, actor.id);
-  await auditService.record({ actorId: actor.id, action: 'disbursement.confirm_manual', resourceType: kind, resourceId: id, metadata: { externalReference, note }, req });
+  await auditService.record({
+    actorId: actor.id, action: 'disbursement.confirm_manual', resourceType: kind, resourceId: id,
+    metadata: { externalReference, note, overrideReason: overrideReason ?? null, holdReasons: evaluation.hold ? evaluation.reasons.map((r) => r.code) : [], approvalRequestId: approvalRequestId ?? null },
+    req,
+  });
   notificationService.kickDispatcher();
   return result;
 }
@@ -159,6 +193,8 @@ export async function markFailed(actor, kind, id, reason, req) {
 
 export async function retry(actor, kind, id, req) {
   assertKind(kind);
+  const item = await disbursementRepo.find(kind, id);
+  if (item?.userId === actor.id) throw AppError.forbidden('You cannot retry a payout to yourself', 'SELF_PAYOUT_FORBIDDEN');
   const reference = await disbursementRepo.retry(kind, id, actor.id);
   await auditService.record({ actorId: actor.id, action: 'disbursement.retry', resourceType: kind, resourceId: id, req });
   const result = await execute(kind, id);

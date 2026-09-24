@@ -3,7 +3,9 @@ import { api, setSessionEndedHandler } from '../services/api.js';
 
 const AuthContext = createContext(null);
 
-const STAFF = ['SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN'];
+export const STAFF_ROLES = [
+  'SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_ADMIN', 'FINANCE_ADMIN', 'DISPUTE_ADMIN', 'SECURITY_ADMIN', 'SUPPORT_ADMIN', 'AUDITOR', 'READ_ONLY_ADMIN',
+];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -59,13 +61,18 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     const roles = user?.roles || [];
     const has = (...r) => r.some((x) => roles.includes(x));
+    // Permissions come from the server (role_permissions); UI checks are for display only.
+    const permissions = user?.permissions || [];
+    const can = (...p) => p.some((x) => permissions.includes(x));
     return {
       user,
       status,
       roles,
       has,
-      isStaff: has(...STAFF),
-      isFinanceStaff: has('SUPER_ADMIN', 'ADMIN'),
+      can,
+      permissions,
+      isStaff: has(...STAFF_ROLES),
+      isFinanceStaff: can('finance.payouts.execute'),
       isOrganiser: has('OSUSU_ADMIN'),
       isCollector: has('COLLECTOR'),
       login,

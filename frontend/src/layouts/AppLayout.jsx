@@ -33,13 +33,13 @@ function NavList({ nav, badges, onNavigate }) {
 }
 
 export default function AppLayout() {
-  const { user, has, logout } = useAuth();
+  const { user, has, can, logout } = useAuth();
   const { unreadNotifications } = useRealtime();
   const [drawer, setDrawer] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
-  const nav = useMemo(() => buildNavigation(has), [has]);
+  const nav = useMemo(() => buildNavigation(has, can), [has, can]);
 
   const refreshMessages = () =>
     api.get('/messages/conversations').then(({ data }) => setUnreadMessages(data.reduce((s, c) => s + c.unreadCount, 0))).catch(() => {});

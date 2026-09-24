@@ -186,12 +186,15 @@ Savings that arrive while a return is processing are **refunded, not added**, so
 
 * **Credentials**: Supabase Auth (bcrypt). Users are created server-side with `auth.admin.createUser`. Supabase's own confirmation emails are not used; ACHIEVER verifies email and phone with its own OTPs (HMAC-hashed, 10-minute expiry, 5 attempts, 60-second resend cooldown).
 * **Session**: on login the API sets three HTTP-only, `SameSite=Lax`, `Secure` (production) cookies:
-  * `ach_at` access token, `ach_rt` refresh token (path `/api/auth`), `ach_ss` signed session-start time.
+  * `ach_at` access token, `ach_rt` refresh token (path `/api/auth`), `ach_ss` signed `<start>.<sessionId>` marker, plus `ach_did` (random device id, stored only as an HMAC).
+  * Each sign-in creates a `user_sessions` row; every request checks it is still active, so single sessions can be revoked. Unknown devices raise a neutral security alert.
   * Absolute lifetime `SESSION_MAX_AGE_HOURS`. Password change/reset or suspension sets `profiles.sessions_revoked_at`, which invalidates every older session (including refresh).
 * **CSRF**: signed double-submit token. `GET /api/auth/csrf` returns a token in the body and stores its HMAC in an HTTP-only cookie; mutating requests must send `X-CSRF-Token`.
 * **Brute force**: IP rate limits on auth routes; per-account lockout after 5 failures for 15 minutes (with an email alert). Login errors never reveal whether an email exists.
-* **Roles**: `SUPER_ADMIN, ADMIN, SUPPORT_ADMIN, OSUSU_ADMIN, OSUSU_MEMBER, COLLECTOR, SAVER`, always loaded from `user_roles` — never from the client or token.
-* **Operator activation**: `OSUSU_ADMIN` / `COLLECTOR` may only create groups or savings relationships once phone is verified, identity is verified and the current undertaking is accepted (`requireActiveOperator`).
+* **Roles**: staff roles `SUPER_ADMIN, ADMIN, COMPLIANCE_ADMIN, FINANCE_ADMIN, DISPUTE_ADMIN, SECURITY_ADMIN, SUPPORT_ADMIN, AUDITOR, READ_ONLY_ADMIN` and member roles `OSUSU_ADMIN, OSUSU_MEMBER, COLLECTOR, SAVER`, always loaded from `user_roles` — never from the client or token.
+* **Permissions**: admin routes check fine-grained permissions from `role_permissions` (least privilege). Sensitive staff actions also require a recent password step-up; reversals, adjustments, collector revocation, lifting restrictions and large payouts need a second person (see `SECURITY_COMPLIANCE.md`).
+* **KYC**: progressive levels 0–3 derived by `recompute_kyc()`; contributions need level 1, receiving payouts and operating need level 2 (configurable).
+* **Operator activation**: `OSUSU_ADMIN` / `COLLECTOR` may only create groups or savings relationships once phone is verified, KYC level 2 is reached and the current undertaking is accepted (`requireActiveOperator`). Collector accounts additionally start as `pending_review` and must be approved by compliance.
 * **Resource authorisation** is enforced in services (organiser of *this* group, saver/collector of *this* plan, member of *this* conversation, participant of *this* call).
 
 ## 6. Row Level Security strategy
@@ -201,7 +204,8 @@ See `supabase/migrations/20260923000003_rls.sql`.
 * RLS enabled on every table; only `SELECT` policies exist for `authenticated`.
 * Financial and security tables additionally have `INSERT/UPDATE/DELETE` **revoked** from `anon` and `authenticated`.
 * `otp_codes`, `payment_webhooks`, `job_locks` are not readable at all by browser roles.
-* Users may update only `full_name`, `address`, `date_of_birth` on their own profile (column grant).
+* Browser roles may update only `full_name`, `preferred_name`, `occupation`, `show_public_location` on their own profile (column grant); identity, address and verification fields change only through the API.
+* Staff reads are gated by `has_permission()` rather than role names; security/compliance tables (`security_events`, `kyc_*`, `data_access_logs`, …) are staff-only and append-only.
 * Helper predicates (`is_group_member`, `is_group_admin`, `is_conversation_member`, `is_plan_party`, `has_role`) are `SECURITY DEFINER STABLE` with a fixed `search_path`.
 * `EXECUTE` on all business functions is revoked from `public/anon/authenticated`.
 

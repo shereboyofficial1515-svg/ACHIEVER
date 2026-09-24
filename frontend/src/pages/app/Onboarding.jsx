@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { BadgeCheck, CheckCircle2, FileUp, Phone, ScrollText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BadgeCheck, Camera, CheckCircle2, FileUp, Phone, ScrollText, ShieldCheck } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, Checkbox, Input, PageHeader, Select, StatusBadge, fieldErrors } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -61,9 +62,18 @@ function PhoneStep({ onDone }) {
   );
 }
 
+const ID_TYPES = [
+  { value: 'nin', label: 'NIN (National Identification Number)', hint: '11 digits', maxLength: 11, digits: true },
+  { value: 'bvn', label: 'BVN (Bank Verification Number)', hint: '11 digits', maxLength: 11, digits: true },
+  { value: 'passport', label: 'International passport', hint: 'Letter followed by 8 digits, e.g. A12345678', maxLength: 9, expiry: true },
+  { value: 'drivers_licence', label: "Driver's licence", hint: 'As printed on the licence', maxLength: 15, expiry: true },
+  { value: 'voters_card', label: "Voter's card (PVC)", hint: '19-character VIN', maxLength: 19 },
+];
+const ID_LABEL = Object.fromEntries(ID_TYPES.map((t) => [t.value, t.label.split(' (')[0]]));
+
 function IdentityStep({ identity, onDone }) {
   const toast = useToast();
-  const [form, setForm] = useState({ idType: 'nin', idNumber: '', firstName: '', lastName: '', dateOfBirth: '' });
+  const [form, setForm] = useState({ idType: 'nin', idNumber: '', firstName: '', lastName: '', dateOfBirth: '', issueDate: '', expiryDate: '' });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const [file, setFile] = useState(null);
@@ -73,7 +83,11 @@ function IdentityStep({ identity, onDone }) {
     setPending(true);
     setError(null);
     try {
-      await api.post('/verification/identity', form);
+      await api.post('/verification/identity', {
+        ...form,
+        issueDate: form.issueDate || undefined,
+        expiryDate: form.expiryDate || undefined,
+      });
       setForm((f) => ({ ...f, idNumber: '' })); // never keep the number in memory longer than needed
       toast.success('Details submitted');
       onDone();
@@ -100,17 +114,21 @@ function IdentityStep({ identity, onDone }) {
   };
 
   if (identity?.status === 'verified') {
-    return <p className="small">{identity.idType.toUpperCase()} ending {identity.last4} verified.</p>;
+    return (
+      <p className="small">
+        {ID_LABEL[identity.idType] || identity.idType} ending {identity.last4} verified{identity.expiryDate ? ` · expires ${identity.expiryDate}` : ''}.
+      </p>
+    );
   }
   if (identity && ['pending', 'manual_review'].includes(identity.status)) {
     return (
       <div className="stack-sm">
         <p className="small">
-          {identity.idType.toUpperCase()} ending {identity.last4} · <StatusBadge status={identity.status} />
+          {ID_LABEL[identity.idType] || identity.idType} ending {identity.last4} · <StatusBadge status={identity.status} />
         </p>
         {!identity.documentUploaded ? (
           <>
-            <p className="small muted">Upload a clear photo or PDF of your NIN slip, national ID card, or BVN-linked document. Max 5 MB.</p>
+            <p className="small muted">Upload a clear photo or PDF of the document you entered (the photo page for a passport). Max 5 MB.</p>
             <div className="row-wrap">
               <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               <Button icon={FileUp} size="sm" onClick={upload} loading={pending} disabled={!file}>
@@ -125,19 +143,32 @@ function IdentityStep({ identity, onDone }) {
     );
   }
   const fe = fieldErrors(error);
+  const type = ID_TYPES.find((t) => t.value === form.idType);
   return (
     <form className="stack" onSubmit={submit}>
       {identity?.status === 'failed' && <Alert tone="danger">Previous attempt unsuccessful: {identity.failureReason}</Alert>}
       {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
       <p className="small muted">
-        Your number is checked and then stored only as a one-way fingerprint plus the last four digits. It is never shown to other users.
+        Your document number is stored only as a one-way fingerprint plus the last four characters. It is never shown to other users.
+        NIN and BVN can be checked automatically once a provider is connected; other documents are reviewed by our compliance team.
       </p>
       <div className="grid-2">
-        <Select label="ID type" value={form.idType} onChange={(e) => setForm({ ...form, idType: e.target.value })} options={[{ value: 'nin', label: 'NIN' }, { value: 'bvn', label: 'BVN' }]} />
-        <Input label={`${form.idType.toUpperCase()} (11 digits)`} inputMode="numeric" autoComplete="off" maxLength={11} value={form.idNumber} onChange={(e) => setForm({ ...form, idNumber: e.target.value.replace(/\D/g, '') })} error={fe.idNumber} />
+        <Select label="Document type" value={form.idType} onChange={(e) => setForm({ ...form, idType: e.target.value, idNumber: '' })} options={ID_TYPES} />
+        <Input
+          label="Document number"
+          hint={type.hint}
+          inputMode={type.digits ? 'numeric' : 'text'}
+          autoComplete="off"
+          maxLength={type.maxLength}
+          value={form.idNumber}
+          onChange={(e) => setForm({ ...form, idNumber: type.digits ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
+          error={fe.idNumber}
+        />
         <Input label="First name (as on ID)" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} error={fe.firstName} />
         <Input label="Last name (as on ID)" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} error={fe.lastName} />
         <Input label="Date of birth" type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} error={fe.dateOfBirth} />
+        {!type.digits && <Input label="Issue date (optional)" type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} error={fe.issueDate} />}
+        {type.expiry && <Input label="Expiry date" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} error={fe.expiryDate} />}
       </div>
       <div>
         <Button type="submit" loading={pending}>
@@ -188,6 +219,34 @@ function UndertakingStep({ role, accepted, onDone }) {
   );
 }
 
+function LivenessStep() {
+  const toast = useToast();
+  const [pending, setPending] = useState(false);
+  const start = async () => {
+    setPending(true);
+    try {
+      await api.post('/verification/liveness');
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div className="stack-sm">
+      <Alert tone="info">
+        Selfie and liveness checks need a licensed verification provider, which is not connected yet. This step (verification level 3) will open
+        when it is available; nothing is simulated in the meantime.
+      </Alert>
+      <div>
+        <Button size="sm" variant="secondary" icon={Camera} onClick={start} loading={pending}>
+          Check availability
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Onboarding() {
   const { refresh } = useAuth();
   const status = useAsync(() => api.get('/verification/status'), []);
@@ -198,14 +257,31 @@ export default function Onboarding() {
   const s = status.data;
   return (
     <div className="stack-lg" style={{ maxWidth: 760 }}>
-      <PageHeader title="Operator verification" subtitle="Organisers and collectors handle other people's money. These steps protect members and savers." />
+      <PageHeader title="Verification" subtitle="Verifying who you are protects every member's money. Organisers and collectors need level 2." />
       <AsyncContent loading={status.loading} error={status.error} onRetry={status.reload}>
         {s && (
           <>
-            {s.operators.length === 0 && <Alert tone="info">You do not have an organiser or collector role. Add one from your profile if you need it.</Alert>}
+            {s.kyc && (
+              <Card title={`Verification level ${s.kyc.level} of 3`}>
+                <div className="stack-sm">
+                  <div className="progress" aria-hidden>
+                    <span style={{ width: `${(s.kyc.level / 3) * 100}%` }} />
+                  </div>
+                  <p className="small">
+                    Status: <StatusBadge status={s.kyc.restricted ? 'restricted' : s.kyc.status} />
+                    {s.kyc.nextStep && <> · Next: {s.kyc.nextStep}.</>}
+                  </p>
+                  {s.kyc.level < 1 && (
+                    <p className="small muted">
+                      Level 1 also needs your legal name, date of birth, state, LGA and city. Complete them in <Link to="/app/profile">your profile</Link>.
+                    </p>
+                  )}
+                </div>
+              </Card>
+            )}
             {s.operators.map((o) => (
               <Alert key={o.role} tone={o.active ? 'success' : 'warning'} icon={BadgeCheck}>
-                {o.role === 'OSUSU_ADMIN' ? 'Osusu organiser' : 'Collector'}: {o.active ? 'active' : 'verification incomplete'}
+                {o.role === 'OSUSU_ADMIN' ? 'Osusu organiser' : 'Collector'}: {o.active ? 'active' : `verification incomplete (level ${o.kycLevelRequired} and the undertaking are required)`}
               </Alert>
             ))}
             <div className="onboarding-steps">
@@ -215,11 +291,14 @@ export default function Onboarding() {
               <Step n={2} done={s.phoneVerified} current={!s.phoneVerified} icon={Phone} title="Verify phone number">
                 {s.phoneVerified ? <p className="small">Verified.</p> : <PhoneStep onDone={reload} />}
               </Step>
-              <Step n={3} done={s.identity?.status === 'verified'} current={s.phoneVerified && s.identity?.status !== 'verified'} icon={BadgeCheck} title="Verify identity (BVN or NIN)">
+              <Step n={3} done={s.identity?.status === 'verified'} current={s.phoneVerified && s.identity?.status !== 'verified'} icon={BadgeCheck} title="Verify a government ID">
                 <IdentityStep identity={s.identity} onDone={reload} />
               </Step>
+              <Step n={4} done={s.identity?.liveness === 'passed'} icon={ShieldCheck} title="Selfie & liveness check">
+                <LivenessStep />
+              </Step>
               {s.operators.map((o, i) => (
-                <Step key={o.role} n={4 + i} done={o.undertakingAccepted} current={!o.undertakingAccepted} icon={ScrollText} title={`Sign the ${o.role === 'OSUSU_ADMIN' ? 'organiser' : 'collector'} undertaking`}>
+                <Step key={o.role} n={5 + i} done={o.undertakingAccepted} current={!o.undertakingAccepted} icon={ScrollText} title={`Sign the ${o.role === 'OSUSU_ADMIN' ? 'organiser' : 'collector'} undertaking`}>
                   <UndertakingStep role={o.role} accepted={o.undertakingAccepted} onDone={reload} />
                 </Step>
               ))}

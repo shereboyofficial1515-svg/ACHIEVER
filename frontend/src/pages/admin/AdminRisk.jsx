@@ -19,7 +19,8 @@ const REASONS = {
 };
 
 export default function AdminRisk() {
-  const { isFinanceStaff } = useAuth();
+  const { can } = useAuth();
+  const isFinanceStaff = can('risk.review');
   const toast = useToast();
   const [flag, setFlag] = useState(null);
   const [form, setForm] = useState({ status: 'resolved', note: '' });

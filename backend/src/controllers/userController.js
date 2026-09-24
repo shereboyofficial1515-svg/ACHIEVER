@@ -12,7 +12,10 @@ export const uploadAvatar = asyncHandler(async (req, res) => ok(res, await profi
 // Users ----------------------------------------------------------------------------
 export const dashboard = asyncHandler(async (req, res) => ok(res, await dashboardService.forUser(req.user)));
 export const getPayoutAccount = asyncHandler(async (req, res) => ok(res, await profileService.getPayoutAccount(req.user)));
-export const setPayoutAccount = asyncHandler(async (req, res) => ok(res, await profileService.setPayoutAccount(req.user, req.body, req), 'Payout account saved'));
+export const setPayoutAccount = asyncHandler(async (req, res) => {
+  const result = await profileService.setPayoutAccount(req.user, req.body, req);
+  return ok(res, result, result.otpRequired ? 'Enter the code we emailed you to confirm this change' : 'Payout account saved');
+});
 export const banks = asyncHandler(async (_req, res) => ok(res, await paymentService.listBanks()));
 export const addRole = asyncHandler(async (req, res) => ok(res, await onboardingService.addSelfServiceRole(req.user, req.body.role, req), 'Role added'));
 

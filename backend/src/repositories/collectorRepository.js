@@ -11,7 +11,7 @@ export async function findAccountByCollector(collectorId) {
 }
 
 export async function findAccount(id) {
-  return one(db.from('collector_accounts').select('*, collector:profiles(id, full_name, avatar_path)').eq('id', id).maybeSingle());
+  return one(db.from('collector_accounts').select('*, collector:profiles!collector_accounts_collector_id_fkey(id, full_name, avatar_path)').eq('id', id).maybeSingle());
 }
 
 export async function insertAccount(row) {
@@ -26,7 +26,7 @@ export async function listAccountsForAdmin({ status, search, page, pageSize }) {
   const { from, to } = toRange({ page, pageSize });
   let q = db
     .from('collector_accounts')
-    .select('*, collector:profiles(full_name, email)', { count: 'exact' })
+    .select('*, collector:profiles!collector_accounts_collector_id_fkey(full_name, email)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
   if (status) q = q.eq('status', status);

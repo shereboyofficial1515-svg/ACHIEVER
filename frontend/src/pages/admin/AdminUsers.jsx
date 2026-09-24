@@ -3,7 +3,10 @@ import { PageHeader, StatusBadge } from '../../components/ui/index.js';
 import { formatDate } from '../../utils/format.js';
 import { AdminTable } from './adminShared.jsx';
 
-const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN', 'OSUSU_ADMIN', 'OSUSU_MEMBER', 'COLLECTOR', 'SAVER'];
+const ROLES = [
+  'SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_ADMIN', 'FINANCE_ADMIN', 'DISPUTE_ADMIN', 'SECURITY_ADMIN', 'SUPPORT_ADMIN', 'AUDITOR', 'READ_ONLY_ADMIN',
+  'OSUSU_ADMIN', 'OSUSU_MEMBER', 'COLLECTOR', 'SAVER',
+];
 
 export default function AdminUsers() {
   const navigate = useNavigate();

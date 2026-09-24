@@ -14,7 +14,7 @@ const paged = (res, { items, meta }) => ok(res, items, 'OK', 200, meta);
 
 export const overview = asyncHandler(async (_req, res) => ok(res, await adminService.overview()));
 
-export const listUsers = asyncHandler(async (req, res) => paged(res, await adminService.listUsers(v(req).query)));
+export const listUsers = asyncHandler(async (req, res) => paged(res, await adminService.listUsers(req.user, v(req).query)));
 export const getUser = asyncHandler(async (req, res) => ok(res, await adminService.getUser(req.user, v(req).params.id, req)));
 export const setUserStatus = asyncHandler(async (req, res) => {
   await adminService.setUserStatus(req.user, v(req).params.id, req.body, req);
@@ -32,8 +32,7 @@ export const revokeRole = asyncHandler(async (req, res) => {
 export const listGroups = asyncHandler(async (req, res) => paged(res, await adminService.listGroups(v(req).query)));
 export const listCollectors = asyncHandler(async (req, res) => paged(res, await adminService.listCollectors(v(req).query)));
 export const setCollectorStatus = asyncHandler(async (req, res) => {
-  await adminService.setCollectorStatus(req.user, v(req).params.id, req.body.status, req.body.reason, req);
-  return ok(res, {}, 'Collector status updated');
+  return ok(res, await adminService.setCollectorStatus(req.user, v(req).params.id, req.body.status, req.body.reason, req), 'Collector status updated');
 });
 
 export const listTransactions = asyncHandler(async (req, res) => paged(res, await adminService.listTransactions(v(req).query)));
@@ -60,7 +59,7 @@ export const listVerifications = asyncHandler(async (req, res) => {
   const { rows, total } = await onboardingService.listForReview(q);
   return ok(res, rows.map(({ document_path: doc, ...r }) => ({ ...r, documentUploaded: Boolean(doc) })), 'OK', 200, pageMeta(q, total));
 });
-export const verificationDocument = asyncHandler(async (req, res) => ok(res, { url: await onboardingService.documentUrl(req.user, v(req).params.id, req) }));
+export const verificationDocument = asyncHandler(async (req, res) => ok(res, { url: await onboardingService.documentUrl(req.user, v(req).params.id, v(req).query.reason, req) }));
 export const decideVerification = asyncHandler(async (req, res) =>
   ok(res, await onboardingService.decide(req.user, v(req).params.id, req.body, req), 'Decision recorded'));
 

@@ -29,6 +29,9 @@ function normalise(kind, row) {
     executionMode: row.execution_mode,
     transferCode: row.transfer_code,
     failureReason: row.failure_reason,
+    holdReason: row.hold_reason ?? null,
+    riskEvaluation: row.risk_evaluation ?? null,
+    destination: row.destination_last4 ? { bankName: row.destination_bank_name, accountName: row.destination_account_name, last4: row.destination_last4 } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     raw: row,
@@ -65,4 +68,10 @@ export async function fail(kind, id, reason, actorId) {
 
 export async function retry(kind, id, actorId) {
   return rpc('retry_disbursement', { p_kind: kind, p_id: id, p_actor: actorId });
+}
+
+/** Store the withdrawal-security evaluation (hold reasons) on the instruction. */
+export async function setEvaluation(kind, id, patch) {
+  const m = meta(kind);
+  return run(db.from(m.table).update(patch).eq('id', id));
 }

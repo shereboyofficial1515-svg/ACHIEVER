@@ -14,12 +14,19 @@ function SettingRow({ s, canEdit, onSaved }) {
   const parse = () => {
     if (typeof s.value === 'boolean') return value === 'true';
     if (typeof s.value === 'number') return Number(value);
+    if (s.value && typeof s.value === 'object') return JSON.parse(value);
     return value;
   };
   const save = async () => {
     setPending(true);
     try {
-      await api.put(`/admin/settings/${s.key}`, { value: parse() });
+      let parsed;
+      try {
+        parsed = parse();
+      } catch {
+        throw new Error('Enter valid JSON, e.g. {"contribute":1,"receive_payout":2}');
+      }
+      await api.put(`/admin/settings/${s.key}`, { value: parsed });
       toast.success('Setting saved');
       onSaved();
     } catch (err) {
@@ -28,7 +35,7 @@ function SettingRow({ s, canEdit, onSaved }) {
       setPending(false);
     }
   };
-  if (!canEdit) return <span className="mono">{String(s.value)}</span>;
+  if (!canEdit) return <span className="mono">{typeof s.value === 'object' ? JSON.stringify(s.value) : String(s.value)}</span>;
   return (
     <span className="row">
       {typeof s.value === 'boolean' ? (
@@ -86,13 +93,13 @@ function Broadcast() {
 }
 
 export default function AdminSettings() {
-  const { has, isFinanceStaff } = useAuth();
+  const { can } = useAuth();
   const settings = useAsync(() => api.get('/admin/settings'), []);
-  const superAdmin = has('SUPER_ADMIN');
+  const superAdmin = can('settings.manage');
   return (
     <div className="stack-lg">
       <PageHeader title="Application settings" />
-      {!superAdmin && <Alert tone="info">Only a super admin can change settings.</Alert>}
+      {!superAdmin && <Alert tone="info">Only a super admin can change settings. Changes require confirming your password.</Alert>}
       <Card flush>
         <AsyncContent loading={settings.loading} error={settings.error} onRetry={settings.reload}>
           <DataTable
@@ -107,7 +114,7 @@ export default function AdminSettings() {
           />
         </AsyncContent>
       </Card>
-      {isFinanceStaff && <Broadcast />}
+      {can('notifications.broadcast') && <Broadcast />}
     </div>
   );
 }

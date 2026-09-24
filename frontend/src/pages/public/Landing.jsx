@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { BadgeCheck, CalendarClock, HandCoins, MessagesSquare, ShieldCheck, UsersRound, Zap } from 'lucide-react';
 import { Button } from '../../components/ui/index.js';
+import BrandLogo from '../../components/brand/BrandLogo.jsx';
+import PublicFooter from './PublicFooter.jsx';
+import { useReveal } from '../../hooks/useMotion.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 
 const FEATURES = [
@@ -14,14 +17,20 @@ const FEATURES = [
 
 export default function Landing() {
   const { status } = useAuth();
+  const heroRef = useReveal({ children: true });
+  const featuresRef = useReveal({ children: true });
   const signedIn = status === 'authenticated';
   return (
     <>
       <div className="hero">
         <header className="public-header">
-          <Link to="/" className="brand-mark">
-            ACHIEVER<span className="dot">.</span>
-          </Link>
+          <BrandLogo variant="stacked" width={116} plate />
+          <nav className="row public-nav" aria-label="Site">
+            <a href="/documentation.html">Documentation</a>
+            <a href="/security.html">Security</a>
+            <a href="/support.html">Support</a>
+            <a href="/about.html">About</a>
+          </nav>
           <div className="row">
             {signedIn ? (
               <Button to="/app" variant="gold" size="sm">
@@ -39,7 +48,7 @@ export default function Landing() {
             )}
           </div>
         </header>
-        <div className="inner">
+        <div className="inner" ref={heroRef}>
           <div>
             <h1>Ajo and Osusu savings, with records everyone can trust.</h1>
             <p className="lead">
@@ -50,8 +59,8 @@ export default function Landing() {
               <Button to={signedIn ? '/app' : '/register'} variant="gold">
                 {signedIn ? 'Go to dashboard' : 'Get started'}
               </Button>
-              <Button to="/legal" variant="secondary">
-                How we handle money
+              <Button href="/documentation.html" variant="secondary">
+                How ACHIEVER works
               </Button>
             </div>
           </div>
@@ -106,7 +115,7 @@ export default function Landing() {
       </section>
 
       <section className="section" style={{ paddingTop: 0 }}>
-        <div className="grid-3">
+        <div className="grid-3" ref={featuresRef}>
           {FEATURES.map((f) => (
             <div key={f.title} className="card feature">
               <div className="ficon">
@@ -120,16 +129,11 @@ export default function Landing() {
         <div className="notice" style={{ marginTop: 32 }}>
           ACHIEVER is a record-keeping and payment-coordination service. It is not a bank, is not licensed by the Central Bank of
           Nigeria as a deposit-taking institution, and funds are not covered by deposit insurance. Read our{' '}
-          <Link to="/legal">terms and money-handling notice</Link> before you join or organise a group.
+          <a href="/terms.html">Terms of Service</a> and <a href="/refund-policy.html">Refund Policy</a> before you join or organise a group.
         </div>
       </section>
 
-      <footer className="public-footer">
-        <div className="inner">
-          <span>© {new Date().getFullYear()} ACHIEVER</span>
-          <Link to="/legal">Terms, privacy and money handling</Link>
-        </div>
-      </footer>
+      <PublicFooter />
     </>
   );
 }

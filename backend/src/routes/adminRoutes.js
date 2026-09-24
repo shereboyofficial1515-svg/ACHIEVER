@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as c from '../controllers/adminController.js';
 import * as sc from '../controllers/securityController.js';
 import * as rc from '../controllers/reportController.js';
+import * as uc from '../controllers/userController.js';
 import { ROLES } from '../config/constants.js';
 import { requirePermission, requireRole, requireStaff, requireStepUp } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -85,6 +86,10 @@ r.patch('/security/events/:id', p('security.events.manage'), validate({ params: 
 // Audit & access logs
 r.get('/audit-logs', p('audit.read'), validate({ query: s.auditList }), c.auditLogs);
 r.get('/data-access-logs', p('data_access.read'), validate({ query: s.dataAccessList }), sc.dataAccessLog);
+
+// Privacy: account / personal-data deletion requests
+r.get('/privacy/requests', p('privacy.requests.manage'), validate({ query: s.deletionList }), uc.adminDeletionRequests);
+r.post('/privacy/requests/:id/decision', ...sensitive('privacy.requests.manage'), validate({ params: idParam, body: s.deletionDecision }), uc.adminDecideDeletion);
 
 // Platform
 r.get('/settings', p('overview.read'), c.getSettings);

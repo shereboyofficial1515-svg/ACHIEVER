@@ -148,13 +148,13 @@ export async function create(user, input, req) {
   }
   await auditService.record({ actorId: user.id, action: 'support.ticket.create', resourceType: 'support_ticket', resourceId: ticket.id, metadata: { category: input.category, caseNumber: ticket.case_number }, req });
   await notificationService.notify(user.id, {
-    type: 'support_ticket_created', category: 'account', title: 'Case opened',
+    type: 'support_ticket_created', category: 'support', title: 'Case opened',
     body: `We received your case ${ticket.case_number ?? ticket.reference}. Our team will respond as soon as possible.`,
-    data: { ticket_id: ticket.id }, dedupeKey: `ticket_new:${ticket.id}`,
+    data: { ticket_id: ticket.id, case_number: ticket.case_number }, dedupeKey: `ticket_new:${ticket.id}`,
   });
   if (derived.respondentUserId) {
     await notificationService.notify(derived.respondentUserId, {
-      type: 'dispute_opened', category: 'account', title: 'A case mentions you',
+      type: 'dispute_opened', category: 'support', title: 'A case mentions you',
       body: `Case ${ticket.case_number} was opened about a group or savings plan you are part of. You can view it and add your response and evidence.`,
       data: { ticket_id: ticket.id }, dedupeKey: `dispute_respondent:${ticket.id}`,
     });
@@ -210,7 +210,7 @@ export async function addMessage(user, id, { body, internal }, req) {
   if (staff && !internal) {
     await supportRepo.updateTicket(id, { status: 'awaiting_user' });
     await notificationService.notify(ticket.user_id, {
-      type: 'support_reply', category: 'account', title: 'New reply on your case',
+      type: 'support_reply', category: 'support', title: 'New reply on your case',
       body: `ACHIEVER support replied to case ${ticket.case_number ?? ticket.reference}.`, data: { ticket_id: id }, dedupeKey: `ticket_reply:${message.id}`,
     });
   } else if (!staff) {
@@ -328,7 +328,7 @@ export async function updateTicket(actor, id, { status, priority, resolution, re
   if (status && status !== ticket.status && ['resolved', 'closed'].includes(status)) {
     for (const uid of [ticket.user_id, ticket.respondent_user_id].filter(Boolean)) {
       await notificationService.notify(uid, {
-        type: 'support_resolved', category: 'account', title: 'Case updated',
+        type: 'support_resolved', category: 'support', title: 'Case updated',
         body: `Case ${ticket.case_number ?? ticket.reference} has been marked ${status}.`, data: { ticket_id: id }, dedupeKey: `ticket_status:${id}:${status}:${uid}`,
       });
     }

@@ -109,3 +109,32 @@ export async function listDataAccess({ actorId, subjectUserId, page, pageSize })
   if (subjectUserId) q = q.eq('subject_user_id', subjectUserId);
   return runPaged(q);
 }
+
+// Verification challenges (sensitive account changes) -------------------------------------
+export async function insertChallenge(row) {
+  return one(db.from('security_challenges').insert(row).select('id, action, channel, destination_masked, expires_at').maybeSingle());
+}
+
+export async function findChallenge(id) {
+  return one(db.from('security_challenges').select('*').eq('id', id).maybeSingle());
+}
+
+export async function updateChallenge(id, patch) {
+  return run(db.from('security_challenges').update(patch).eq('id', id));
+}
+
+/** Atomically consume a verified, unexpired challenge (single use). Returns the row or null. */
+export async function consumeChallenge({ id, userId, action }) {
+  return one(db.from('security_challenges')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('id', id).eq('user_id', userId).eq('action', action)
+    .not('verified_at', 'is', null).is('consumed_at', null).gt('expires_at', new Date().toISOString())
+    .select('id, session_id').maybeSingle());
+}
+
+export async function countRecentChallenges(userId, sinceIso) {
+  const { count, error } = await db.from('security_challenges').select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).gte('created_at', sinceIso);
+  if (error) throw error;
+  return count ?? 0;
+}

@@ -1,13 +1,13 @@
 import { env } from '../config/env.js';
 import { COOKIES } from '../config/constants.js';
-import { sendEmail } from '../integrations/resend/resendClient.js';
-import { templates } from '../integrations/resend/templates.js';
 import * as securityRepo from '../repositories/securityRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as securityService from './securityService.js';
 import * as notificationService from './notificationService.js';
 import * as settingsService from './settingsService.js';
 import * as auditService from './auditService.js';
+import * as emailService from './emailService.js';
+import * as preferencesService from './preferencesService.js';
 import { AppError } from '../utils/AppError.js';
 import { hmac, randomToken } from '../utils/crypto.js';
 import { setDeviceCookie } from '../utils/cookies.js';
@@ -60,7 +60,9 @@ export async function start({ userId, authMethod, req, res }) {
 
   let device = await securityRepo.findDevice(userId, hash);
   let isNewDevice = false;
+  let createdNow = false;
   if (!device) {
+    createdNow = true;
     const knownDevices = await securityRepo.countDevices(userId);
     device = await securityRepo.insertDevice({
       user_id: userId, device_id_hash: hash, label: info.label, device_type: info.deviceType, os: info.os, browser: info.browser,
@@ -87,10 +89,20 @@ export async function start({ userId, authMethod, req, res }) {
       body: `Your account was signed in from ${info.label}. If this was not you, change your password and sign out other sessions.`,
       data: { session_id: session.id }, dedupeKey: `new_device:${session.id}`,
     });
+  }
+  // Email alert: always for a new device; for every sign-in if the user chose that.
+  let everySignIn = false;
+  if (!createdNow) {
+    everySignIn = await preferencesService.get(userId)
+      .then((p) => p.security.loginAlerts === 'every_sign_in')
+      .catch(() => false);
+  }
+  if (isNewDevice || everySignIn) {
     const profile = await userRepo.findById(userId);
     if (profile) {
-      const t = templates.securityAlert({ name: profile.full_name, event: `A new sign-in to your ACHIEVER account from ${info.label}. If this was not you, reset your password now.` });
-      sendEmail({ to: profile.email, ...t }).catch(() => {});
+      emailService.sendLoginAlert(profile.email, profile.preferred_name || profile.first_name || profile.full_name, {
+        device: info.label, time: new Date(), approximateLocation: maskIp(req.ip), newDevice: isNewDevice,
+      }).catch(() => {});
     }
   }
   return session.id;

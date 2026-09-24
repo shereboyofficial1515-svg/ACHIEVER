@@ -153,9 +153,25 @@ Ledger rows are never edited except for their status. Corrections are always new
 
 Deactivation keeps all financial and security records.
 
-## 10. Operational notes
+## 10. Verification challenges, deletion requests and settings (migration 008)
 
-- **Deployment order.** Apply migrations 006 and 007 **before** deploying this backend. Sign-in creates a `user_sessions` row, and reference data and permissions are read from the new tables.
+- **Sensitive changes.** Changing your password, email or phone, and requesting deletion, all need the current password plus a single-use emailed security code (`security_challenges`). The code is bound to the user, the action and the session. It expires after 10 minutes, allows 5 attempts and is consumed atomically. Wrong codes are recorded as security events. See `AUTH_AND_EMAIL.md`.
+- **Deletion requests** (`data_deletion_requests`):
+  - Two types: account deletion and personal-data deletion.
+  - A 7-day cancellation window, one open request per type, and no self-decision.
+  - Completion by `privacy.requests.manage` staff with step-up.
+  - Completing a request erases optional data only (`erase_optional_personal_data`). Identity, ledger, dispute, audit and security records are retained. Requests are never deleted.
+- **User settings** (`user_preferences`) are all wired to behaviour:
+  - Accessibility (UI-wide).
+  - Messages: sound, ringtone, previews, automatic image loading, and reciprocal read receipts enforced by the server.
+  - Privacy: online status enforced by the server.
+  - Security: sign-in alerts for a new device or for every sign-in.
+- **Social sign-in** creates `user_sessions` with `auth_method = oauth_google | oauth_facebook`. Linking and unlinking are recorded in the account history.
+- **Notification categories** gain `groups`, `support` and `marketing`. `security` stays mandatory.
+
+## 11. Operational notes
+
+- **Deployment order.** Apply migrations 006, 007 and 008 **before** deploying this backend. Sign-in creates a `user_sessions` row, and reference data and permissions are read from the new tables.
 - **Existing accounts.** Accounts created before this change have KYC level 0 until they add legal names, DOB and location (Profile → Details) and verify their phone. Until then, savings contributions return `KYC_LEVEL_REQUIRED` with the next step.
 - **Payouts to unverified recipients.** Payouts to recipients below KYC level 2 are held for manual review; a finance admin can override with a reason.
 - **Existing staff.** Existing ADMIN users keep operations access but lose KYC documents and settings. Grant COMPLIANCE_ADMIN or another specific role as needed.

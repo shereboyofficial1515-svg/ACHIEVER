@@ -32,8 +32,25 @@ export const register = z
     message: 'Operators must provide a residential address', path: ['address'],
   });
 
+export const oauthProvider = z.object({ provider: z.enum(['google', 'facebook']) });
+
+/** Social sign-in: the same identity/address details as registration, without email/password. */
+export const completeProfile = register.innerType().omit({ email: true, password: true }).refine(
+  (v) => !(['organizer', 'collector'].includes(v.role)) || (v.address && v.address.length >= 5),
+  { message: 'Operators must provide a residential address', path: ['address'] },
+);
+
 export const login = z.object({ email, password: z.string().min(1).max(128) });
 export const verifyCode = z.object({ code: otpCode });
 export const forgotPassword = z.object({ email });
 export const resetPassword = z.object({ email, code: otpCode, newPassword: password });
-export const changePassword = z.object({ currentPassword: z.string().min(1).max(128), newPassword: password });
+export const changePassword = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: password,
+  challengeId: z.string().uuid('Request a security code first'),
+  code: otpCode,
+});
+export const createChallenge = z.object({
+  action: z.enum(['password_change', 'email_change', 'phone_change', 'account_deletion']),
+  password: z.string().min(1).max(128),
+});

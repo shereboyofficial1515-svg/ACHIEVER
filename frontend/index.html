@@ -3,16 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0B1F3A" />
-    <meta name="description" content="ACHIEVER — organise Osusu groups, save with a trusted collector, and pay everyday bills." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0B2A5B" />
+    <meta name="description" content="ACHIEVER — organise Osusu groups, save with a trusted collector, and pay everyday bills. Save Together. Go Further." />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:site_name" content="ACHIEVER" />
+    <meta property="og:title" content="ACHIEVER — Save Together. Go Further." />
+    <meta property="og:description" content="Osusu groups, collector savings and bill payments with verified records." />
+    <meta property="og:image" content="/brand/og-image.png" />
+    <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>ACHIEVER</title>
+    <script>
+      /* Apply saved accessibility settings before first paint (no flash). */
+      try {
+        var a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}');
+        var r = document.documentElement;
+        if (a.fontScale) r.style.fontSize = Math.round(a.fontScale * 100) + '%';
+        r.dataset.motion = a.reducedMotion || 'system';
+        r.dataset.contrast = a.highContrast ? 'high' : 'normal';
+        r.dataset.targets = a.largerTargets ? 'large' : 'normal';
+        r.dataset.links = a.underlineLinks ? 'underline' : 'normal';
+        r.dataset.focus = a.strongFocus ? 'strong' : 'normal';
+      } catch (e) {}
+    </script>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
     <div id="root"></div>
+    <noscript>ACHIEVER needs JavaScript. You can still read our <a href="/documentation.html">documentation</a> and <a href="/support.html">support</a> pages.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Documentation · ACHIEVER</title>
+<meta name="description" content="How ACHIEVER works: accounts, verification, Osusu groups, collector savings, payments, payouts, bills, messages, calls, security, disputes, troubleshooting and FAQ.">
+
+<meta name="theme-color" content="#0B2A5B">
+<meta property="og:site_name" content="ACHIEVER">
+<meta property="og:title" content="Documentation · ACHIEVER">
+<meta property="og:description" content="How ACHIEVER works: accounts, verification, Osusu groups, collector savings, payments, payouts, bills, messages, calls, security, disputes, troubleshooting and FAQ.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/brand/og-image.png">
+
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/site/site.css">
+<script>
+  /* Same accessibility settings as the app (Settings → Accessibility), applied before paint. */
+  try { var a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}'), r = document.documentElement;
+    if (a.fontScale) r.style.fontSize = Math.round(a.fontScale * 100) + '%';
+    r.dataset.motion = a.reducedMotion || 'system'; r.dataset.contrast = a.highContrast ? 'high' : 'normal';
+    r.dataset.links = a.underlineLinks ? 'underline' : 'normal'; r.dataset.focus = a.strongFocus ? 'strong' : 'normal';
+    r.dataset.targets = a.largerTargets ? 'large' : 'normal'; } catch (e) {}
+  window.ACHIEVER_API = "";
+</script>
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="logo" href="/" aria-label="ACHIEVER home">
+      <picture><source srcset="/brand/achiever-logo-stacked.webp" type="image/webp"><img src="/brand/achiever-logo-stacked.png" width="112" height="80" alt="ACHIEVER"></picture>
+    </a>
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav id="site-nav" class="site-nav" aria-label="Main">
+      <a href="/documentation.html" aria-current="page">Documentation</a><a href="/security.html">Security</a><a href="/support.html">Support</a><a href="/about.html">About</a><a href="/contact.html">Contact</a>
+      <span class="nav-auth">
+        <a class="btn btn-ghost" href="/login">Log in</a>
+        <a class="btn btn-primary" href="/register">Create account</a>
+      </span>
+    </nav>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="hero-band"><div class="wrap">
+    <h1>ACHIEVER documentation</h1>
+    <p class="lead">Everything you need to use ACHIEVER — Osusu groups, collector savings, payments and account security — in plain language.</p>
+  </div></div>
+  <div class="wrap with-toc ">
+    <nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ol><li><a href="#what-is-achiever">1. What is ACHIEVER?</a></li><li><a href="#create-account">2. Creating an account</a></li><li><a href="#account-verification">3. Account verification</a></li><li><a href="#profile">4. User profile</a></li><li><a href="#osusu">5. Osusu</a></li><li><a href="#collector">6. Collector</a></li><li><a href="#contributions">7. Contributions</a></li><li><a href="#payments">8. Payments</a></li><li><a href="#payouts">9. Payouts</a></li><li><a href="#savings">10. Savings</a></li><li><a href="#bills">11. Bill payments</a></li><li><a href="#notifications">12. Notifications</a></li><li><a href="#messages">13. Messages</a></li><li><a href="#voice-calls">14. Voice calls</a></li><li><a href="#video-calls">15. Video calls</a></li><li><a href="#group-calls">16. Group calls</a></li><li><a href="#account-security">17. Account security</a></li><li><a href="#kyc">18. KYC (verification levels)</a></li><li><a href="#identity-verification">19. Identity verification</a></li><li><a href="#payment-account-verification">20. Payment-account verification</a></li><li><a href="#devices-sessions">21. Managing devices and sessions</a></li><li><a href="#change-password">22. Changing password</a></li><li><a href="#change-email">23. Changing email</a></li><li><a href="#change-phone">24. Changing phone number</a></li><li><a href="#notification-settings">25. Managing notification settings</a></li><li><a href="#accessibility-settings">26. Accessibility settings</a></li><li><a href="#privacy-settings">27. Privacy settings</a></li><li><a href="#delete-account">28. Deleting an account</a></li><li><a href="#data-deletion">29. Requesting data deletion</a></li><li><a href="#refunds">30. Refund policy</a></li><li><a href="#disputes">31. Disputes</a></li><li><a href="#report-suspicious">32. Reporting suspicious activity</a></li><li><a href="#contact-support">33. Contacting support</a></li><li><a href="#troubleshooting">34. Troubleshooting</a></li><li><a href="#faq">35. Frequently asked questions</a></li></ol></nav>
+    <article class="content"><div class="search" role="search">
+  <label for="doc-search">Search the documentation</label>
+  <input id="doc-search" type="search" autocomplete="off" placeholder="Try “change password”, “payment failed”, “OTP”, “refund”…" aria-describedby="doc-search-hint" aria-controls="doc-search-results">
+  <p id="doc-search-hint" class="small muted">Results appear as you type.</p>
+  <ul id="doc-search-results" class="search-results" aria-live="polite"></ul>
+</div>
+<div class="grid-cards">
+  <a class="card" href="#create-account"><h3>Get started</h3><p>Create an account and verify your email and phone.</p></a>
+  <a class="card" href="#osusu"><h3>Osusu</h3><p>Rotating group savings, payouts and schedules.</p></a>
+  <a class="card" href="#collector"><h3>Collector</h3><p>Individual savings with an approved collector.</p></a>
+  <a class="card" href="#troubleshooting"><h3>Troubleshooting</h3><p>Payments, codes, sign-in and calls.</p></a>
+</div>
+<section id="what-is-achiever" data-doc data-keywords="about overview ajo esusu osusu collector"><h2>1. What is ACHIEVER?</h2><p>ACHIEVER is a Nigerian savings coordination and payments platform. It helps people save together in <strong>Osusu</strong> (also called Ajo or Esusu) groups, save individually with a trusted <strong>Collector</strong>, pay everyday bills, and stay in touch through messages, calls and meetings.</p>
+<p>Every contribution is confirmed with our payment provider (Paystack) on ACHIEVER's servers before it appears in your records, so everyone in a group sees the same, verified history of who has paid, who is due and who has been paid out.</p>
+<div class="callout"><strong>ACHIEVER is not a bank.</strong> It is not licensed by the Central Bank of Nigeria as a deposit-taking institution, and money recorded in ACHIEVER is not covered by NDIC deposit insurance. Only join groups and save with people you know and trust.</div>
+<div class="prevnext"><span></span><a href="#create-account">2. Creating an account →</a></div></section>
+<section id="create-account" data-doc data-keywords="register sign up signup new account create google facebook"><h2>2. Creating an account</h2><p>Go to <a href="/register">Create account</a>. Registration has five short steps:</p>
+<ol class="steps-list">
+<li><strong>Account type</strong> — Osusu, Collector or Personal use.</li>
+<li><strong>Your role</strong> — for example Osusu organiser or member, Collector or saver. Personal accounts get member and saver features.</li>
+<li><strong>About you</strong> — your legal first and last name exactly as on your government ID, date of birth (you must be 18 or older), and gender. Occupation and employment are optional.</li>
+<li><strong>Contact &amp; address</strong> — email, Nigerian mobile number, state, local government area (LGA) and city. Organisers and collectors must also give a residential address. Your address is private and never shown to other members.</li>
+<li><strong>Security</strong> — a password of at least 10 characters with upper- and lower-case letters and a number, and your agreement to the Terms and Privacy Policy.</li>
+</ol>
+<p>If Google or Facebook sign-in is available, you can use it instead of a password. You will still add your legal details and verify your phone number — a social account does not verify your identity for financial activity.</p>
+<div class="prevnext"><a href="#what-is-achiever">← 1. What is ACHIEVER?</a><a href="#account-verification">3. Account verification →</a></div></section>
+<section id="account-verification" data-doc data-keywords="verify email phone code otp sms level"><h2>3. Account verification</h2><p>After you register we email you a <strong>6-digit code</strong>. Enter it on the verification screen to confirm your email address. Codes expire after 10 minutes, allow 5 attempts, and you can request a new one after 60 seconds.</p>
+<p>Next, verify your phone number from <strong>Verification</strong> in the app. We send a 6-digit code by SMS to the number on your account.</p>
+<p>Verifying your email and phone, together with your legal name, date of birth and location, brings your account to <a href="#kyc">verification level 1</a>.</p>
+<div class="prevnext"><a href="#create-account">← 2. Creating an account</a><a href="#profile">4. User profile →</a></div></section>
+<section id="profile" data-doc data-keywords="profile photo name preferred name address location settings"><h2>4. User profile</h2><p>Open <strong>Settings → Profile</strong> to update your photo, preferred name (what other members see), occupation, employment, address and location.</p>
+<ul>
+<li>Your <strong>legal name and date of birth</strong> can be edited until your identity is verified (level 2). After that they are locked; contact support to correct a mistake.</li>
+<li>Changing your <strong>address</strong> resets its verification status, and the change is recorded in your security history.</li>
+<li>You choose whether your city and state appear on your public trust profile.</li>
+</ul>
+<div class="prevnext"><a href="#account-verification">← 3. Account verification</a><a href="#osusu">5. Osusu →</a></div></section>
+<section id="osusu" data-doc data-keywords="osusu ajo esusu group rotation payout order contribution cycle join code organiser member"><h2>5. Osusu</h2><p><strong>Osusu</strong> in ACHIEVER is a rotating savings group. A fixed group of members contribute the <strong>same amount</strong> on a <strong>set schedule</strong> (daily, weekly, every two weeks or monthly). Each cycle, the full pool goes to <strong>one member</strong>, in an agreed order, until everyone has been paid once.</p>
+<h3>How a group works</h3>
+<ul>
+<li>An <strong>organiser</strong> creates the group with a name, contribution amount, schedule, maximum number of members (2–100), start date, grace period (0–14 days) and payout order method (order of joining, random, or set manually).</li>
+<li>Members join with an <strong>invitation link</strong> or the group's <strong>8-character join code</strong>. If the group requires approval, the organiser approves each request.</li>
+<li>When the group starts, ACHIEVER creates the cycles and each member's contributions for every cycle.</li>
+</ul>
+<h3>Payout rotation</h3>
+<p>Each cycle has one recipient. When all contributions for the cycle are paid (the cycle is <em>fully funded</em>), the organiser approves the payout. The payout is then sent to the recipient's verified payout account and recorded with a reference.</p>
+<h3>Why members keep contributing after their payout</h3>
+<p>Every member receives the pool exactly once, funded by everyone else's contributions. A member who has already been paid must keep contributing until the last member is paid — otherwise later members would receive less than they put in. Missing contributions after receiving a payout is treated seriously and places the member under review.</p>
+<h3>Payment status</h3>
+<p>Each contribution shows as <strong>Pending</strong>, <strong>Paid</strong> or <strong>Overdue</strong>. A payment is only marked Paid after Paystack confirms it.</p>
+<h3>Overdue contributions</h3>
+<p>If a contribution is not paid by its due date plus the group's grace period, it becomes <strong>Overdue</strong>. You receive reminders, the organiser can see who is overdue, and repeated non-payment affects your standing in the group.</p>
+<h3>Communication and meetings</h3>
+<p>Every group has its own chat. Organisers can schedule meetings with an optional voice or video call; members receive reminders before the meeting starts.</p>
+<div class="prevnext"><a href="#profile">← 4. User profile</a><a href="#collector">6. Collector →</a></div></section>
+<section id="collector" data-doc data-keywords="collector saver savings plan commission maturity return settlement"><h2>6. Collector</h2><p>A <strong>Collector account</strong> lets a trusted person hold individual savings for savers over an agreed period and earn an agreed commission.</p>
+<h3>Becoming a collector</h3>
+<p>Collectors verify their phone and a government ID (verification level 2), accept a written undertaking, and submit a collector application. Applications are reviewed by ACHIEVER's compliance team; a collector can only accept savers once approved and active.</p>
+<h3>How a saver works with a collector</h3>
+<ul>
+<li>The collector invites a saver to a <strong>savings plan</strong> with a name, frequency (daily, weekly, monthly or flexible), optional expected amount, start and end date (up to 3 years), and commission.</li>
+<li>The saver reviews the terms and accepts the invitation.</li>
+<li>The saver pays <strong>flexible amounts</strong> into the plan at any time while it is active. Each payment is confirmed with Paystack before it is added to the balance.</li>
+</ul>
+<h3>Savings period and maturity</h3>
+<p>The plan runs until its end date, when it becomes <strong>Matured</strong>. The saver can then request their return. A return can also be requested before the end date. The collector approves every return request (ACHIEVER staff can step in if there is a problem).</p>
+<h3>Commission</h3>
+<p>Commission is agreed before saving starts: either a percentage of the total (up to 20%) or a fixed amount. It is shown on the plan and deducted when the return is settled — never before.</p>
+<h3>Settlement</h3>
+<p>When a return is approved, ACHIEVER records the saver's net amount and the collector's commission as separate payouts and sends them to each person's verified payout account.</p>
+<h3>Disputes</h3>
+<p>If something is wrong with a plan, open a case in <a href="#disputes">Help &amp; disputes</a> and link the plan. The collector can respond with their side and evidence.</p>
+<div class="prevnext"><a href="#osusu">← 5. Osusu</a><a href="#contributions">7. Contributions →</a></div></section>
+<section id="contributions" data-doc data-keywords="contribution pay due amount osusu savings"><h2>7. Contributions</h2><p>Osusu contributions have a <strong>fixed amount</strong> set by the group; you cannot pay a different amount. Open your group, find the contribution that is due, and choose <strong>Pay</strong>. Collector savings contributions can be any amount you choose.</p>
+<p>To make contributions you need <strong>verification level 1</strong>. If you are asked to verify, follow the link in the message.</p>
+<div class="prevnext"><a href="#collector">← 6. Collector</a><a href="#payments">8. Payments →</a></div></section>
+<section id="payments" data-doc data-keywords="payment paystack card bank transfer ussd pending verify checkout"><h2>8. Payments</h2><p>Payments are made through <strong>Paystack</strong> checkout (card, bank, USSD or bank transfer, depending on what is enabled). ACHIEVER never sees or stores your card details.</p>
+<ul>
+<li>After checkout, ACHIEVER checks the payment directly with Paystack. Your contribution is marked paid only when Paystack confirms it, using the amount Paystack actually received.</li>
+<li>If you start the same payment twice within 30 minutes (for example by double-clicking), ACHIEVER reuses the same checkout so you are not charged twice.</li>
+<li>If the amount received differs from the amount due, the payment is held for review instead of being applied.</li>
+<li>If a payment is completed twice, the duplicate is refunded.</li>
+</ul>
+<p>You can see every payment and its status under <strong>Payments</strong>.</p>
+<div class="prevnext"><a href="#contributions">← 7. Contributions</a><a href="#payouts">9. Payouts →</a></div></section>
+<section id="payouts" data-doc data-keywords="payout withdrawal receive money bank account transfer held review"><h2>9. Payouts</h2><p>Payouts (Osusu pools, savings returns and collector commissions) are sent to your <strong>verified payout account</strong>. Add it in <strong>Settings → Payment accounts</strong>.</p>
+<ul>
+<li>An organiser's or collector's approval is an instruction only. A payout is marked <strong>Paid</strong> only after the money has actually been sent and confirmed.</li>
+<li>For your protection some payouts are <strong>held for review</strong> before sending — for example if your payout account was changed recently, your verification level is below level 2, the amount is large, or your account is under review.</li>
+<li>If a payout fails (for example the bank rejects it), you are notified and it can be retried.</li>
+</ul>
+<div class="prevnext"><a href="#payments">← 8. Payments</a><a href="#savings">10. Savings →</a></div></section>
+<section id="savings" data-doc data-keywords="savings balance my savings plan"><h2>10. Savings</h2><p><strong>My savings</strong> shows each collector savings plan you have: its balance, total contributed, days remaining, the agreed commission and your expected return (balance minus commission). Open a plan to see every contribution and request a return when you are ready.</p>
+<div class="prevnext"><a href="#payouts">← 9. Payouts</a><a href="#bills">11. Bill payments →</a></div></section>
+<section id="bills" data-doc data-keywords="bills airtime data electricity meter token"><h2>11. Bill payments</h2><p>Where available, you can buy <strong>airtime</strong> and <strong>data</strong> and pay <strong>electricity</strong> bills from <strong>Bills</strong>. You pay through Paystack; ACHIEVER then delivers the purchase through its bill provider and shows the result and any token on the receipt.</p>
+<p>If delivery fails after you have paid, the payment is refunded to your original payment method. Bill payments may be temporarily unavailable while the service is being set up or maintained.</p>
+<div class="prevnext"><a href="#savings">← 10. Savings</a><a href="#notifications">12. Notifications →</a></div></section>
+<section id="notifications" data-doc data-keywords="notifications alerts email sms reminders"><h2>12. Notifications</h2><p>ACHIEVER notifies you in the app about payments, reminders, payouts, groups, meetings, support cases and account activity. You can also receive email and SMS for most of these — choose which in <a href="#notification-settings">notification settings</a>.</p>
+<p><strong>Security alerts cannot be turned off.</strong> Sign-ins from new devices and changes to your password, email, phone or payout account are always sent.</p>
+<div class="prevnext"><a href="#bills">← 11. Bill payments</a><a href="#messages">13. Messages →</a></div></section>
+<section id="messages" data-doc data-keywords="messages chat group chat direct message attachment"><h2>13. Messages</h2><p>Each Osusu group and each savings plan has its own chat. You can also message people you share a group or plan with. You can send text and attachments (images and PDFs up to 10 MB). Files are stored privately and opened through short-lived links.</p>
+<p>Read receipts, message sounds, previews and automatic photo loading can be changed in <strong>Settings → Messages</strong>.</p>
+<div class="prevnext"><a href="#notifications">← 12. Notifications</a><a href="#voice-calls">14. Voice calls →</a></div></section>
+<section id="voice-calls" data-doc data-keywords="voice call audio call microphone"><h2>14. Voice calls</h2><p>Start a voice call from any chat with the phone icon. The other person sees an incoming-call alert and can accept or decline. Calls use your browser's microphone; allow microphone access when your browser asks.</p>
+<div class="prevnext"><a href="#messages">← 13. Messages</a><a href="#video-calls">15. Video calls →</a></div></section>
+<section id="video-calls" data-doc data-keywords="video call camera"><h2>15. Video calls</h2><p>Start a video call from a chat with the camera icon. You can turn your camera and microphone on or off during the call and choose your audio device. Allow camera and microphone access when asked.</p>
+<div class="prevnext"><a href="#voice-calls">← 14. Voice calls</a><a href="#group-calls">16. Group calls →</a></div></section>
+<section id="group-calls" data-doc data-keywords="group call meeting conference"><h2>16. Group calls</h2><p>Calls started in a group chat, and scheduled group meetings, include every member who joins. Members receive an incoming-call alert and can join while the call is active.</p>
+<div class="prevnext"><a href="#video-calls">← 15. Video calls</a><a href="#account-security">17. Account security →</a></div></section>
+<section id="account-security" data-doc data-keywords="security account protect password lockout new device alert"><h2>17. Account security</h2><ul>
+<li>Your session is kept in secure, HTTP-only cookies and ends automatically after a period of time.</li>
+<li>After 5 incorrect password attempts, sign-in is locked for 15 minutes and you are emailed.</li>
+<li>Signing in from a new device sends you an alert. You can choose to be alerted for every sign-in.</li>
+<li>Changing your password, email, phone or payout account needs your password and a security code, and sends you a confirmation.</li>
+</ul>
+<p>ACHIEVER will <strong>never</strong> ask for your password, PIN, OTP or banking credentials — by phone, SMS, email or chat.</p>
+<div class="prevnext"><a href="#group-calls">← 16. Group calls</a><a href="#kyc">18. KYC (verification levels) →</a></div></section>
+<section id="kyc" data-doc data-keywords="kyc level verification identity requirements"><h2>18. KYC (verification levels)</h2><table><thead><tr><th>Level</th><th>What you need</th><th>What it unlocks</th></tr></thead><tbody>
+<tr><td>0</td><td>Verified email</td><td>Browse, chat with contacts, pay bills</td></tr>
+<tr><td>1</td><td>Verified phone, legal name, date of birth, state, LGA and city</td><td>Make Osusu and savings contributions</td></tr>
+<tr><td>2</td><td>A verified, unexpired government ID</td><td>Receive payouts without an identity hold; organise groups; operate as a collector</td></tr>
+<tr><td>3</td><td>Liveness check and verified address</td><td>Highest level (liveness checks are not available yet)</td></tr>
+</tbody></table>
+<p>Your current level and next step are shown in <strong>Settings → Profile</strong> and <strong>Verification</strong>.</p>
+<div class="prevnext"><a href="#account-security">← 17. Account security</a><a href="#identity-verification">19. Identity verification →</a></div></section>
+<section id="identity-verification" data-doc data-keywords="identity nin bvn passport drivers licence voters card document upload"><h2>19. Identity verification</h2><p>Verify your identity from <strong>Verification</strong>. You can use a NIN, BVN, international passport, driver's licence or voter's card.</p>
+<ol class="steps-list">
+<li>Enter the document type, number, your legal names and date of birth (and the expiry date for passports and driver's licences).</li>
+<li>Upload a clear photo or PDF of the document (max 5 MB).</li>
+<li>ACHIEVER's compliance team reviews it. You are notified of the decision.</li>
+</ol>
+<p>Your document number is stored only as a one-way fingerprint plus the last four characters, and is never shown to other users. Staff can open your document only with a recorded reason. When a document expires, your verification level is updated and you will be asked to submit a current one.</p>
+<div class="prevnext"><a href="#kyc">← 18. KYC (verification levels)</a><a href="#payment-account-verification">20. Payment-account verification →</a></div></section>
+<section id="payment-account-verification" data-doc data-keywords="payout account bank nuban verify change cool-down"><h2>20. Payment-account verification</h2><p>Add your bank account in <strong>Settings → Payment accounts</strong>. ACHIEVER confirms the account name with your bank before saving it. Only the bank name, account name and last four digits are kept.</p>
+<p><strong>Changing</strong> your payout account needs a code sent to your email. You receive a security alert, and for your protection automated payouts to the new account are held for a short cool-down period (24 hours by default).</p>
+<div class="prevnext"><a href="#identity-verification">← 19. Identity verification</a><a href="#devices-sessions">21. Managing devices and sessions →</a></div></section>
+<section id="devices-sessions" data-doc data-keywords="devices sessions sign out logout other devices"><h2>21. Managing devices and sessions</h2><p><strong>Settings → Devices &amp; sessions</strong> lists where you are signed in, with the device, approximate network and last activity. You can sign out any single session or <strong>all other sessions</strong> at once. Changing your password signs out every other session automatically.</p>
+<div class="prevnext"><a href="#payment-account-verification">← 20. Payment-account verification</a><a href="#change-password">22. Changing password →</a></div></section>
+<section id="change-password" data-doc data-keywords="change password new password security code"><h2>22. Changing password</h2><ol class="steps-list">
+<li>Open <strong>Settings → Password</strong> and enter your current password.</li>
+<li>We email a 6-digit security code. Enter it.</li>
+<li>Enter your current password, a new password and confirm it.</li>
+</ol>
+<p>Your other sessions are signed out and you receive a confirmation email. Forgot your password? Use <a href="/forgot-password">Forgot password</a> on the sign-in page — we email you a reset code.</p>
+<div class="prevnext"><a href="#devices-sessions">← 21. Managing devices and sessions</a><a href="#change-email">23. Changing email →</a></div></section>
+<section id="change-email" data-doc data-keywords="change email address new email"><h2>23. Changing email</h2><ol class="steps-list">
+<li>Open <strong>Settings → Email</strong>, enter your password and the security code we send to your <strong>current</strong> email.</li>
+<li>Enter your new email address. We send a confirmation code to the <strong>new</strong> address.</li>
+<li>Enter that code. Your sign-in email is updated, and your previous address receives a security notice.</li>
+</ol>
+<div class="prevnext"><a href="#change-password">← 22. Changing password</a><a href="#change-phone">24. Changing phone number →</a></div></section>
+<section id="change-phone" data-doc data-keywords="change phone number sms new number"><h2>24. Changing phone number</h2><ol class="steps-list">
+<li>Open <strong>Settings → Phone</strong>, enter your password and the security code we email you.</li>
+<li>Enter your new Nigerian mobile number. We send an SMS code to it.</li>
+<li>Enter the SMS code. Your number is updated; your previous number (if verified) and your email receive a notice.</li>
+</ol>
+<div class="prevnext"><a href="#change-email">← 23. Changing email</a><a href="#notification-settings">25. Managing notification settings →</a></div></section>
+<section id="notification-settings" data-doc data-keywords="notification settings email sms turn off unsubscribe marketing"><h2>25. Managing notification settings</h2><p>In <strong>Settings → Notifications</strong> you can turn email and SMS on or off for each category: payments, reminders, payouts, group updates, meetings, support, account updates, messages, platform notices and marketing. In-app notifications are always on. Push notifications are not available yet.</p>
+<p>Platform notices and marketing emails include an <strong>unsubscribe</strong> link. Security alerts and messages about your money are not marketing and cannot be unsubscribed from.</p>
+<div class="prevnext"><a href="#change-phone">← 24. Changing phone number</a><a href="#accessibility-settings">26. Accessibility settings →</a></div></section>
+<section id="accessibility-settings" data-doc data-keywords="accessibility text size font reduced motion contrast keyboard"><h2>26. Accessibility settings</h2><p><strong>Settings → Accessibility</strong> changes the whole app immediately: text size, reduced motion (or follow your device), high contrast, larger touch targets, underlined links and a strong keyboard focus indicator. See our <a href="/accessibility.html">accessibility statement</a>.</p>
+<div class="prevnext"><a href="#notification-settings">← 25. Managing notification settings</a><a href="#privacy-settings">27. Privacy settings →</a></div></section>
+<section id="privacy-settings" data-doc data-keywords="privacy online status read receipts trust profile location"><h2>27. Privacy settings</h2><p>In <strong>Settings → Privacy</strong> you can hide your online status. In <strong>Settings → Messages</strong> you can turn off read receipts (you then won't see other people's either). Your public trust profile only shows your display name, verification badges and contribution record — never your contact details, address or balances.</p>
+<div class="prevnext"><a href="#accessibility-settings">← 26. Accessibility settings</a><a href="#delete-account">28. Deleting an account →</a></div></section>
+<section id="delete-account" data-doc data-keywords="delete account close account deactivate"><h2>28. Deleting an account</h2><p>From <strong>Settings → Account deletion</strong> you can request deletion of your account. You confirm with your password and a security code, and you can cancel within 7 days. Accounts with open groups, savings plans or payouts must settle them first. Some records must be kept by law — see <a href="/delete-data.html">how deletion works</a>. You can also deactivate your account immediately from the same page.</p>
+<div class="prevnext"><a href="#privacy-settings">← 27. Privacy settings</a><a href="#data-deletion">29. Requesting data deletion →</a></div></section>
+<section id="data-deletion" data-doc data-keywords="data deletion personal data erase gdpr ndpr"><h2>29. Requesting data deletion</h2><p>If you want to keep your account but remove optional personal data (preferred name, occupation, business name, photo, settings), choose <strong>Optional personal data only</strong> in <strong>Settings → Account deletion</strong>. Details are on the <a href="/delete-data.html">Delete Data</a> page.</p>
+<div class="prevnext"><a href="#delete-account">← 28. Deleting an account</a><a href="#refunds">30. Refund policy →</a></div></section>
+<section id="refunds" data-doc data-keywords="refund duplicate failed reversal money back"><h2>30. Refund policy</h2><p>Duplicate payments, payments made to a closed contribution, failed bill deliveries and approved reversals are refunded to your original payment method. See the full <a href="/refund-policy.html">Refund Policy</a>.</p>
+<div class="prevnext"><a href="#data-deletion">← 29. Requesting data deletion</a><a href="#disputes">31. Disputes →</a></div></section>
+<section id="disputes" data-doc data-keywords="dispute case complaint evidence collector organiser wrong payment"><h2>31. Disputes</h2><p>Open a case from <strong>Help &amp; disputes</strong> in the app. Choose the category, describe what happened, add the amount involved, and link the transaction, group or plan. Each case gets a number like <code>CASE-2026-000123</code>.</p>
+<ul>
+<li>Add evidence — receipts, screenshots or documents. Each file is fingerprinted when uploaded and cannot be edited afterwards.</li>
+<li>For disputes about a group or savings plan, the organiser or collector can see the case and respond with their own evidence. No finding is made until ACHIEVER reviews both sides.</li>
+<li>When the case is resolved you receive the outcome and a written explanation.</li>
+</ul>
+<div class="prevnext"><a href="#refunds">← 30. Refund policy</a><a href="#report-suspicious">32. Reporting suspicious activity →</a></div></section>
+<section id="report-suspicious" data-doc data-keywords="fraud suspicious unauthorised hacked scam report"><h2>32. Reporting suspicious activity</h2><div class="callout danger"><strong>If you think someone else has accessed your account:</strong> change your password now (Settings → Password), sign out all other sessions (Settings → Devices &amp; sessions), then open a case with the category <em>Someone else accessed my account</em>.</div>
+<p>To report a suspected scam or misuse of funds, open a case with the category <em>Suspected fraud</em> and include as much detail as you can. Reports are reviewed by our team; reporting someone does not automatically accuse them of wrongdoing.</p>
+<div class="prevnext"><a href="#disputes">← 31. Disputes</a><a href="#contact-support">33. Contacting support →</a></div></section>
+<section id="contact-support" data-doc data-keywords="support help contact email ticket"><h2>33. Contacting support</h2><p>The fastest way to get help with your account is to open a case in the app (<strong>Help &amp; disputes</strong>) or on the <a href="/support.html">Support</a> page. You can also email <a href="mailto:support@example.com">support@example.com</a>. Never include your password, PIN or full card number.</p>
+<div class="prevnext"><a href="#report-suspicious">← 32. Reporting suspicious activity</a><a href="#troubleshooting">34. Troubleshooting →</a></div></section>
+<section id="troubleshooting" data-doc data-keywords="problem not working help error troubleshooting"><h2>34. Troubleshooting</h2><h3 id="t-register">I cannot create an account</h3><ul>
+<li>Check the highlighted fields — names must use letters only, you must be 18 or older, and the LGA must be in the state you chose.</li>
+<li>An email address or phone number can only be used by one account. If yours is taken, try <a href="/forgot-password">resetting your password</a>.</li>
+<li>If the page says ACHIEVER is unavailable, check your internet connection and try again shortly.</li></ul>
+<h3 id="t-login">I cannot log in</h3><ul>
+<li>Check your email and password (passwords are case-sensitive).</li>
+<li>After 5 failed attempts sign-in is locked for 15 minutes — wait, then try again.</li>
+<li>Reset your password with <a href="/forgot-password">Forgot password</a>.</li>
+<li>If your account was suspended or deactivated, contact support.</li></ul>
+<h3 id="t-payment-pending">My payment is pending</h3><ul>
+<li><strong>Do not pay again.</strong> Keep the payment page open — ACHIEVER is confirming the payment with Paystack.</li>
+<li>Check <strong>Payments</strong> for the status. Most payments confirm within minutes; bank transfers can take longer.</li>
+<li>If you were debited and it still shows pending after a few hours, open a case with the payment reference.</li></ul>
+<h3 id="t-payment-failed">My payment failed</h3><ul>
+<li>No money is recorded against your contribution for a failed attempt. If your bank debited you, the provider normally reverses it automatically.</li>
+<li>Try again, or try a different payment method.</li></ul>
+<h3 id="t-otp">I didn't receive my code (OTP)</h3><ul>
+<li>Check that your phone number or email address is correct.</li>
+<li>Wait a minute — SMS and email can be delayed. You can request a new code after 60 seconds.</li>
+<li>Each new code replaces the previous one; use the latest code. Avoid requesting many codes in a row.</li>
+<li>Check your network signal (SMS) or spam folder (email).</li></ul>
+<h3 id="t-email">I didn't receive my email</h3><ul>
+<li>Check your spam or junk folder and search for "ACHIEVER".</li>
+<li>Check the email address on your account. Request another verification email from the verification screen.</li>
+<li>Still nothing? Contact support.</li></ul>
+<h3 id="t-calls">My video call is not working</h3><ul>
+<li>Allow camera and microphone access in your browser (look for the camera icon in the address bar).</li>
+<li>Close other apps using your camera. Check your internet connection.</li>
+<li>Leave the call and rejoin, or reload the page. Use an up-to-date Chrome, Edge, Firefox or Safari.</li></ul>
+<h3 id="t-payout">My payout has not arrived</h3><ul>
+<li>Check that your payout account is added and verified.</li>
+<li>If you recently changed your payout account, payouts are held for a short cool-down.</li>
+<li>Payouts can be held for review for your protection. You are notified if it fails.</li></ul>
+<div class="prevnext"><a href="#contact-support">← 33. Contacting support</a><a href="#faq">35. Frequently asked questions →</a></div></section>
+<section id="faq" data-doc data-keywords="faq questions"><h2>35. Frequently asked questions</h2><details><summary>What is ACHIEVER?</summary><p>A platform for Osusu groups, collector savings, bill payments and communication, with verified payment records. It is not a bank.</p></details>
+<details><summary>What is Osusu?</summary><p>A rotating savings group: members contribute a fixed amount on a schedule and one member receives the pool each cycle until all have been paid. See <a href="#osusu">Osusu</a>.</p></details>
+<details><summary>What is Collector?</summary><p>Individual savings held by an approved collector for an agreed period, returned at maturity minus the agreed commission. See <a href="#collector">Collector</a>.</p></details>
+<details><summary>Is my money safe?</summary><p>ACHIEVER records every payment only after Paystack confirms it, keeps a permanent record of every transaction, verifies organisers and collectors, and protects payouts with holds and reviews. However, ACHIEVER is not a bank and funds are not insured. Only save with people you trust.</p></details>
+<details><summary>How are payments verified?</summary><p>ACHIEVER's server asks Paystack directly whether each payment succeeded and for how much. Browser redirects and notifications are never trusted on their own.</p></details>
+<details><summary>How is my identity verified?</summary><p>You submit a government ID and a photo of it; our compliance team reviews it. See <a href="#identity-verification">Identity verification</a>.</p></details>
+<details><summary>Why does ACHIEVER need my information?</summary><p>To protect members' money: to confirm who organisers, collectors and members are, to prevent fraud, to resolve disputes and to meet legal obligations. See the <a href="/privacy.html">Privacy Policy</a>.</p></details>
+<details><summary>Can I change my phone number?</summary><p>Yes — Settings → Phone. See <a href="#change-phone">Changing phone number</a>.</p></details>
+<details><summary>Can I change my email?</summary><p>Yes — Settings → Email. See <a href="#change-email">Changing email</a>.</p></details>
+<details><summary>How do I change my password?</summary><p>Settings → Password. See <a href="#change-password">Changing password</a>.</p></details>
+<details><summary>How do I delete my account?</summary><p>Settings → Account deletion. See <a href="#delete-account">Deleting an account</a>.</p></details>
+<details><summary>How do I report fraud?</summary><p>Open a case with the category <em>Suspected fraud</em>. See <a href="#report-suspicious">Reporting suspicious activity</a>.</p></details>
+<details><summary>How do I report a payment problem?</summary><p>Open a case in Help &amp; disputes, choose the payment category and link the transaction.</p></details>
+<details><summary>How do I contact support?</summary><p>Open a case in the app or on the <a href="/support.html">Support</a> page, or email <a href="mailto:support@example.com">support@example.com</a>.</p></details>
+<details><summary>How do I join an Osusu group?</summary><p>Open the invitation link you received, or go to Osusu groups → Join and enter the 8-character code. The organiser may need to approve you.</p></details>
+<details><summary>How does payout rotation work?</summary><p>Each cycle one member receives the full pool, in the group's payout order, until everyone has been paid once. See <a href="#osusu">Osusu</a>.</p></details>
+<details><summary>What happens when I miss a contribution?</summary><p>After the due date and grace period it becomes overdue; you and the organiser are notified and your standing in the group is affected. If you have already received your payout, missed contributions place your membership under review. Pay as soon as you can.</p></details>
+<div class="prevnext"><a href="#troubleshooting">← 34. Troubleshooting</a><a href="/support.html">Still need help? Contact support →</a></div></section></article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <img src="/brand/achiever-logo-stacked.png" width="104" height="75" alt="ACHIEVER">
+      <p>Save Together. Go Further.</p>
+      <p class="small">ACHIEVER is not a bank and funds are not covered by deposit insurance.</p>
+      <p class="small">© <span data-year>2026</span> ACHIEVER</p>
+    </div>
+    <nav class="footer-links" aria-label="Footer"><a href="/documentation.html">Documentation</a><a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a><a href="/refund-policy.html">Refund Policy</a><a href="/cookie-policy.html">Cookie Policy</a><a href="/security.html">Security</a><a href="/support.html">Support</a><a href="/delete-data.html">Delete Data</a><a href="/accessibility.html">Accessibility</a><a href="/contact.html">Contact</a></nav>
+  </div>
+</footer>
+<script src="/site/site.js" defer></script>
+</body>
+</html>

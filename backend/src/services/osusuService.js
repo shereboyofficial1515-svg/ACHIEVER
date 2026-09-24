@@ -177,7 +177,7 @@ export async function cancelGroup(user, groupId, req) {
   for (const m of members) {
     if (m.user_id === user.id) continue;
     await notificationService.notify(m.user_id, {
-      type: 'osusu_group_cancelled', category: 'account', title: 'Group cancelled',
+      type: 'osusu_group_cancelled', category: 'groups', title: 'Group cancelled',
       body: `${group.name} was cancelled by the organiser before it started. No contributions were collected.`,
       data: {}, dedupeKey: `group_cancelled:${groupId}:${m.user_id}`,
     });
@@ -233,7 +233,7 @@ export async function addMember(user, group, { viaInvite }, req) {
   if (status === 'active') await messageService.addToGroupConversation(group.id, user.id);
   await notificationService.notify(group.admin_id, {
     type: status === 'active' ? 'osusu_member_joined' : 'osusu_join_request',
-    category: 'account',
+    category: 'groups',
     title: status === 'active' ? 'New member joined' : 'New join request',
     body: status === 'active' ? `${user.fullName} joined ${group.name}.` : `${user.fullName} asked to join ${group.name}.`,
     data: { group_id: group.id },
@@ -300,7 +300,7 @@ export async function approveMember(user, memberId, req) {
   await osusuRepo.updateMember(memberId, { status: 'active', approved_at: new Date().toISOString() });
   await messageService.addToGroupConversation(group.id, member.user_id);
   await notificationService.notify(member.user_id, {
-    type: 'osusu_member_approved', category: 'account', title: 'Join request approved',
+    type: 'osusu_member_approved', category: 'groups', title: 'Join request approved',
     body: `You are now a member of ${group.name}.`, data: { group_id: group.id }, dedupeKey: `approved:${memberId}`,
   });
   await auditService.record({ actorId: user.id, action: 'osusu.member.approve', resourceType: 'osusu_member', resourceId: memberId, metadata: { groupId: group.id }, req });
@@ -318,7 +318,7 @@ export async function removeMember(user, memberId, reason, req) {
   await osusuRepo.updateMember(memberId, { status, removed_at: new Date().toISOString(), removal_reason: reason ?? null, payout_position: null });
   if (member.user_id !== group.admin_id) await messageService.removeFromGroupConversation(group.id, member.user_id);
   await notificationService.notify(member.user_id, {
-    type: 'osusu_member_removed', category: 'account',
+    type: 'osusu_member_removed', category: 'groups',
     title: status === 'rejected' ? 'Join request declined' : 'Removed from group',
     body: status === 'rejected' ? `Your request to join ${group.name} was declined.` : `You were removed from ${group.name} before it started.`,
     data: {}, dedupeKey: `removed:${memberId}:${Date.now()}`,

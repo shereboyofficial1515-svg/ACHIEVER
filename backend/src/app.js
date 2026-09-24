@@ -8,6 +8,7 @@ import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { requestContext } from './middleware/requestContext.js';
 import { csrfProtection } from './middleware/csrf.js';
+import * as userController from './controllers/userController.js';
 import { apiLimiter, webhookLimiter } from './middleware/rateLimiters.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import * as paymentController from './controllers/paymentController.js';
@@ -79,6 +80,12 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: false, limit: '20kb' }));
   app.use(cookieParser());
+
+  // Email unsubscribe links (non-transactional categories only). Authenticated
+  // by an HMAC in the link, so they work from an email client without a
+  // session; POST supports RFC 8058 one-click unsubscribe.
+  app.get('/api/notifications/unsubscribe', apiLimiter, userController.unsubscribe);
+  app.post('/api/notifications/unsubscribe', apiLimiter, userController.unsubscribe);
   app.use('/api', apiLimiter, csrfProtection, api);
 
   app.use(notFound);

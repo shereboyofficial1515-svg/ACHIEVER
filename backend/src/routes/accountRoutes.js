@@ -17,7 +17,16 @@ export const profileRoutes = Router()
   .post('/me/email/confirm', otpLimiter, validate({ body: s.confirmCode }), sc.confirmEmailChange)
   .post('/me/phone/change', authLimiter, validate({ body: s.phoneChange }), sc.requestPhoneChange)
   .post('/me/phone/confirm', otpLimiter, validate({ body: s.confirmCode }), sc.confirmPhoneChange)
-  .post('/me/deactivate', authLimiter, validate({ body: s.deactivate }), sc.deactivate);
+  .post('/me/deactivate', authLimiter, validate({ body: s.deactivate }), sc.deactivate)
+  .get('/me/preferences', c.getPreferences)
+  .put('/me/preferences', validate({ body: s.userSettings }), c.updatePreferences);
+
+// /api/privacy — deletion requests (available to any signed-in user)
+export const privacyRoutes = Router()
+  .get('/policy', c.privacyPolicy)
+  .get('/deletion-requests', c.myDeletionRequests)
+  .post('/deletion-requests', authLimiter, validate({ body: s.deletionRequest }), c.requestDeletion)
+  .post('/deletion-requests/:id/cancel', validate({ params: idParam }), c.cancelDeletion);
 
 // /api/users
 export const userRoutes = Router()

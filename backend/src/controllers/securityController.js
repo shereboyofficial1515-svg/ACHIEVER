@@ -10,6 +10,8 @@ import * as supportService from '../services/supportService.js';
 import * as onboardingService from '../services/onboardingService.js';
 import * as collectorService from '../services/collectorService.js';
 import * as complianceRepo from '../repositories/complianceRepository.js';
+import * as settingsService from '../services/settingsService.js';
+import * as oauthService from '../services/oauthService.js';
 import { asyncHandler, created, ok } from '../utils/http.js';
 
 const v = (req) => req.validated;
@@ -23,6 +25,14 @@ export const states = asyncHandler(async (_req, res) => {
 export const lgas = asyncHandler(async (req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   return ok(res, await complianceRepo.listLgas(v(req).params.code));
+});
+
+export const platformStatus = asyncHandler(async (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  return ok(res, {
+    maintenance: Boolean(await settingsService.get('platform.maintenance_mode', false)),
+    signInProviders: await oauthService.enabledProviders(),
+  });
 });
 
 // Account owner --------------------------------------------------------------------------

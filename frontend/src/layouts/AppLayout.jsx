@@ -5,14 +5,17 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useRealtime, useRealtimeEvent } from '../contexts/RealtimeContext.jsx';
 import { IconButton, Loader, UserAvatar } from '../components/ui/index.js';
 import { buildNavigation } from './navigation.js';
+import BrandLogo from '../components/brand/BrandLogo.jsx';
+import { usePreferences } from '../contexts/PreferencesContext.jsx';
+import { useToast } from '../contexts/ToastContext.jsx';
+import { usePageTransition } from '../hooks/useMotion.js';
+import { playMessageSound } from '../utils/sounds.js';
 import { api } from '../services/api.js';
 
-function Brand({ dark }) {
-  return (
-    <Link to="/app" className={`brand-mark ${dark ? 'dark' : ''}`} aria-label="ACHIEVER home">
-      ACHIEVER<span className="dot">.</span>
-    </Link>
-  );
+function Brand({ compact }) {
+  return compact
+    ? <BrandLogo variant="mark" height={36} to="/app" />
+    : <BrandLogo variant="stacked" width={132} plate to="/app" />;
 }
 
 function NavList({ nav, badges, onNavigate }) {
@@ -35,6 +38,8 @@ function NavList({ nav, badges, onNavigate }) {
 export default function AppLayout() {
   const { user, has, can, logout } = useAuth();
   const { unreadNotifications } = useRealtime();
+  const { prefs } = usePreferences();
+  const toast = useToast();
   const [drawer, setDrawer] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const location = useLocation();
@@ -48,8 +53,13 @@ export default function AppLayout() {
     if (user?.emailVerified) refreshMessages();
   }, [user?.emailVerified, location.pathname]);
   useRealtimeEvent('message.new', (m) => {
-    if (m.senderId !== user?.id && !location.pathname.includes(m.conversationId)) setUnreadMessages((n) => n + 1);
+    if (m.senderId === user?.id || location.pathname.includes(m.conversationId)) return;
+    setUnreadMessages((n) => n + 1);
+    // Settings → Messages: sound and preview are the user's choice.
+    if (prefs.messages.messageSound) playMessageSound();
+    toast.info(prefs.messages.messagePreview && m.body ? `${m.senderName || 'New message'}: ${m.body.slice(0, 80)}` : 'You have a new message');
   });
+  const pageRef = usePageTransition(location.pathname);
 
   useEffect(() => setDrawer(false), [location.pathname]);
 
@@ -81,7 +91,7 @@ export default function AppLayout() {
         <>
           <div className="drawer-backdrop" onClick={() => setDrawer(false)} />
           <aside className="drawer" aria-label="Menu">
-            <div className="brand" style={{ height: 'var(--topbar-h)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
+            <div className="brand" style={{ display: 'flex', alignItems: 'center', padding: '16px 20px' }}>
               <Brand />
             </div>
             <nav>
@@ -97,18 +107,21 @@ export default function AppLayout() {
       <div className="app-body">
         <header className="topbar">
           <IconButton icon={Menu} label="Open menu" className="menu-toggle" onClick={() => setDrawer(true)} />
+          <span className="mobile-mark"><Brand compact /></span>
           <span className="topbar-title">{current?.label || 'ACHIEVER'}</span>
           <div className="actions">
             <IconButton icon={Bell} label="Notifications" count={unreadNotifications} onClick={() => navigate('/app/notifications')} />
-            <Link to="/app/profile" aria-label="Your profile">
+            <Link to="/app/settings" aria-label="Your profile and settings">
               <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={34} />
             </Link>
           </div>
         </header>
-        <main className="main" id="main">
-          <Suspense fallback={<Loader />}>
-            <Outlet />
-          </Suspense>
+        <main className="main" id="main" tabIndex={-1}>
+          <div ref={pageRef}>
+            <Suspense fallback={<Loader />}>
+              <Outlet />
+            </Suspense>
+          </div>
         </main>
       </div>
 

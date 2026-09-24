@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button.jsx';
+import { useDialogMotion } from '../../hooks/useMotion.js';
 
 export function Modal({ open, onClose, title, children, footer, wide, dismissible = true }) {
   const ref = useRef(null);
+  const motionRef = useDialogMotion(open);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -25,7 +27,16 @@ export function Modal({ open, onClose, title, children, footer, wide, dismissibl
   if (!open) return null;
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && dismissible && onClose?.()}>
-      <div ref={ref} className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div
+        ref={(el) => {
+          ref.current = el;
+          motionRef.current = el;
+        }}
+        className={`modal ${wide ? 'wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
         <div className="modal-header">
           <h2 id="modal-title">{title}</h2>
           {dismissible && (

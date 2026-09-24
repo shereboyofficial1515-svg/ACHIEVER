@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Button } from '../../components/ui/index.js';
 import { api } from '../../services/api.js';
 import { naira } from '../../utils/format.js';
+import { useStatusMotion } from '../../hooks/useMotion.js';
 
 const MAX_POLLS = 20;
 
@@ -24,6 +25,8 @@ export default function PaymentCallback() {
   const [payment, setPayment] = useState(null);
   const [error, setError] = useState(null);
   const polls = useRef(0);
+  // Gentle emphasis when the provider confirms the final status (skipped with reduced motion).
+  const iconRef = useStatusMotion(payment?.status && payment.status !== 'initialized' ? payment.status : null);
 
   useEffect(() => {
     if (!reference) return undefined;
@@ -64,7 +67,7 @@ export default function PaymentCallback() {
 
   return (
     <div className="payment-status stack" role="status" aria-live="polite">
-      <div className={`big-icon ${ok ? 'ok' : bad ? 'bad' : 'wait'}`}>
+      <div ref={iconRef} className={`big-icon ${ok ? 'ok' : bad ? 'bad' : 'wait'}`}>
         {ok ? <CheckCircle2 size={36} /> : bad ? <XCircle size={36} /> : status === 'initialized' && !stillWaiting ? <span className="spinner lg" /> : <Clock size={36} />}
       </div>
       <h1>

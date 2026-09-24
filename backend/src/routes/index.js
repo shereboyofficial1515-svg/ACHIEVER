@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireVerifiedEmail } from '../middleware/auth.js';
 import authRoutes from './authRoutes.js';
-import { profileRoutes, userRoutes, verificationRoutes } from './accountRoutes.js';
+import { privacyRoutes, profileRoutes, userRoutes, verificationRoutes } from './accountRoutes.js';
 import osusuRoutes from './osusuRoutes.js';
 import collectorRoutes from './collectorRoutes.js';
 import {
@@ -18,12 +18,16 @@ const member = [authenticate, requireVerifiedEmail];
 
 api.use('/auth', authRoutes);
 
+// Public platform status (maintenance mode, available sign-in providers)
+api.get('/status', sc.platformStatus);
+
 // Public reference data (Nigerian states and LGAs) for registration forms
 api.get('/reference/states', sc.states);
 api.get('/reference/states/:code/lgas', validate({ params: stateParam }), sc.lgas);
 
 // Available before email verification (so users can manage their account)
 api.use('/profiles', authenticate, profileRoutes);
+api.use('/privacy', authenticate, privacyRoutes);
 api.use('/notifications', authenticate, notificationRoutes);
 api.use('/events', authenticate, eventRoutes);
 

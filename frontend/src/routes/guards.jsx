@@ -7,6 +7,7 @@ export function RequireAuth() {
   const { status, user } = useAuth();
   const location = useLocation();
   if (status === 'loading') return <Loader label="Loading account information..." />;
+  if (status === 'incomplete') return <Navigate to="/complete-profile" replace />;
   if (status !== 'authenticated') return <Navigate to="/login" replace state={{ from: location }} />;
   if (!user.emailVerified && location.pathname !== '/verify-email') return <Navigate to="/verify-email" replace />;
   return <Outlet />;
@@ -20,7 +21,7 @@ export function RequireRole({ roles }) {
 
 export function RequirePermission({ permissions }) {
   const { can } = useAuth();
-  if (!can(...permissions)) return <Navigate to="/app/admin" replace />;
+  if (!can(...permissions)) return <Navigate to="/403" replace />;
   return <Outlet />;
 }
 

@@ -1,3 +1,5 @@
+<p align="center"><img src="frontend/public/brand/achiever-logo-600.png" width="240" alt="ACHIEVER — Save Together. Go Further."></p>
+
 # ACHIEVER
 
 A Nigerian digital **Susu / Ajo** platform: rotational **Osusu** groups, individual **Collector** savings, verified Paystack payments, bill payments, group chat, and LiveKit voice/video calling.
@@ -51,3 +53,10 @@ supabase test db            # pgTAP: 46 financial-rule assertions + 14 RLS asser
 1. Decide the custody model for pooled funds with legal counsel; replace `/legal` with counsel-approved Terms and Privacy Policy.
 2. Contract a BVN/NIN verification provider (or keep manual review) and a bill-payment aggregator.
 3. Work through the security checklist in [docs/SETUP.md §13](docs/SETUP.md).
+
+## Further documentation
+
+- [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Setup](docs/SETUP.md)
+- [Security & compliance](docs/SECURITY_COMPLIANCE.md) · [Data dictionary](docs/DATA_DICTIONARY.md)
+- [Authentication, social sign-in & email](docs/AUTH_AND_EMAIL.md)
+- Public user documentation: `frontend/public/documentation.html` (generated from `frontend/public-site/`, run `npm run pages`)

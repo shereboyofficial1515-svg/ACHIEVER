@@ -17,9 +17,10 @@ export function AuthProvider({ children }) {
       setUser(data);
       setStatus('authenticated');
       return data;
-    } catch {
+    } catch (err) {
       setUser(null);
-      setStatus('anonymous');
+      // Social sign-in succeeded but the ACHIEVER profile still has to be created.
+      setStatus(err?.code === 'PROFILE_INCOMPLETE' ? 'incomplete' : 'anonymous');
       return null;
     }
   }, []);

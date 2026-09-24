@@ -99,6 +99,14 @@ Money is always integer kobo (`BIGINT`). Times are `timestamptz` (UTC), and busi
 | case_transactions | Internal (append-only) | Ledger entries linked to a case |
 | dispute_evidence | Restricted (append-only) | File in the private bucket or a linked record; SHA-256; `supersedes_id` for corrections |
 
+## Settings, challenges and deletion (migration 008)
+
+| Table | Class | Purpose |
+|---|---|---|
+| user_preferences | Internal | `accessibility`, `messages`, `privacy`, `security` JSON settings; erased on personal-data deletion |
+| security_challenges | Secret (no browser access) | Verification codes for sensitive changes: HMAC only, action, channel, masked destination, attempts, session, expiry, verified/consumed times |
+| data_deletion_requests | Internal (never deleted) | Account or personal-data deletion: status, reason, cancellation window, reviewer, decision note, retained summary |
+
 ## Trust (public-safe)
 
 `user_trust_profile` exposes only these fields:

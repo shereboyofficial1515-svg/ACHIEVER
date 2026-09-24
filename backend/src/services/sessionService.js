@@ -58,12 +58,12 @@ export async function start({ userId, authMethod, req, res }) {
   if (!token || !/^[A-Za-z0-9_-]{30,60}$/.test(token)) token = randomToken(32);
   const hash = deviceHash(token);
 
-  let device = await securityRepo.findDevice(userId, hash);
+  // Independent lookups run in parallel (each is a network round trip to the database).
+  let [device, knownDevices] = await Promise.all([securityRepo.findDevice(userId, hash), securityRepo.countDevices(userId)]);
   let isNewDevice = false;
   let createdNow = false;
   if (!device) {
     createdNow = true;
-    const knownDevices = await securityRepo.countDevices(userId);
     device = await securityRepo.insertDevice({
       user_id: userId, device_id_hash: hash, label: info.label, device_type: info.deviceType, os: info.os, browser: info.browser,
     });

@@ -26,7 +26,19 @@ export async function get(userId) {
   return merge(await userRepo.getUserPreferences(userId));
 }
 
-export async function update(userId, patch, req) {
+// Partial updates are read-merge-write, so updates for the same user are
+// serialised; otherwise two quick changes could overwrite each other.
+const locks = new Map();
+
+export function update(userId, patch, req) {
+  const prev = locks.get(userId) || Promise.resolve();
+  const next = prev.catch(() => {}).then(() => applyUpdate(userId, patch, req));
+  locks.set(userId, next);
+  next.finally(() => { if (locks.get(userId) === next) locks.delete(userId); }).catch(() => {});
+  return next;
+}
+
+async function applyUpdate(userId, patch, req) {
   const current = await get(userId);
   const next = { user_id: userId };
   for (const section of Object.keys(DEFAULTS)) {

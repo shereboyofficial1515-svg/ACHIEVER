@@ -1,4 +1,5 @@
-import { BUCKETS, ROLES, STAFF_ROLES } from '../config/constants.js';
+import { BUCKETS, ROLES } from '../config/constants.js';
+import { canOversee } from './permissionService.js';
 import * as osusuRepo from '../repositories/osusuRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as authService from './authService.js';
@@ -13,7 +14,7 @@ import { AppError } from '../utils/AppError.js';
 import { randomCode } from '../utils/crypto.js';
 import { pageMeta } from '../utils/pagination.js';
 
-const isStaff = (user) => user.roles.some((r) => STAFF_ROLES.includes(r));
+const isStaff = (user) => canOversee(user);
 
 function formatGroup(g) {
   return {

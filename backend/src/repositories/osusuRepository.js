@@ -167,7 +167,7 @@ export async function approvePayout(cycleId, actorId, mode) {
 export async function groupTransactions(groupId, limit = 50) {
   return run(
     db.from('transactions')
-      .select('id, reference, type, direction, amount, status, description, created_at, completed_at, user:profiles(full_name)')
+      .select('id, reference, type, direction, amount, status, description, created_at, completed_at, user:profiles!transactions_user_id_fkey(full_name)')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
       .limit(limit),

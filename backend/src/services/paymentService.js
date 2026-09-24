@@ -5,6 +5,8 @@ import * as settingsService from './settingsService.js';
 import * as notificationService from './notificationService.js';
 import * as refundService from './refundService.js';
 import * as auditService from './auditService.js';
+import * as kycService from './kycService.js';
+import * as riskService from './riskService.js';
 import { AppError } from '../utils/AppError.js';
 import { newPaymentReference, paystackSignature, safeEqual } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
@@ -25,6 +27,9 @@ const payoutService = () => (payoutServicePromise ??= import('./payoutService.js
 export async function initialize({ user, purpose, targetId, amount, metadata = {} }) {
   await settingsService.assertPaymentsOpen();
   if (!Number.isSafeInteger(amount) || amount <= 0) throw AppError.badRequest('Invalid amount');
+  await riskService.assertNotRestricted(user.id);
+  // Savings contributions need the configured KYC level; bill payments do not.
+  if (purpose === 'osusu_contribution' || purpose === 'collector_savings') await kycService.requireLevel(user.id, 'contribute');
 
   const since = new Date(Date.now() - REUSE_WINDOW_MS).toISOString();
   const existing = await paymentRepo.findOpenAttempt({ userId: user.id, purpose, targetId, amount, since });
@@ -41,6 +46,7 @@ export async function initialize({ user, purpose, targetId, amount, metadata = {
     amount,
     currency: 'NGN',
     metadata,
+    session_id: user.sessionId ?? null,
   });
 
   try {

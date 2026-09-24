@@ -18,6 +18,12 @@ export function RequireRole({ roles }) {
   return <Outlet />;
 }
 
+export function RequirePermission({ permissions }) {
+  const { can } = useAuth();
+  if (!can(...permissions)) return <Navigate to="/app/admin" replace />;
+  return <Outlet />;
+}
+
 export function RedirectIfAuthenticated() {
   const { status } = useAuth();
   const location = useLocation();

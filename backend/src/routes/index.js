@@ -9,11 +9,18 @@ import {
   notificationRoutes, paymentRoutes, supportRoutes,
 } from './featureRoutes.js';
 import adminRoutes, { reportRoutes } from './adminRoutes.js';
+import * as sc from '../controllers/securityController.js';
+import { validate } from '../middleware/validate.js';
+import { stateParam } from '../validators/miscValidators.js';
 
 const api = Router();
 const member = [authenticate, requireVerifiedEmail];
 
 api.use('/auth', authRoutes);
+
+// Public reference data (Nigerian states and LGAs) for registration forms
+api.get('/reference/states', sc.states);
+api.get('/reference/states/:code/lgas', validate({ params: stateParam }), sc.lgas);
 
 // Available before email verification (so users can manage their account)
 api.use('/profiles', authenticate, profileRoutes);

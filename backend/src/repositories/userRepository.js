@@ -3,7 +3,10 @@ import { likePattern, toRange } from '../utils/pagination.js';
 
 const PROFILE_COLUMNS =
   'id, full_name, email, phone, address, date_of_birth, avatar_path, primary_account_type, account_status, status_reason, ' +
-  'email_verified_at, phone_verified_at, failed_login_count, locked_until, last_login_at, last_seen_at, sessions_revoked_at, created_at';
+  'email_verified_at, phone_verified_at, failed_login_count, locked_until, last_login_at, last_seen_at, sessions_revoked_at, created_at, ' +
+  'first_name, middle_name, last_name, preferred_name, gender, nationality, occupation, employment_status, business_name, ' +
+  'country, state_code, lga_id, city, address_unit, postal_code, address_verification_status, address_verified_at, ' +
+  'show_public_location, deactivated_at, deactivation_reason';
 
 export async function findById(id) {
   return one(db.from('profiles').select(`${PROFILE_COLUMNS}, user_roles!user_roles_user_id_fkey(role_code)`).eq('id', id).maybeSingle());
@@ -11,6 +14,12 @@ export async function findById(id) {
 
 export async function findByEmail(email) {
   return one(db.from('profiles').select(PROFILE_COLUMNS).eq('email', email.toLowerCase()).maybeSingle());
+}
+
+export async function findWithLocation(id) {
+  return one(db.from('profiles')
+    .select(`${PROFILE_COLUMNS}, state:ng_states(code, name), lga:ng_lgas(id, name), user_roles!user_roles_user_id_fkey(role_code)`)
+    .eq('id', id).maybeSingle());
 }
 
 export async function findByPhone(phone) {
@@ -95,4 +104,27 @@ export async function upsertPreferences(userId, patch) {
   return one(
     db.from('notification_preferences').upsert({ user_id: userId, ...patch }, { onConflict: 'user_id' }).select('*').maybeSingle(),
   );
+}
+
+async function countRows(query) {
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Open financial obligations that must be settled before an account can be
+ * deactivated. Records themselves are never deleted.
+ */
+export async function openObligations(userId) {
+  const head = { count: 'exact', head: true };
+  const OPEN_PLAN = ['active', 'matured', 'return_requested', 'return_processing'];
+  const [organisedGroups, activeMemberships, plans, pendingPayouts] = await Promise.all([
+    countRows(db.from('osusu_groups').select('id', head).eq('admin_id', userId).in('status', ['recruiting', 'active'])),
+    countRows(db.from('osusu_members').select('id, group:osusu_groups!inner(status)', head).eq('user_id', userId)
+      .in('status', ['pending_approval', 'active']).eq('group.status', 'active')),
+    countRows(db.from('collector_savers').select('id', head).or(`saver_id.eq.${userId},collector_id.eq.${userId}`).in('status', OPEN_PLAN)),
+    countRows(db.from('osusu_payouts').select('id', head).eq('recipient_user_id', userId).in('status', ['approved', 'processing'])),
+  ]);
+  return { organisedGroups, activeMemberships, plans, pendingPayouts };
 }

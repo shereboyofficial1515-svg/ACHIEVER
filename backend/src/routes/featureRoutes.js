@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as f from '../controllers/featureController.js';
 import * as p from '../controllers/paymentController.js';
+import * as sc from '../controllers/securityController.js';
 import { uploadSingle } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
 import { messageLimiter, paymentLimiter, uploadLimiter } from '../middleware/rateLimiters.js';
@@ -80,7 +81,9 @@ export const supportRoutes = Router()
   .post('/tickets', validate({ body: s.createTicket }), f.createTicket)
   .get('/tickets', validate({ query: s.listTickets }), f.myTickets)
   .get('/tickets/:id', validate({ params: idParam }), f.getTicket)
-  .post('/tickets/:id/messages', messageLimiter, validate({ params: idParam, body: s.ticketMessage }), f.addTicketMessage);
+  .post('/tickets/:id/messages', messageLimiter, validate({ params: idParam, body: s.ticketMessage }), f.addTicketMessage)
+  .post('/tickets/:id/evidence', uploadLimiter, validate({ params: idParam }), ...uploadSingle('file', 'evidence'), sc.uploadEvidence)
+  .get('/evidence/:id/url', validate({ params: idParam, query: s.accessReason.partial() }), sc.evidenceUrl);
 
 // /api/events
 export const eventRoutes = Router().get('/stream', f.eventStream);

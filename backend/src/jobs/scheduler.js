@@ -47,6 +47,8 @@ export const JOBS = [
   // Delivery
   { name: 'notifications.dispatch', schedule: '* * * * *', ttl: 55, run: () => notificationService.dispatchPending(100) },
   { name: 'invites.expire', schedule: '30 1 * * *', ttl: 300, run: () => inviteRepo.expireOld() },
+  // Compliance: expire identity documents, flag late collector settlements, expire stale approvals
+  { name: 'compliance.checks', schedule: '20 2 * * *', ttl: 900, run: () => rpc('run_compliance_checks') },
 ];
 
 const tasks = [];

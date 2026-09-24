@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Loader } from './components/ui/index.js';
-import { RedirectIfAuthenticated, RequireAuth, RequireRole } from './routes/guards.jsx';
+import { RedirectIfAuthenticated, RequireAuth, RequirePermission, RequireRole } from './routes/guards.jsx';
+import { STAFF_ROLES } from './contexts/AuthContext.jsx';
+import StepUpPrompt from './components/domain/StepUpPrompt.jsx';
 import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import { CallProvider } from './contexts/CallContext.jsx';
 import AuthLayout from './layouts/AuthLayout.jsx';
@@ -52,9 +54,11 @@ const AdminRisk = lazy(() => import('./pages/admin/AdminRisk.jsx'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
 const AdminReports = lazy(() => import('./pages/admin/AdminReports.jsx'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings.jsx'));
-
-const STAFF = ['SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN'];
-const FINANCE = ['SUPER_ADMIN', 'ADMIN'];
+const AdminCompliance = lazy(() => import('./pages/admin/AdminCompliance.jsx'));
+const AdminApprovals = lazy(() => import('./pages/admin/AdminApprovals.jsx'));
+const AdminTrace = lazy(() => import('./pages/admin/AdminTrace.jsx'));
+const AdminDataAccess = lazy(() => import('./pages/admin/AdminDataAccess.jsx'));
+const TrustProfile = lazy(() => import('./pages/app/TrustProfile.jsx'));
 
 function SignedInShell() {
   return (
@@ -69,6 +73,7 @@ function SignedInShell() {
 export default function App() {
   return (
     <Suspense fallback={<Loader />}>
+      <StepUpPrompt />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/legal" element={<Legal />} />
@@ -109,22 +114,55 @@ export default function App() {
             <Route path="support" element={<Support />} />
             <Route path="support/:id" element={<TicketDetail />} />
 
-            <Route path="admin" element={<RequireRole roles={STAFF} />}>
+            <Route path="people/:id" element={<TrustProfile />} />
+
+            {/* Admin console: each page is gated by the permission the API enforces. */}
+            <Route path="admin" element={<RequireRole roles={STAFF_ROLES} />}>
               <Route index element={<AdminOverview />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="users/:id" element={<AdminUserDetail />} />
-              <Route path="groups" element={<AdminGroups />} />
-              <Route path="collectors" element={<AdminCollectors />} />
-              <Route path="bills" element={<AdminBills />} />
-              <Route path="support" element={<AdminSupport />} />
-              <Route path="support/:id" element={<TicketDetail staffView />} />
-              <Route path="risk" element={<AdminRisk />} />
               <Route path="settings" element={<AdminSettings />} />
-              <Route element={<RequireRole roles={FINANCE} />}>
+              <Route element={<RequirePermission permissions={['users.read']} />}>
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="users/:id" element={<AdminUserDetail />} />
+              </Route>
+              <Route path="groups" element={<AdminGroups />} />
+              <Route element={<RequirePermission permissions={['collectors.review', 'collectors.status', 'overview.read']} />}>
+                <Route path="collectors" element={<AdminCollectors />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['finance.ledger.read', 'support.tickets']} />}>
+                <Route path="bills" element={<AdminBills />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['support.tickets', 'disputes.manage']} />}>
+                <Route path="support" element={<AdminSupport />} />
+                <Route path="support/:id" element={<TicketDetail staffView />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['risk.review', 'security.events.read']} />}>
+                <Route path="risk" element={<AdminRisk />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['security.events.read', 'kyc.review', 'risk.review', 'audit.read']} />}>
+                <Route path="compliance" element={<AdminCompliance />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['finance.reversal.request', 'finance.reversal.approve', 'collectors.status', 'risk.review', 'finance.payouts.execute']} />}>
+                <Route path="approvals" element={<AdminApprovals />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['trace.read']} />}>
+                <Route path="trace" element={<AdminTrace />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['data_access.read']} />}>
+                <Route path="data-access" element={<AdminDataAccess />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['finance.ledger.read']} />}>
                 <Route path="transactions" element={<AdminTransactions />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['finance.payouts.execute']} />}>
                 <Route path="payouts" element={<AdminPayouts />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['kyc.review']} />}>
                 <Route path="verification" element={<AdminVerification />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['audit.read']} />}>
                 <Route path="audit" element={<AdminAudit />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['reports.platform']} />}>
                 <Route path="reports" element={<AdminReports />} />
               </Route>
             </Route>

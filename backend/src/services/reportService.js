@@ -3,6 +3,7 @@ import * as osusuService from './osusuService.js';
 import * as collectorService from './collectorService.js';
 import * as auditService from './auditService.js';
 import { AppError } from '../utils/AppError.js';
+import { can } from './permissionService.js';
 import { toCsv } from '../utils/csv.js';
 
 const naira = (k) => (Number(k) / 100).toFixed(2);
@@ -182,7 +183,7 @@ const COLLECTOR_REPORTS = {
 const PLATFORM_REPORTS = {
   transactions: {
     title: 'Transaction report',
-    rows: (_, { from, to }) => run(range(db.from('transactions').select('reference, type, direction, amount, status, provider, provider_reference, created_at, completed_at, user:profiles(full_name, email)').order('created_at', { ascending: false }).limit(MAX_ROWS), from, to)),
+    rows: (_, { from, to }) => run(range(db.from('transactions').select('reference, type, direction, amount, status, provider, provider_reference, created_at, completed_at, user:profiles!transactions_user_id_fkey(full_name, email)').order('created_at', { ascending: false }).limit(MAX_ROWS), from, to)),
     columns: [
       { label: 'Reference', key: 'reference' }, { label: 'Type', key: 'type' }, { label: 'Direction', key: 'direction' },
       { label: 'Amount (NGN)', value: (r) => naira(r.amount) }, { label: 'Status', key: 'status' }, { label: 'Provider', key: 'provider' },
@@ -269,14 +270,15 @@ async function build(defs, type, subjectId, filters) {
 }
 
 export async function osusuReport(user, groupId, filters, req) {
-  await osusuService.groupAccess(user, groupId, { adminOnly: !user.roles.some((r) => ['SUPER_ADMIN', 'ADMIN'].includes(r)) });
+  await osusuService.groupAccess(user, groupId, { adminOnly: !can(user, 'reports.platform') });
   const report = await build(OSUSU_REPORTS, filters.type, groupId, filters);
   await auditService.record({ actorId: user.id, action: 'report.osusu', resourceType: 'osusu_group', resourceId: groupId, metadata: { type: filters.type, format: filters.format }, req });
   return report;
 }
 
 export async function collectorReport(user, filters, req) {
-  await collectorService.requireActiveAccount(user);
+  // Reports stay available to a restricted/suspended collector: they document existing obligations.
+  if (!(await collectorService.getMyAccount(user))) throw AppError.notFound('Create your collector account first', 'NO_COLLECTOR_ACCOUNT');
   const report = await build(COLLECTOR_REPORTS, filters.type, user.id, filters);
   await auditService.record({ actorId: user.id, action: 'report.collector', resourceType: 'collector_account', resourceId: user.id, metadata: { type: filters.type }, req });
   return report;

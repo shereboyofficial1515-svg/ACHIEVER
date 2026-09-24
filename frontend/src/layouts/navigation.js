@@ -1,15 +1,17 @@
 import {
   Activity, BadgeCheck, Banknote, Bell, CalendarDays, FileBarChart, FileText, HandCoins, Home, LifeBuoy,
   MessageSquare, PiggyBank, Receipt, ScrollText, Settings, ShieldAlert, User, Users, UsersRound, Wallet, Zap,
+  ShieldCheck, Stamp, Route as RouteIcon, Eye,
 } from 'lucide-react';
 
-/** Navigation adapts to the roles the SERVER reports for the user. */
-export function buildNavigation(has) {
+const STAFF = ['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_ADMIN', 'FINANCE_ADMIN', 'DISPUTE_ADMIN', 'SECURITY_ADMIN', 'SUPPORT_ADMIN', 'AUDITOR', 'READ_ONLY_ADMIN'];
+
+/** Navigation adapts to the roles and permissions the SERVER reports for the user. */
+export function buildNavigation(has, can = () => false) {
   const osusu = has('OSUSU_MEMBER', 'OSUSU_ADMIN');
   const saver = has('SAVER');
   const collector = has('COLLECTOR');
-  const staff = has('SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN');
-  const finance = has('SUPER_ADMIN', 'ADMIN');
+  const staff = has(...STAFF);
 
   const main = [
     { to: '/app', label: 'Home', icon: Home, end: true },
@@ -25,20 +27,25 @@ export function buildNavigation(has) {
     { to: '/app/profile', label: 'Profile', icon: User },
   ].filter(Boolean);
 
+  // Each admin page appears only when the user holds a permission for it (least privilege).
   const admin = staff
     ? [
         { to: '/app/admin', label: 'Overview', icon: Activity, end: true },
-        { to: '/app/admin/users', label: 'Users', icon: Users },
+        can('security.events.read', 'kyc.review', 'risk.review', 'audit.read') && { to: '/app/admin/compliance', label: 'Security & compliance', icon: ShieldCheck },
+        can('users.read') && { to: '/app/admin/users', label: 'Users', icon: Users },
         { to: '/app/admin/groups', label: 'Osusu groups', icon: UsersRound },
-        { to: '/app/admin/collectors', label: 'Collectors', icon: HandCoins },
-        finance && { to: '/app/admin/transactions', label: 'Transactions', icon: Receipt },
-        finance && { to: '/app/admin/payouts', label: 'Payouts', icon: Banknote },
-        { to: '/app/admin/bills', label: 'Bill payments', icon: Zap },
-        finance && { to: '/app/admin/verification', label: 'Verification', icon: BadgeCheck },
-        { to: '/app/admin/support', label: 'Support', icon: LifeBuoy },
-        { to: '/app/admin/risk', label: 'Risk & review', icon: ShieldAlert },
-        finance && { to: '/app/admin/audit', label: 'Audit logs', icon: ScrollText },
-        finance && { to: '/app/admin/reports', label: 'Reports', icon: FileBarChart },
+        can('collectors.review', 'collectors.status', 'overview.read') && { to: '/app/admin/collectors', label: 'Collectors', icon: HandCoins },
+        can('kyc.review') && { to: '/app/admin/verification', label: 'Verification', icon: BadgeCheck },
+        can('finance.ledger.read') && { to: '/app/admin/transactions', label: 'Transactions', icon: Receipt },
+        can('finance.payouts.execute') && { to: '/app/admin/payouts', label: 'Payouts', icon: Banknote },
+        can('finance.reversal.request', 'finance.reversal.approve', 'collectors.status', 'risk.review', 'finance.payouts.execute') && { to: '/app/admin/approvals', label: 'Approvals', icon: Stamp },
+        can('finance.ledger.read', 'support.tickets') && { to: '/app/admin/bills', label: 'Bill payments', icon: Zap },
+        can('support.tickets', 'disputes.manage') && { to: '/app/admin/support', label: 'Cases & disputes', icon: LifeBuoy },
+        can('trace.read') && { to: '/app/admin/trace', label: 'Trace', icon: RouteIcon },
+        can('risk.review', 'security.events.read') && { to: '/app/admin/risk', label: 'Risk & review', icon: ShieldAlert },
+        can('audit.read') && { to: '/app/admin/audit', label: 'Audit logs', icon: ScrollText },
+        can('data_access.read') && { to: '/app/admin/data-access', label: 'Data access log', icon: Eye },
+        can('reports.platform') && { to: '/app/admin/reports', label: 'Reports', icon: FileBarChart },
         { to: '/app/admin/settings', label: 'Settings', icon: Settings },
       ].filter(Boolean)
     : [];

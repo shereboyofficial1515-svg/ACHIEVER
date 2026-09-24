@@ -5,6 +5,7 @@ import { useToast } from '../../contexts/ToastContext.jsx';
 import { api } from '../../services/api.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { AdminTable } from './adminShared.jsx';
+import ReasonDialog from '../../components/domain/ReasonDialog.jsx';
 
 export default function AdminVerification() {
   const toast = useToast();
@@ -13,13 +14,13 @@ export default function AdminVerification() {
   const [pending, setPending] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const viewDocument = async () => {
-    try {
-      const { data } = await api.get(`/admin/verification/${record.id}/document`);
-      window.open(data.url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      toast.error(err);
-    }
+  const [askReason, setAskReason] = useState(false);
+  // Opening an identity document is logged with the reviewer's stated reason.
+  const viewDocument = () => setAskReason(true);
+  const openDocument = async (reason) => {
+    const { data } = await api.get(`/admin/verification/${record.id}/document`, { reason });
+    setAskReason(false);
+    window.open(data.url, '_blank', 'noopener,noreferrer');
   };
   const decide = async (decision) => {
     setPending(decision);
@@ -38,7 +39,15 @@ export default function AdminVerification() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Identity verification" subtitle="Review operator identity documents. Full BVN/NIN numbers are never stored or shown." />
+      <PageHeader title="Identity verification" subtitle="Review identity documents. Full document numbers are never stored or shown; every document view is logged with a reason." />
+      <ReasonDialog
+        open={askReason}
+        title="Open identity document"
+        description="Identity documents are highly sensitive. Your reason is written to the data access log before the document opens."
+        confirmLabel="Open document"
+        onClose={() => setAskReason(false)}
+        onSubmit={openDocument}
+      />
       <AdminTable
         endpoint="/admin/verification"
         reloadKey={reloadKey}
@@ -46,7 +55,7 @@ export default function AdminVerification() {
         filters={[{ name: 'status', label: 'All statuses', options: ['manual_review', 'pending', 'verified', 'failed'], initial: 'manual_review' }]}
         columns={[
           { key: 'u', label: 'User', render: (r) => `${r.user?.full_name} · ${r.user?.email}` },
-          { key: 't', label: 'ID', render: (r) => `${r.id_type.toUpperCase()} ••${r.id_last4}` },
+          { key: 't', label: 'ID', render: (r) => `${r.id_type.replace('_', ' ').toUpperCase()} ••${r.id_last4}` },
           { key: 'd', label: 'Document', render: (r) => (r.documentUploaded ? 'Uploaded' : 'Missing') },
           { key: 's', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
           { key: 'c', label: 'Submitted', render: (r) => formatDateTime(r.created_at) },
@@ -75,8 +84,11 @@ export default function AdminVerification() {
               items={[
                 ['Name', record.user?.full_name],
                 ['Email', record.user?.email],
-                ['ID type', record.id_type.toUpperCase()],
-                ['Last 4 digits', record.id_last4],
+                ['ID type', record.id_type.replace('_', ' ').toUpperCase()],
+                ['Document number', record.document_number_masked || `••••${record.id_last4}`],
+                record.issuing_country && ['Issuing country', record.issuing_country],
+                record.issue_date && ['Issued', formatDate(record.issue_date)],
+                record.expiry_date && ['Expires', formatDate(record.expiry_date)],
                 ['Provider', record.provider],
                 ['Status', <StatusBadge key="s" status={record.status} />],
                 ['Submitted', formatDate(record.created_at)],

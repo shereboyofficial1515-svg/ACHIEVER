@@ -28,7 +28,7 @@ set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000b1","r
 
 select is((select count(*)::int from transactions), 1, 'a user sees only their own ledger rows');
 select is((select reference from transactions limit 1), 'RLS-TX-B', '...and it is their own');
-select is((select count(*)::int from profiles), 1, "a user cannot read other users' profiles");
+select is((select count(*)::int from profiles), 1, 'a user cannot read other users'' profiles');
 select is((select count(*)::int from osusu_groups), 0, 'non-members cannot see private groups');
 select is((select count(*)::int from messages), 0, 'non-members cannot read group messages');
 select is((select count(*)::int from conversations), 0, 'non-members cannot see conversations');

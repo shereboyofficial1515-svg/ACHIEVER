@@ -25,6 +25,13 @@ const VALIDATORS = {
   'notifications.sms_daily_cap': (v) => Number.isInteger(v) && v >= 0 && v <= 100,
   'payouts.execution_mode': (v) => v === 'manual' || v === 'paystack_transfer',
   'platform.maintenance_mode': (v) => typeof v === 'boolean',
+  'kyc.required_levels': (v) => v && typeof v === 'object' && !Array.isArray(v)
+    && Object.keys(v).every((k) => ['contribute', 'receive_payout', 'withdraw', 'operator'].includes(k))
+    && Object.values(v).every((n) => Number.isInteger(n) && n >= 0 && n <= 3),
+  'security.payment_account_cooldown_hours': (v) => Number.isInteger(v) && v >= 0 && v <= 168,
+  'risk.withdrawal_review_threshold_kobo': (v) => Number.isSafeInteger(v) && v > 0,
+  'security.step_up_minutes': (v) => Number.isInteger(v) && v >= 1 && v <= 60,
+  'finance.large_payout_threshold_kobo': (v) => Number.isSafeInteger(v) && v > 0,
 };
 
 export async function update(key, value, actorId) {

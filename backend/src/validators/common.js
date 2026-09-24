@@ -41,3 +41,25 @@ export const dateRange = z.object({
 });
 
 export const search = z.string().trim().max(80).optional();
+
+// Identity & location ----------------------------------------------------------------
+export const personName = (min = 1) => z.string().transform(cleanSingleLine)
+  .pipe(z.string().min(min).max(60).regex(/^[\p{L}][\p{L}' .-]*$/u, 'Use letters only'));
+export const gender = z.enum(['female', 'male', 'other', 'prefer_not_to_say']);
+export const employmentStatus = z.enum(['employed', 'self_employed', 'business_owner', 'student', 'unemployed', 'retired', 'other']);
+export const countryCode = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Use a 2-letter country code');
+export const stateCode = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Choose a state');
+export const lgaId = z.coerce.number().int().positive('Choose an LGA');
+
+export function ageInYears(iso) {
+  const today = new Date();
+  const d = new Date(`${iso}T00:00:00Z`);
+  let age = today.getUTCFullYear() - d.getUTCFullYear();
+  const m = today.getUTCMonth() - d.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getUTCDate() < d.getUTCDate())) age -= 1;
+  return age;
+}
+export const adultDob = isoDate.refine((v) => {
+  const age = ageInYears(v);
+  return age >= 18 && age < 120;
+}, 'You must be at least 18 years old');

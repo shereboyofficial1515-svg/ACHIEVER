@@ -26,7 +26,7 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 | Method | Path | Access | Body / notes |
 |---|---|---|---|
 | GET | `/auth/csrf` | 🔓 | → `{ csrfToken }` |
-| POST | `/auth/register` | 🔓 | `{ accountType: osusu\|collector\|personal, role: organizer\|member\|collector\|saver\|personal, fullName, email, phone, password, address?, dateOfBirth?, acceptTerms: true }` |
+| POST | `/auth/register` | 🔓 | `{ accountType: osusu\|collector\|personal, role, firstName, middleName?, lastName, preferredName?, gender, dateOfBirth (18+), nationality?, occupation?, employmentStatus?, businessName?, email, phone, stateCode, lgaId, city, address (required for organiser/collector), addressUnit?, postalCode?, password, acceptTerms: true, acceptPrivacy: true }` — LGA must belong to the state; starts a tracked session |
 | POST | `/auth/login` | 🔓 | `{ email, password }` → profile |
 | POST | `/auth/refresh` | cookie | rotates access/refresh cookies |
 | POST | `/auth/logout` | 🔑 (optional) | clears cookies, revokes Supabase session |
@@ -35,22 +35,37 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 | POST | `/auth/phone/send` · `/auth/phone/verify` | 🔑 | `{ code }` (SMS via Termii) |
 | POST | `/auth/password/forgot` | 🔓 | `{ email }` — same response whether or not the account exists |
 | POST | `/auth/password/reset` | 🔓 | `{ email, code, newPassword }` — signs out all devices |
-| POST | `/auth/password/change` | 🔑 | `{ currentPassword, newPassword }` |
+| POST | `/auth/password/change` | 🔑 | `{ currentPassword, newPassword }` — revokes every other session |
+| GET | `/auth/sessions` | 🔑 | active sessions (device, masked IP, last active, `current`) |
+| DELETE | `/auth/sessions/:id` | 🔑 | sign out one of your sessions |
+| POST | `/auth/sessions/revoke-others` | 🔑 | sign out every other session |
+| POST | `/auth/step-up` | 🔑 | `{ password }` — re-authenticates this session for sensitive staff actions (valid `security.step_up_minutes`) |
+
+## Reference data (public)
+`GET /reference/states` → 37 states (+FCT) · `GET /reference/states/:code/lgas` → LGAs of a state (774 total).
 
 ## Profiles & users
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET/PATCH | `/profiles/me` | 🔑 | `{ fullName?, address?, dateOfBirth? }` |
+| GET/PATCH | `/profiles/me` | 🔑 | identity/address fields (`firstName`, `lastName`, `middleName`, `dateOfBirth` locked once KYC ≥ 2), `preferredName`, `gender`, `occupation`, `employmentStatus`, `businessName`, `stateCode`, `lgaId`, `city`, `address`, `addressUnit`, `postalCode`, `showPublicLocation`; GET includes `kyc` and `permissions` |
+| GET | `/profiles/me/security` | 🔑 | your account-change history and security notices |
+| POST | `/profiles/me/email/change` · `/email/confirm` | 🔑 | `{ newEmail, password }` → code to the new address · `{ code }`; old address alerted |
+| POST | `/profiles/me/phone/change` · `/phone/confirm` | 🔑 | `{ newPhone, password }` → SMS code · `{ code }` |
+| POST | `/profiles/me/deactivate` | 🔑 | `{ password, reason? }` — refused while groups/plans/payouts are open (`OPEN_OBLIGATIONS`); records retained |
+| GET | `/users/:id/trust` | ✅ | public-safe trust profile |
 | POST | `/profiles/me/avatar` | 🔑 | multipart `file` (jpeg/png/webp ≤ 2 MB) |
 | GET | `/users/me/dashboard` | ✅ | role-aware dashboard figures |
-| GET/PUT | `/users/me/payout-account` | ✅ | `{ bankCode, accountNumber }` — resolved with Paystack; only last 4 digits stored |
+| GET/PUT | `/users/me/payout-account` | ✅ | `{ bankCode, accountNumber }` — resolved with Paystack; first account saved directly; a **change** returns `{ otpRequired: true }` and emails a code |
+| POST | `/users/me/payout-account/confirm` | ✅ | `{ bankCode, accountNumber, code }` — code is bound to that account; starts the payout cool-down |
 | POST | `/users/me/roles` | ✅ | `{ role: OSUSU_ADMIN\|OSUSU_MEMBER\|COLLECTOR\|SAVER }` |
 
 ## Verification — `/verification`
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/verification/status` | email/phone/identity/undertaking status per operator role |
-| POST | `/verification/identity` | `{ idType: bvn\|nin, idNumber (11 digits), firstName, lastName, dateOfBirth }` — number hashed, never returned |
+| GET | `/verification/status` | email/phone/identity/undertaking status, `kyc` summary |
+| GET | `/verification/kyc` | KYC level 0–3, status, next step, allowed activities |
+| POST | `/verification/identity` | `{ idType: bvn\|nin\|passport\|drivers_licence\|voters_card, idNumber, firstName, lastName, dateOfBirth, issuingCountry?, issueDate?, expiryDate? (required for passport/licence) }` — number hashed, only last 4 kept |
+| POST | `/verification/liveness` | returns `503 LIVENESS_PROVIDER_NOT_CONFIGURED` until a provider is integrated |
 | POST | `/verification/identity/document` | multipart `file` (jpeg/png/pdf ≤ 5 MB) → private bucket |
 | GET/POST | `/verification/undertaking` | POST `{ role: OSUSU_ADMIN\|COLLECTOR, accept: true }` — stores version, text hash, time, IP, user agent |
 
@@ -122,7 +137,7 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 `GET /meetings?groupId=&upcomingOnly=` · `POST /meetings { groupId, title, description?, startsAt, durationMinutes?, callEnabled? }` (organiser) · `PATCH /meetings/:id` · `POST /meetings/:id/cancel` · `POST /meetings/:id/start { callType }` (organiser; opens group call) · `POST /meetings/:id/join`.
 
 ## Support — `/support`
-`POST /support/tickets { category, subject, description, relatedTransactionId?, relatedGroupId?, relatedPlanId? }` · `GET /support/tickets` · `GET /support/tickets/:id` · `POST /support/tickets/:id/messages { body, internal? }` (`internal` honoured for staff only).
+`POST /support/tickets { category, subject, description, amount?, relatedTransactionId?, relatedGroupId?, relatedPlanId? }` → case with `caseNumber` (CASE-YYYY-NNNNNN) · `GET /support/tickets` (cases you reported or are respondent in) · `GET /support/tickets/:id` · `POST /support/tickets/:id/messages { body, internal? }` · `POST /support/tickets/:id/evidence` multipart `file` + `evidenceType`, `description?`, `supersedesId?` (SHA-256 computed server-side, append-only) · `GET /support/evidence/:id/url?reason=` (reason required for staff; logged).
 
 ## Realtime — `/events/stream` (🔑, SSE)
 Events: `ready`, `message.new`, `notification.new`, `call.incoming`, `call.updated`.
@@ -130,21 +145,33 @@ Events: `ready`, `message.new`, `notification.new`, `call.incoming`, `call.updat
 ## Reports — `/reports`
 `GET /reports/types` · `GET /reports/osusu/:groupId?type=contributions|members|defaults|payouts|cycles&format=json|csv` (organiser/finance staff) · `GET /reports/collector?type=contributions|balances|commissions|maturity` (COLLECTOR) · `GET /reports/platform?type=transactions|bills|user-growth|failed-payments|revenue&from=&to=` (SUPER_ADMIN, ADMIN).
 
-## Admin — `/admin` (SUPER_ADMIN, ADMIN, SUPPORT_ADMIN; 💰 = SUPER_ADMIN/ADMIN only)
-| Method | Path |
-|---|---|
-| GET | `/admin/overview` |
-| GET | `/admin/users?search=&role=&status=` · `/admin/users/:id` |
-| PATCH 💰 | `/admin/users/:id/status { status: active\|suspended\|closed, reason? }` |
-| POST/DELETE 💰 | `/admin/users/:id/roles` · `/admin/users/:id/roles/:role` (staff roles: SUPER_ADMIN only) |
-| GET | `/admin/osusu/groups` · `/admin/collectors` · PATCH 💰 `/admin/collectors/:id/status` |
-| GET 💰 | `/admin/transactions` · `/admin/payments` |
-| GET | `/admin/bills` |
-| GET 💰 | `/admin/payouts` (queue of payouts, returns, commissions) |
-| POST 💰 | `/admin/payouts/:kind/:id/confirm { externalReference, note? }` · `/fail { reason }` · `/retry` |
-| GET/POST 💰 | `/admin/verification` · `/admin/verification/:id/document` · `/admin/verification/:id/decision { decision: verified\|failed, note? }` |
-| GET/PATCH/POST | `/admin/support/tickets` · `/admin/support/tickets/:id` · `/admin/support/tickets/:id/assign` |
-| GET · PATCH 💰 | `/admin/risk` · `/admin/risk/:id { status, note? }` |
-| GET 💰 | `/admin/audit-logs?action=&resourceType=&resourceId=&from=&to=` |
-| GET · PUT (SUPER_ADMIN) | `/admin/settings` · `/admin/settings/:key { value }` |
-| POST 💰 | `/admin/notifications/broadcast { title, body, role? }` |
+## Admin — `/admin`
+Any staff role may enter; each route requires a **permission** (see `docs/SECURITY_COMPLIANCE.md`). 🔐 = also requires a recent step-up (`POST /auth/step-up`); the API answers `403 STEP_UP_REQUIRED` otherwise.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/admin/overview` | overview.read |
+| GET | `/admin/compliance/overview` | security.events.read / kyc.review / risk.review / audit.read |
+| GET | `/admin/users` · `/admin/users/:id` (contact masked) | users.read |
+| GET | `/admin/users/:id/sensitive?reason=` (logged) | users.read_sensitive |
+| GET · POST 🔐 | `/admin/users/:id/security` · `/admin/users/:id/sessions/revoke { reason }` | security.events.read · security.events.manage |
+| PATCH 🔐 | `/admin/users/:id/status { status, reason }` | users.manage_status |
+| POST/DELETE 🔐 | `/admin/users/:id/roles` · `/admin/users/:id/roles/:role` (staff roles need roles.manage) | users.manage_status / roles.manage |
+| GET · POST 🔐 | `/admin/kyc` · `/admin/kyc/:id/history` · `/admin/kyc/:id/restriction { restricted, reason }` | kyc.review |
+| GET · POST 🔐 | `/admin/verification` · `/admin/verification/:id/decision` | kyc.review |
+| GET | `/admin/verification/:id/document?reason=` (logged) | kyc.documents.view |
+| GET · PATCH 🔐 | `/admin/collectors?status=` · `/admin/collectors/:id` (trust stats, history) · `/admin/collectors/:id/status { status: verified\|active\|restricted\|suspended\|rejected, reason }` | collectors.review / collectors.status |
+| GET | `/admin/transactions` · `/admin/payments` | finance.ledger.read |
+| GET · POST 🔐 | `/admin/payouts` · `/admin/payouts/:kind/:id/confirm { externalReference, note?, overrideReason?, approvalRequestId? }` · `/fail` · `/retry` | finance.payouts.execute |
+| GET · POST 🔐 | `/admin/approvals` · `/admin/approvals { action, targetId, reason, payload }` · `/:id/decision { decision: approve\|reject }` · `/:id/execute` · `/:id/cancel` | per action (two-person rule) |
+| GET · PATCH · POST | `/admin/support/tickets` · `/:id { status, priority, resolution?, resolutionOutcome? }` · `/:id/assign` | support.tickets / disputes.manage |
+| POST | `/admin/support/tickets/:id/transactions { transactionId }` · `/:id/evidence { evidenceType, linkedRecordType, linkedRecordId }` | disputes.manage |
+| GET | `/admin/trace/transactions/:id` · `/admin/trace/cases/:id` | trace.read |
+| GET · PATCH | `/admin/risk` · `/admin/risk/:id` | risk.review |
+| GET · PUT 🔐 | `/admin/risk-profiles` · `/admin/risk-profiles/:id` · PUT `{ status, reason, approvalRequestId? }` (lifting a restriction needs an approval) | risk.review |
+| GET · PATCH | `/admin/security/events` · `/admin/security/events/:id { status, resolution? }` | security.events.read · security.events.manage |
+| GET | `/admin/audit-logs` | audit.read |
+| GET | `/admin/data-access-logs` | data_access.read |
+| GET · PUT 🔐 | `/admin/settings` · `/admin/settings/:key { value }` | overview.read · settings.manage |
+| POST | `/admin/notifications/broadcast` | notifications.broadcast |
+| GET | `/reports/platform` | reports.platform |

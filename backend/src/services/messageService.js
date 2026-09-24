@@ -1,4 +1,5 @@
-import { BUCKETS, STAFF_ROLES } from '../config/constants.js';
+import { BUCKETS } from '../config/constants.js';
+import { canAny } from './permissionService.js';
 import * as messageRepo from '../repositories/messageRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as storageService from './storageService.js';
@@ -167,7 +168,7 @@ export async function contacts(userId) {
 /** Direct chats are only allowed between people who share a group or a savings plan (or with staff). */
 export async function openDirect(user, otherUserId) {
   if (otherUserId === user.id) throw AppError.badRequest('You cannot message yourself');
-  const isStaff = user.roles.some((r) => STAFF_ROLES.includes(r));
+  const isStaff = canAny(user, ['support.tickets', 'disputes.manage']);
   if (!isStaff) {
     const ids = await messageRepo.contactIds(user.id);
     if (!ids.includes(otherUserId)) throw AppError.forbidden('You can only message people in your groups or savings plans', 'NOT_A_CONTACT');

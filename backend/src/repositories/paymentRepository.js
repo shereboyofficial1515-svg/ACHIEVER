@@ -86,13 +86,15 @@ export async function listRetryableWebhooks(limit = 20) {
 // Ledger ------------------------------------------------------------------------
 const TX_COLUMNS =
   'id, reference, user_id, group_id, collector_saver_id, bill_payment_id, type, direction, amount, currency, provider, ' +
-  'provider_reference, status, description, metadata, created_at, completed_at';
+  'provider_reference, status, description, metadata, created_at, completed_at, related_transaction_id, counterparty_user_id, ' +
+  'collector_id, channel, session_id, processed_at, settled_at, failure_reason, dispute_case_id, destination_bank_name, ' +
+  'destination_last4, created_by';
 
 export async function listTransactions({ userId, type, status, from: fromDate, to: toDate, search, groupId, page, pageSize, withUser }) {
   const { from, to } = toRange({ page, pageSize });
   let q = db
     .from('transactions')
-    .select(withUser ? `${TX_COLUMNS}, user:profiles(full_name, email)` : TX_COLUMNS, { count: 'exact' })
+    .select(withUser ? `${TX_COLUMNS}, user:profiles!transactions_user_id_fkey(full_name, email)` : TX_COLUMNS, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
   if (userId) q = q.eq('user_id', userId);
@@ -129,4 +131,15 @@ export async function setRefundStatus(transactionId, status, providerReference) 
 export async function sumTransactions({ userId, types, status = 'success' }) {
   const rows = await run(db.from('transactions').select('amount').eq('user_id', userId).in('type', types).eq('status', status));
   return rows.reduce((s, r) => s + Number(r.amount), 0);
+}
+
+export async function findAttemptForTransaction(tx) {
+  if (tx.provider !== 'paystack' || !tx.provider_reference) return null;
+  return one(db.from('payment_attempts')
+    .select('id, reference, purpose, target_id, amount, status, channel, gateway_response, paid_at, session_id, created_at')
+    .eq('reference', tx.provider_reference).maybeSingle());
+}
+
+export async function relatedTransactions(id) {
+  return run(db.from('transactions').select(TX_COLUMNS).eq('related_transaction_id', id).order('created_at'));
 }

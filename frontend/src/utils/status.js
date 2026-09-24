@@ -67,6 +67,28 @@ const MAP = {
   // accounts
   pending_verification: ['Verification pending', 'warning'],
   suspended: ['Suspended', 'danger'],
+  // KYC
+  not_started: ['Not started', 'neutral'],
+  in_review: ['In review', 'warning'],
+  expired: ['Expired', 'danger'],
+  requires_update: ['Update required', 'warning'],
+  restricted: ['Restricted', 'danger'],
+  // collectors
+  pending_review: ['Awaiting review', 'warning'],
+  revoked: ['Revoked', 'danger'],
+  // risk & security (neutral wording; never an accusation)
+  normal: ['Normal', 'success'],
+  flagged: ['Flagged', 'warning'],
+  suspicious_activity: ['Needs investigation', 'danger'],
+  account_security_review: ['Security review', 'danger'],
+  cooldown: ['Cool-down', 'warning'],
+  // approvals
+  executed: ['Executed', 'success'],
+  // severity
+  low: ['Low', 'neutral'],
+  medium: ['Medium', 'warning'],
+  high: ['High', 'danger'],
+  critical: ['Critical', 'danger'],
 };
 
 export function statusMeta(status) {

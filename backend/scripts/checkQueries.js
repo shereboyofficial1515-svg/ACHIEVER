@@ -22,6 +22,8 @@ import * as disbursementRepo from '../src/repositories/disbursementRepository.js
 import * as riskRepo from '../src/repositories/riskRepository.js';
 import * as auditRepo from '../src/repositories/auditRepository.js';
 import * as settingsRepo from '../src/repositories/settingsRepository.js';
+import * as securityRepo from '../src/repositories/securityRepository.js';
+import * as complianceRepo from '../src/repositories/complianceRepository.js';
 import { rpc } from '../src/integrations/supabase/db.js';
 
 const ID = '00000000-0000-0000-0000-000000000000';
@@ -136,6 +138,44 @@ const checks = {
   'settings.getAll': () => settingsRepo.getAll(),
   'settings.get': () => settingsRepo.get('platform.maintenance_mode'),
   'rpc.platform_overview': () => rpc('platform_overview'),
+  // Identity, security & compliance (migrations 006-007)
+  'user.findWithLocation': () => userRepo.findWithLocation(ID),
+  'user.openObligations': () => userRepo.openObligations(ID),
+  'payment.findAttemptForTransaction': () => paymentRepo.findAttemptForTransaction({ provider: 'paystack', provider_reference: 'X' }),
+  'payment.relatedTransactions': () => paymentRepo.relatedTransactions(ID),
+  'support.caseTransactions': () => supportRepo.caseTransactions(ID),
+  'support.casesForTransaction': () => supportRepo.casesForTransaction(ID),
+  'support.caseEvents': () => supportRepo.caseEvents(ID),
+  'support.listEvidence': () => supportRepo.listEvidence(ID),
+  'support.countCasesAgainst': () => supportRepo.countCasesAgainst(ID, new Date().toISOString()),
+  'support.listTickets(party)': () => supportRepo.listTickets({ ...P, partyId: ID, search: 'CASE' }),
+  'security.listRolePermissions': () => securityRepo.listRolePermissions(),
+  'security.findDevice': () => securityRepo.findDevice(ID, 'x'),
+  'security.countDevices': () => securityRepo.countDevices(ID),
+  'security.findSession': () => securityRepo.findSession(ID),
+  'security.listSessions': () => securityRepo.listSessions(ID, { activeOnly: false }),
+  'security.listSecurityEvents': () => securityRepo.listSecurityEvents({ ...P, userId: ID, relatedTransactionId: ID }),
+  'security.countRecentSecurityEvents': () => securityRepo.countRecentSecurityEvents(ID, 'new_device', new Date().toISOString()),
+  'security.listAccountChanges': () => securityRepo.listAccountChanges(ID),
+  'security.listDataAccess': () => securityRepo.listDataAccess({ ...P, actorId: ID }),
+  'compliance.listStates': () => complianceRepo.listStates(),
+  'compliance.listLgas': () => complianceRepo.listLgas('LA'),
+  'compliance.findLga': () => complianceRepo.findLga(1),
+  'compliance.getKyc': () => complianceRepo.getKyc(ID),
+  'compliance.listKycEvents': () => complianceRepo.listKycEvents(ID),
+  'compliance.listKyc': () => complianceRepo.listKyc(P),
+  'compliance.getRiskFactors': () => complianceRepo.getRiskFactors(ID),
+  'compliance.getRiskProfile': () => complianceRepo.getRiskProfile(ID),
+  'compliance.listRiskProfiles': () => complianceRepo.listRiskProfiles(P),
+  'compliance.listPaymentAccountChanges': () => complianceRepo.listPaymentAccountChanges(ID),
+  'compliance.findApproval': () => complianceRepo.findApproval(ID),
+  'compliance.findOpenApproval': () => complianceRepo.findOpenApproval('collector_revoke', ID),
+  'compliance.listApprovals': () => complianceRepo.listApprovals(P),
+  'compliance.collectorHistory': () => complianceRepo.collectorHistory(ID),
+  'compliance.collectorTrustStats': () => complianceRepo.collectorTrustStats(ID),
+  'compliance.userTrustProfile': () => complianceRepo.userTrustProfile(ID),
+  'compliance.memberStats': () => complianceRepo.memberStats(ID, ID),
+  'rpc.compliance_overview': () => complianceRepo.complianceOverview(),
 };
 
 let failed = 0;

@@ -24,12 +24,17 @@ vi.mock('../../src/services/refundService.js', () => ({ processRefund: vi.fn().m
 vi.mock('../../src/services/auditService.js', () => ({ record: vi.fn() }));
 vi.mock('../../src/services/payoutService.js', () => ({ handleTransferEvent: vi.fn() }));
 vi.mock('../../src/services/billService.js', () => ({ fulfil: vi.fn().mockResolvedValue(null) }));
+vi.mock('../../src/services/kycService.js', () => ({ requireLevel: vi.fn().mockResolvedValue(1) }));
+vi.mock('../../src/services/riskService.js', () => ({ assertNotRestricted: vi.fn().mockResolvedValue(undefined) }));
 
 const repo = await import('../../src/repositories/paymentRepository.js');
 const { paystack } = await import('../../src/integrations/paystack/paystackClient.js');
 const refundService = await import('../../src/services/refundService.js');
 const payoutService = await import('../../src/services/payoutService.js');
 const paymentService = await import('../../src/services/paymentService.js');
+const kycService = await import('../../src/services/kycService.js');
+const riskService = await import('../../src/services/riskService.js');
+const { AppError } = await import('../../src/utils/AppError.js');
 
 const user = { id: 'user-1', email: 'ada@example.com' };
 const attempt = (over = {}) => ({
@@ -55,6 +60,33 @@ describe('payment initialisation', () => {
     await expect(paymentService.initialize({ user, purpose: 'osusu_contribution', targetId: 'c', amount: 500 })).rejects.toThrow('down');
     expect(repo.insertAttempt).toHaveBeenCalled();
     expect(repo.updateAttempt).toHaveBeenCalledWith('att-9', expect.objectContaining({ status: 'failed' }));
+  });
+
+  it('binds the attempt to the authenticated server-side session', async () => {
+    repo.findOpenAttempt.mockResolvedValue(null);
+    repo.insertAttempt.mockResolvedValue({ id: 'att-5' });
+    paystack.initializeTransaction.mockResolvedValue({ access_code: 'a', authorization_url: 'https://checkout.paystack.com/y' });
+    await paymentService.initialize({ user: { ...user, sessionId: 'sess-1' }, purpose: 'osusu_contribution', targetId: 'c', amount: 500 });
+    expect(repo.insertAttempt).toHaveBeenCalledWith(expect.objectContaining({ session_id: 'sess-1' }));
+  });
+
+  it('blocks savings contributions below the required KYC level (no attempt is created)', async () => {
+    kycService.requireLevel.mockRejectedValueOnce(new AppError(403, 'KYC_LEVEL_REQUIRED', 'Verification level 1 required'));
+    await expect(paymentService.initialize({ user, purpose: 'collector_savings', targetId: 'p', amount: 500 })).rejects.toMatchObject({ code: 'KYC_LEVEL_REQUIRED' });
+    expect(repo.insertAttempt).not.toHaveBeenCalled();
+    expect(paystack.initializeTransaction).not.toHaveBeenCalled();
+  });
+
+  it('does not require KYC for bill payments', async () => {
+    repo.findOpenAttempt.mockResolvedValue({ reference: 'R2', authorization_url: 'u' });
+    await paymentService.initialize({ user, purpose: 'bill_payment', targetId: 'b', amount: 500 });
+    expect(kycService.requireLevel).not.toHaveBeenCalled();
+  });
+
+  it('blocks every payment while the account is restricted pending review', async () => {
+    riskService.assertNotRestricted.mockRejectedValueOnce(AppError.forbidden('paused', 'ACCOUNT_RESTRICTED'));
+    await expect(paymentService.initialize({ user, purpose: 'bill_payment', targetId: 'b', amount: 500 })).rejects.toMatchObject({ code: 'ACCOUNT_RESTRICTED' });
+    expect(repo.insertAttempt).not.toHaveBeenCalled();
   });
 
   it('rejects non-integer amounts', async () => {

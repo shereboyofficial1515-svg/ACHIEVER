@@ -1,0 +1,69 @@
+/* =====================================================================
+   Accessibility settings (Settings → Accessibility). Applied through data
+   attributes on <html>; every option here changes real behaviour.
+   ===================================================================== */
+
+/* Reduced motion: the ACHIEVER setting, or the OS preference when set to "system". */
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) *,
+  html:not([data-motion='full']) *::before,
+  html:not([data-motion='full']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast: darker text, stronger borders, no low-contrast greys. */
+html[data-contrast='high'] {
+  --text: #000000;
+  --text-muted: #1f2937;
+  --border: #4b5563;
+  --gray-600: #1f2937;
+  --gray-500: #374151;
+  --bg: #ffffff;
+}
+html[data-contrast='high'] .card,
+html[data-contrast='high'] .input,
+html[data-contrast='high'] .select,
+html[data-contrast='high'] .textarea { border-color: #374151; }
+html[data-contrast='high'] .badge { outline: 1px solid currentColor; }
+html[data-contrast='high'] .btn-secondary { border-color: #111827; color: #111827; }
+html[data-contrast='high'] .sidebar { background: #000814; }
+html[data-contrast='high'] .nav-link { color: #ffffff; }
+
+/* Larger touch targets. */
+html[data-targets='large'] .btn,
+html[data-targets='large'] .input,
+html[data-targets='large'] .select,
+html[data-targets='large'] .icon-button,
+html[data-targets='large'] .nav-link,
+html[data-targets='large'] .tab { min-height: 52px; }
+html[data-targets='large'] .btn-sm { min-height: 44px; padding-inline: 16px; }
+html[data-targets='large'] .checkbox input,
+html[data-targets='large'] input[type='checkbox'] { width: 22px; height: 22px; }
+html[data-targets='large'] .bottom-nav a { min-height: 60px; }
+
+/* Always-underlined links (not relying on colour alone). */
+html[data-links='underline'] a:not(.btn):not(.nav-link):not(.brand-logo) { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Strong, always-visible focus indicators. */
+html[data-focus='strong'] :focus-visible,
+html[data-focus='strong'] :focus {
+  outline: 3px solid #b8860b !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px rgba(11, 42, 91, 0.35) !important;
+}
+
+/* Skip link for keyboard users. */
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; background: var(--navy-800); color: #fff; padding: 10px 14px; border-radius: var(--radius-sm); }
+.skip-link:focus { top: 12px; }

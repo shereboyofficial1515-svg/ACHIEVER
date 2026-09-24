@@ -65,6 +65,12 @@ export function setSessionCookies(res, session, startedAtMs = Date.now(), sessio
   res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(), maxAge: remaining });
 }
 
+/** Re-issue only the signed session marker (e.g. to bind a newly created server-side session). */
+export function setSessionMarker(res, startedAtMs, sessionId) {
+  const remaining = Math.max(0, startedAtMs + sessionMaxAgeMs() - Date.now());
+  res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(), maxAge: remaining });
+}
+
 export function clearSessionCookies(res) {
   res.clearCookie(COOKIES.access, base());
   res.clearCookie(COOKIES.refresh, { ...base(), path: '/api/auth' });

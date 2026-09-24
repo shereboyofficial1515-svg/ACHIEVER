@@ -20,3 +20,21 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE
 export function createAuthClient() {
   return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: baseAuth });
 }
+
+/**
+ * Per-request client for Supabase OAuth (PKCE). The code verifier lives in a
+ * throwaway in-memory storage that the caller persists in a signed, HTTP-only
+ * cookie between the redirect and the callback.
+ */
+export function createPkceClient(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  const storage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => { store.set(k, v); },
+    removeItem: (k) => { store.delete(k); },
+  };
+  const client = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    auth: { flowType: 'pkce', storage, persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  return { client, store };
+}

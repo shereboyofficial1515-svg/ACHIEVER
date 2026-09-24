@@ -11,7 +11,8 @@
   flex-direction: column;
   z-index: 30;
 }
-.sidebar .brand { height: var(--topbar-h); display: flex; align-items: center; padding: 0 var(--s-5); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.sidebar .brand { display: flex; align-items: center; justify-content: center; padding: var(--s-4) var(--s-5); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.topbar .brand-logo { flex-shrink: 0; }
 .sidebar nav { flex: 1; overflow-y: auto; padding: var(--s-3); display: flex; flex-direction: column; gap: 2px; }
 .sidebar .nav-section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #7f8fab; padding: var(--s-4) var(--s-3) var(--s-2); }
 .nav-link {
@@ -30,10 +31,9 @@
 .nav-link .count { margin-left: auto; background: var(--gold-500); color: var(--navy-900); font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 7px; min-width: 20px; text-align: center; }
 .sidebar .sidebar-footer { padding: var(--s-3); border-top: 1px solid rgba(255, 255, 255, 0.08); }
 
-.brand-mark { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--white); font-size: 15px; text-decoration: none; }
-.brand-mark:hover { text-decoration: none; }
-.brand-mark .dot { color: var(--gold-500); }
-.brand-mark.dark { color: var(--navy-800); }
+.brand-logo { display: inline-flex; align-items: center; text-decoration: none; line-height: 0; border-radius: var(--radius); }
+.brand-logo:hover { text-decoration: none; }
+.brand-plate { display: inline-flex; background: var(--white); border-radius: var(--radius); padding: 8px 12px; box-shadow: var(--shadow-sm); }
 
 .topbar {
   position: sticky;

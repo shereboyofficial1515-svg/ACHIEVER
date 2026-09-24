@@ -54,7 +54,7 @@ export async function execute(kind, id) {
       type: 'payout_account_required',
       category: 'payouts',
       title: 'Add a bank account to receive funds',
-      body: 'A payout is ready for you. Add your bank account in Profile → Payout account so it can be sent.',
+      body: 'A payout is ready for you. Add your bank account in Settings → Payment accounts so it can be sent.',
       dedupeKey: `payout_account_required:${kind}:${id}`,
     });
     return { executed: false, reason: 'NO_PAYOUT_ACCOUNT' };

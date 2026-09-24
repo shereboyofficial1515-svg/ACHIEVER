@@ -6,6 +6,7 @@ import NotificationItem, { notificationLink } from '../../components/domain/Noti
 import { useRealtime, useRealtimeEvent } from '../../contexts/RealtimeContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { useReveal } from '../../hooks/useMotion.js';
 
 export default function Notifications() {
   const [filter, setFilter] = useState('all');
@@ -13,6 +14,7 @@ export default function Notifications() {
   const navigate = useNavigate();
   const { refreshUnread, setUnreadNotifications } = useRealtime();
   const list = useAsync(() => api.get('/notifications', { page, pageSize: 20, unreadOnly: filter === 'unread' }), [page, filter]);
+  const listRef = useReveal({ children: true, deps: [list.data] });
 
   useRealtimeEvent('notification.new', () => {
     if (page === 1) list.reload();
@@ -49,7 +51,7 @@ export default function Notifications() {
           skeleton={<SkeletonList />}
           emptyState={<EmptyState icon={BellOff} title="No notifications" message="Reminders, payment confirmations and payout updates will appear here." />}
         >
-          <ul className="list">
+          <ul className="list" ref={listRef}>
             {list.data?.map((n) => (
               <NotificationItem key={n.id} n={n} onOpen={open} />
             ))}

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Accessibility · ACHIEVER</title>
+<meta name="description" content="ACHIEVER accessibility statement: built-in accessibility settings, keyboard and screen-reader support, known limitations and how to get help.">
+
+<meta name="theme-color" content="#0B2A5B">
+<meta property="og:site_name" content="ACHIEVER">
+<meta property="og:title" content="Accessibility · ACHIEVER">
+<meta property="og:description" content="ACHIEVER accessibility statement: built-in accessibility settings, keyboard and screen-reader support, known limitations and how to get help.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/brand/og-image.png">
+
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/site/site.css">
+<script>
+  /* Same accessibility settings as the app (Settings → Accessibility), applied before paint. */
+  try { var a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}'), r = document.documentElement;
+    if (a.fontScale) r.style.fontSize = Math.round(a.fontScale * 100) + '%';
+    r.dataset.motion = a.reducedMotion || 'system'; r.dataset.contrast = a.highContrast ? 'high' : 'normal';
+    r.dataset.links = a.underlineLinks ? 'underline' : 'normal'; r.dataset.focus = a.strongFocus ? 'strong' : 'normal';
+    r.dataset.targets = a.largerTargets ? 'large' : 'normal'; } catch (e) {}
+  window.ACHIEVER_API = "";
+</script>
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="logo" href="/" aria-label="ACHIEVER home">
+      <picture><source srcset="/brand/achiever-logo-stacked.webp" type="image/webp"><img src="/brand/achiever-logo-stacked.png" width="112" height="80" alt="ACHIEVER"></picture>
+    </a>
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav id="site-nav" class="site-nav" aria-label="Main">
+      <a href="/documentation.html">Documentation</a><a href="/security.html">Security</a><a href="/support.html">Support</a><a href="/about.html">About</a><a href="/contact.html">Contact</a>
+      <span class="nav-auth">
+        <a class="btn btn-ghost" href="/login">Log in</a>
+        <a class="btn btn-primary" href="/register">Create account</a>
+      </span>
+    </nav>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="hero-band"><div class="wrap">
+    <h1>Accessibility</h1>
+    <p class="lead">We want everyone to be able to save and manage money with ACHIEVER.</p>
+  </div></div>
+  <div class="wrap  ">
+    
+    <article class="content"><p class="small muted">Last updated: 23 September 2026</p>
+<section id="settings"><h2>Accessibility settings</h2><p>In <strong>Settings → Accessibility</strong> you can change text size, reduce motion, turn on high contrast, enlarge touch targets, underline links and show a strong keyboard focus indicator. These settings also apply to these public pages on the same device.</p></section>
+<section id="support"><h2>What we support</h2><ul><li>Keyboard navigation throughout, with a “Skip to main content” link.</li><li>Labelled form fields, buttons and icons for screen readers.</li><li>Statuses shown with text as well as colour.</li><li>Respect for your device's reduced-motion setting; animations are short and never block actions.</li><li>Layouts that work on small phone screens without horizontal scrolling.</li></ul></section>
+<section id="limitations"><h2>Known limitations</h2><p>Live captions are not available on voice and video calls. Some third-party pages, such as Paystack checkout, are outside our control.</p></section>
+<section id="help"><h2>Need help or found a barrier?</h2><p>Tell us at <a href="mailto:support@example.com">support@example.com</a> with the page and what happened. We will work to fix it and help you complete your task another way in the meantime.</p></section></article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <img src="/brand/achiever-logo-stacked.png" width="104" height="75" alt="ACHIEVER">
+      <p>Save Together. Go Further.</p>
+      <p class="small">ACHIEVER is not a bank and funds are not covered by deposit insurance.</p>
+      <p class="small">© <span data-year>2026</span> ACHIEVER</p>
+    </div>
+    <nav class="footer-links" aria-label="Footer"><a href="/documentation.html">Documentation</a><a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a><a href="/refund-policy.html">Refund Policy</a><a href="/cookie-policy.html">Cookie Policy</a><a href="/security.html">Security</a><a href="/support.html">Support</a><a href="/delete-data.html">Delete Data</a><a href="/accessibility.html">Accessibility</a><a href="/contact.html">Contact</a></nav>
+  </div>
+</footer>
+<script src="/site/site.js" defer></script>
+</body>
+</html>

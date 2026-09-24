@@ -1,15 +1,15 @@
 import { env } from '../config/env.js';
-import { sendEmail } from '../integrations/resend/resendClient.js';
-import { templates } from '../integrations/resend/templates.js';
 import { sendSms } from '../integrations/termii/termiiClient.js';
 import * as notificationRepo from '../repositories/notificationRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as settingsService from './settingsService.js';
+import * as emailService from './emailService.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 
 const MAX_ATTEMPTS = 3;
-const CATEGORIES = ['payments', 'reminders', 'payouts', 'meetings', 'messages', 'account', 'system'];
+// Security notifications are not a preference: they are always delivered.
+export const CATEGORIES = ['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing'];
 
 /**
  * Create an in-app notification; email/SMS delivery is decided in SQL from the
@@ -47,8 +47,7 @@ async function deliver(item, profile, channel, smsCap) {
 
   let result;
   if (channel === 'email') {
-    const t = templates.notification({ name: profile.full_name, title: item.title, body: item.body, url: deepLink(item.data) });
-    result = await sendEmail({ to: profile.email, ...t, idempotencyKey: `notification-${item.id}` });
+    result = await emailService.sendNotificationEmail(item, profile, deepLink(item.data));
   } else {
     if (item.category !== 'security') {
       const since = new Date();
@@ -113,13 +112,26 @@ export async function getPreferences(userId) {
     reminders: { email: true, sms: true },
     payouts: { email: true, sms: true },
     meetings: { email: true, sms: false },
+    groups: { email: true, sms: false },
     messages: { email: false, sms: false },
     account: { email: true, sms: false },
+    support: { email: true, sms: false },
     system: { email: false, sms: false },
+    marketing: { email: false, sms: false },
   };
   const categories = {};
   for (const c of CATEGORIES) categories[c] = { ...defaults[c], ...(prefs.category_settings?.[c] || {}) };
   return { emailEnabled: prefs.email_enabled, smsEnabled: prefs.sms_enabled, categories };
+}
+
+/** One-click unsubscribe from a non-transactional category (signed link in the email). */
+export async function unsubscribe(userId, category, token) {
+  if (!['system', 'marketing'].includes(category) || !emailService.verifyUnsubscribe(userId, category, token)) {
+    throw AppError.badRequest('This unsubscribe link is invalid', 'INVALID_UNSUBSCRIBE');
+  }
+  const current = await getPreferences(userId);
+  const categories = { ...current.categories, [category]: { ...current.categories[category], email: false } };
+  await updatePreferences(userId, { emailEnabled: current.emailEnabled, smsEnabled: current.smsEnabled, categories });
 }
 
 export async function updatePreferences(userId, { emailEnabled, smsEnabled, categories }) {

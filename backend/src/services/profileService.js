@@ -16,6 +16,9 @@ import * as sessionService from './sessionService.js';
 import * as settingsService from './settingsService.js';
 import * as kycService from './kycService.js';
 import * as otpService from './otpService.js';
+import * as challengeService from './challengeService.js';
+import * as preferencesService from './preferencesService.js';
+import * as emailService from './emailService.js';
 import { permissionsForRoles } from './permissionService.js';
 import { AppError } from '../utils/AppError.js';
 import { hmac } from '../utils/crypto.js';
@@ -31,10 +34,11 @@ function ageYears(dob) {
 }
 
 export async function me(userId) {
-  const [profile, onboarding, kyc] = await Promise.all([
+  const [profile, onboarding, kyc, preferences] = await Promise.all([
     userRepo.findWithLocation(userId),
     onboardingService.getStatus(userId),
     kycService.summary(userId),
+    preferencesService.get(userId),
   ]);
   const roles = (profile.user_roles || []).map((r) => r.role_code);
   return {
@@ -71,6 +75,7 @@ export async function me(userId) {
     permissions: await permissionsForRoles(roles),
     kyc,
     identityLocked: kyc.level >= 2,
+    preferences,
     createdAt: profile.created_at,
     onboarding,
   };
@@ -166,13 +171,18 @@ async function requirePassword(user, password) {
   }
 }
 
-export async function requestEmailChange(user, { newEmail, password }, req) {
+/**
+ * Email change: (1) password + security code to the CURRENT email (challenge),
+ * (2) code to the NEW email, (3) Supabase Auth + profile updated server-side,
+ * (4) the old address is alerted.
+ */
+export async function requestEmailChange(user, { newEmail, challengeId, code: challengeCode }, req) {
   const email = newEmail.toLowerCase();
   if (email === user.email.toLowerCase()) throw AppError.badRequest('That is already your email address', 'SAME_EMAIL');
-  await requirePassword(user, password);
   if (await userRepo.findByEmail(email)) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
+  await challengeService.use(user, { challengeId, code: challengeCode, action: 'email_change' }, req);
   const code = await otpService.issue(user.id, 'email_change', 'email', email);
-  const result = await sendEmail({ to: email, ...templates.emailVerification({ name: user.fullName, code }) });
+  const result = await emailService.sendNewEmailConfirmation(email, user.fullName, code);
   if (!result.ok && !env.isProduction) logger.warn({ userId: user.id }, `Email not delivered (${result.error}). Development email-change code: ${code}`);
   await auditService.record({ actorId: user.id, action: 'profile.email_change.requested', resourceType: 'profile', resourceId: user.id, metadata: { to: maskEmail(email) }, req });
   return { sent: result.ok, to: maskEmail(email) };
@@ -190,16 +200,20 @@ export async function confirmEmailChange(user, { code }, req) {
   await kycService.recompute(user.id);
   authService.invalidateUserCache(user.id);
   await auditService.record({ actorId: user.id, action: 'profile.email_changed', resourceType: 'profile', resourceId: user.id, req });
-  const t = templates.securityAlert({ name: user.fullName, event: `The email address on your ACHIEVER account was changed to ${maskEmail(email)}. If this was not you, contact support immediately.` });
-  sendEmail({ to: previous, ...t }).catch(() => {});
+  emailService.sendEmailChanged(previous, user.fullName, maskEmail(email)).catch(() => {});
   return me(user.id);
 }
 
-export async function requestPhoneChange(user, { newPhone, password }, req) {
+/**
+ * Phone change: (1) password + security code to the verified email
+ * (challenge), (2) OTP by SMS to the NEW number, (3) update, (4) alert the old
+ * number (SMS) and the email address.
+ */
+export async function requestPhoneChange(user, { newPhone, challengeId, code: challengeCode }, req) {
   if (newPhone === user.phone) throw AppError.badRequest('That is already your phone number', 'SAME_PHONE');
-  await requirePassword(user, password);
   if (await userRepo.findByPhone(newPhone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
   if (!env.features.sms && env.isProduction) throw AppError.unavailable('SMS verification is temporarily unavailable', 'SMS_NOT_CONFIGURED');
+  await challengeService.use(user, { challengeId, code: challengeCode, action: 'phone_change' }, req);
   const code = await otpService.issue(user.id, 'phone_change', 'sms', newPhone);
   const result = await sendSms({ to: newPhone, message: `Your ACHIEVER code to confirm this phone number is ${code}. It expires in 10 minutes. Do not share it.` });
   if (!result.ok) {
@@ -221,8 +235,11 @@ export async function confirmPhoneChange(user, { code }, req) {
   await kycService.recompute(user.id);
   authService.invalidateUserCache(user.id);
   await auditService.record({ actorId: user.id, action: 'profile.phone_changed', resourceType: 'profile', resourceId: user.id, req });
-  const t = templates.securityAlert({ name: user.fullName, event: `The phone number on your ACHIEVER account was changed to ${maskPhone(phone)}. If this was not you, contact support immediately.` });
-  sendEmail({ to: user.email, ...t }).catch(() => {});
+  emailService.sendPhoneChanged(user.email, user.fullName, maskPhone(phone)).catch(() => {});
+  if (previous && user.phoneVerified) {
+    // Tell the old number too, without revealing the new one.
+    sendSms({ to: previous, message: 'ACHIEVER: the phone number on your account was changed. If this was not you, contact ACHIEVER Support immediately.' }).catch(() => {});
+  }
   return me(user.id);
 }
 
@@ -313,7 +330,7 @@ export async function setPayoutAccount(user, { bankCode, accountNumber }, req) {
   if (!previous) return { account: await saveAccount(user, { ...resolved, bankCode, accountNumber }, null, 'first_account', req), otpRequired: false };
 
   const code = await otpService.issue(user.id, 'payout_account_change', 'email', accountBinding(bankCode, accountNumber));
-  const result = await sendEmail({ to: user.email, ...templates.emailVerification({ name: user.fullName, code }) });
+  const result = await emailService.sendSecurityCode(user.email, user.fullName, code, 'change your payout account');
   if (!result.ok && !env.isProduction) logger.warn({ userId: user.id }, `Email not delivered (${result.error}). Development payout-change code: ${code}`);
   await auditService.record({ actorId: user.id, action: 'profile.payout_account.change_requested', resourceType: 'payout_account', resourceId: user.id, metadata: { bank: resolved.bank.name, last4: accountNumber.slice(-4) }, req });
   return { otpRequired: true, sent: result.ok, accountName: resolved.accountName, bankName: resolved.bank.name, last4: accountNumber.slice(-4) };

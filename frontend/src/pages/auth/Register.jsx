@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, ArrowRight, Crown, HandCoins, PiggyBank, User, UsersRound, Wallet } from 'lucide-react';
 import { Alert, Button, Checkbox, Input, Select, Textarea, fieldErrors } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
+import SocialSignIn from '../../components/domain/SocialSignIn.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 
 const TYPES = [
@@ -187,6 +188,7 @@ export default function Register() {
 
       {step === 1 && (
         <div className="stack">
+          <SocialSignIn label="Sign up" />
           <h2>How will you use ACHIEVER?</h2>
           <div className="choice-grid">
             {TYPES.map((t) => (

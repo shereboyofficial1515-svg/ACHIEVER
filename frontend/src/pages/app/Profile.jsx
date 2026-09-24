@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Camera, Landmark, LogOut, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
+import { Camera, Landmark, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
 import {
-  Alert, AsyncContent, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, Modal, PageHeader, Select, StatusBadge, Tabs, Textarea,
+  Alert, AsyncContent, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, Select, StatusBadge, Textarea,
   UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
@@ -35,7 +35,7 @@ function toForm(p) {
   };
 }
 
-function KycCard({ kyc }) {
+export function KycCard({ kyc }) {
   if (!kyc) return null;
   return (
     <Card title="Verification level">
@@ -63,7 +63,7 @@ function KycCard({ kyc }) {
   );
 }
 
-function Details() {
+export function Details() {
   const { user, setUser, has } = useAuth();
   const toast = useToast();
   const me = useAsync(() => api.get('/profiles/me'), []);
@@ -214,7 +214,7 @@ function Details() {
   );
 }
 
-function PayoutAccount() {
+export function PayoutAccount() {
   const toast = useToast();
   const account = useAsync(() => api.get('/users/me/payout-account'), []);
   const banks = useAsync(() => api.get('/payments/banks'), []);
@@ -365,81 +365,7 @@ function PayoutAccount() {
   );
 }
 
-function ContactChange({ kind, current, onDone }) {
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [stage, setStage] = useState('request');
-  const [value, setValue] = useState('');
-  const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(null);
-  const label = kind === 'email' ? 'email address' : 'phone number';
-
-  const close = () => {
-    setOpen(false);
-    setStage('request');
-    setValue('');
-    setPassword('');
-    setCode('');
-    setError(null);
-  };
-
-  const submit = async () => {
-    setPending(true);
-    setError(null);
-    try {
-      if (stage === 'request') {
-        await api.post(`/profiles/me/${kind}/change`, kind === 'email' ? { newEmail: value, password } : { newPhone: value, password });
-        setStage('confirm');
-      } else {
-        await api.post(`/profiles/me/${kind}/confirm`, { code });
-        toast.success(`Your ${label} was changed`);
-        close();
-        onDone();
-      }
-    } catch (err) {
-      setError(err);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const fe = fieldErrors(error);
-  return (
-    <>
-      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-        Change {label}
-      </Button>
-      <Modal
-        open={open}
-        onClose={close}
-        title={`Change ${label}`}
-        footer={
-          <>
-            <Button variant="secondary" onClick={close} disabled={pending}>Cancel</Button>
-            <Button onClick={submit} loading={pending}>{stage === 'request' ? 'Send code' : 'Confirm'}</Button>
-          </>
-        }
-      >
-        <div className="stack">
-          {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-          {stage === 'request' ? (
-            <>
-              <p className="small muted">Current: {current}. We will send a code to the new {label}, and alert the old one.</p>
-              <Input label={`New ${label}`} type={kind === 'email' ? 'email' : 'tel'} value={value} onChange={(e) => setValue(e.target.value)} error={fe.newEmail || fe.newPhone} />
-              <Input label="Your password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fe.password} />
-            </>
-          ) : (
-            <Input label="6-digit code" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} error={fe.code} hint={`Sent to ${value}`} />
-          )}
-        </div>
-      </Modal>
-    </>
-  );
-}
-
-function Sessions() {
+export function Sessions() {
   const toast = useToast();
   const sessions = useAsync(() => api.get('/auth/sessions'), []);
   const revoke = async (id) => {
@@ -482,7 +408,7 @@ function Sessions() {
   );
 }
 
-function Activity() {
+export function Activity() {
   const activity = useAsync(() => api.get('/profiles/me/security'), []);
   const items = [
     ...(activity.data?.changes || []).map((c) => ({ id: `c${c.id}`, text: c.label, sub: c.byYou ? 'by you' : 'by ACHIEVER staff', at: c.createdAt })),
@@ -507,7 +433,7 @@ function Activity() {
   );
 }
 
-function Deactivate() {
+export function Deactivate() {
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -547,161 +473,7 @@ function Deactivate() {
   );
 }
 
-function Security() {
-  const toast = useToast();
-  const { user, logout, refresh } = useAuth();
-  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(null);
-  const submit = async (e) => {
-    e.preventDefault();
-    if (form.newPassword !== form.confirm) {
-      setError({ fields: { confirm: 'Passwords do not match' } });
-      return;
-    }
-    setPending(true);
-    setError(null);
-    try {
-      await api.post('/auth/password/change', { currentPassword: form.currentPassword, newPassword: form.newPassword });
-      toast.success('Password changed. Other devices were signed out.');
-      setForm({ currentPassword: '', newPassword: '', confirm: '' });
-    } catch (err) {
-      setError(err);
-    } finally {
-      setPending(false);
-    }
-  };
-  const fe = fieldErrors(error);
-  return (
-    <div className="stack-lg">
-      <div className="grid-2">
-        <Card title="Change password">
-          <form className="stack" onSubmit={submit}>
-            {error?.message && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-            <Input label="Current password" type="password" autoComplete="current-password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} error={fe.currentPassword} />
-            <Input label="New password" type="password" autoComplete="new-password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} error={fe.newPassword} hint="At least 10 characters with upper and lower case letters and a number" />
-            <Input label="Confirm new password" type="password" autoComplete="new-password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} error={fe.confirm} />
-            <div>
-              <Button type="submit" loading={pending}>Change password</Button>
-            </div>
-          </form>
-        </Card>
-        <Card title="Contact details">
-          <div className="stack">
-            <KeyValue
-              items={[
-                ['Email', `${user.email} ${user.emailVerified ? '(verified)' : '(not verified)'}`],
-                ['Phone', `${user.phone} ${user.phoneVerified ? '(verified)' : '(not verified)'}`],
-              ]}
-            />
-            <div className="row-wrap">
-              <ContactChange kind="email" current={user.email} onDone={refresh} />
-              <ContactChange kind="phone" current={user.phone} onDone={refresh} />
-            </div>
-            <div>
-              <Button variant="secondary" icon={LogOut} onClick={logout}>Sign out of this device</Button>
-            </div>
-          </div>
-        </Card>
-      </div>
-      <Sessions />
-      <Activity />
-      <Deactivate />
-    </div>
-  );
-}
-
-const CATEGORY_LABEL = {
-  payments: 'Payment confirmations', reminders: 'Contribution reminders', payouts: 'Payouts and returns',
-  meetings: 'Meetings', messages: 'Messages', account: 'Account updates', system: 'Platform notices',
-};
-
-function NotificationPrefs() {
-  const toast = useToast();
-  const prefs = useAsync(() => api.get('/notifications/preferences'), []);
-  const [state, setState] = useState(null);
-  const [pending, setPending] = useState(false);
-  useEffect(() => {
-    if (prefs.data) setState(prefs.data);
-  }, [prefs.data]);
-
-  const save = async () => {
-    setPending(true);
-    try {
-      const { data } = await api.put('/notifications/preferences', state);
-      setState(data);
-      toast.success('Preferences saved');
-    } catch (err) {
-      toast.error(err);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <Card title="Notification preferences">
-      <AsyncContent loading={prefs.loading || !state} error={prefs.error} onRetry={prefs.reload}>
-        {state && (
-          <div className="stack">
-            <p className="small muted">In-app notifications are always on. Security alerts are always sent by email and SMS.</p>
-            <div className="row-wrap">
-              <Checkbox label="Email notifications" checked={state.emailEnabled} onChange={(e) => setState({ ...state, emailEnabled: e.target.checked })} />
-              <Checkbox label="SMS notifications" checked={state.smsEnabled} onChange={(e) => setState({ ...state, smsEnabled: e.target.checked })} />
-            </div>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Category</th>
-                    <th>Email</th>
-                    <th>SMS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(state.categories).map(([key, v]) => (
-                    <tr key={key}>
-                      <td>{CATEGORY_LABEL[key]}</td>
-                      <td>
-                        <input type="checkbox" aria-label={`${CATEGORY_LABEL[key]} by email`} checked={v.email} disabled={!state.emailEnabled} onChange={(e) => setState({ ...state, categories: { ...state.categories, [key]: { ...v, email: e.target.checked } } })} />
-                      </td>
-                      <td>
-                        <input type="checkbox" aria-label={`${CATEGORY_LABEL[key]} by SMS`} checked={v.sms} disabled={!state.smsEnabled} onChange={(e) => setState({ ...state, categories: { ...state.categories, [key]: { ...v, sms: e.target.checked } } })} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div>
-              <Button onClick={save} loading={pending}>Save preferences</Button>
-            </div>
-          </div>
-        )}
-      </AsyncContent>
-    </Card>
-  );
-}
-
+/** The old Profile page now lives in Settings. */
 export default function Profile() {
-  const [tab, setTab] = useState('details');
-  const { user } = useAuth();
-  return (
-    <div className="stack-lg">
-      <PageHeader title="Profile" subtitle={<>Account status: <StatusBadge status={user.status} /></>} />
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: 'details', label: 'Details' },
-          { value: 'payout', label: 'Payout account' },
-          { value: 'notifications', label: 'Notifications' },
-          { value: 'security', label: 'Security' },
-        ]}
-      />
-      {tab === 'details' && <Details />}
-      {tab === 'payout' && <PayoutAccount />}
-      {tab === 'notifications' && <NotificationPrefs />}
-      {tab === 'security' && <Security />}
-    </div>
-  );
+  return <Navigate to="/app/settings/profile" replace />;
 }

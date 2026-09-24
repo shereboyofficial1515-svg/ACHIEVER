@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { Alert, Button, Input } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import SocialSignIn, { OAUTH_ERRORS } from '../../components/domain/SocialSignIn.jsx';
 
 export default function Login() {
   const { login } = useAuth();
@@ -11,6 +12,8 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
+  const [params] = useSearchParams();
+  const oauthError = params.get('oauth_error');
 
   const submit = async (e) => {
     e.preventDefault();
@@ -33,6 +36,12 @@ export default function Login() {
         <h1>Sign in</h1>
         <p className="muted">Welcome back to ACHIEVER.</p>
       </div>
+      {oauthError && !error && (
+        <Alert tone="danger" icon={AlertCircle}>
+          {OAUTH_ERRORS[oauthError] || 'Social sign-in could not be completed. Please try again.'}
+        </Alert>
+      )}
+      <SocialSignIn next={location.state?.from?.pathname || '/app'} />
       {error && (
         <Alert tone="danger" icon={AlertCircle}>
           {error.message}

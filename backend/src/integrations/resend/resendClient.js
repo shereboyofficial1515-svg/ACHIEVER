@@ -8,11 +8,11 @@ const client = env.features.email ? new Resend(env.RESEND_API_KEY) : null;
  * Send an email through Resend. Never throws: returns { ok, id?, error? } so
  * callers can record delivery status and retry.
  */
-export async function sendEmail({ to, subject, html, text, idempotencyKey }) {
+export async function sendEmail({ to, subject, html, text, idempotencyKey, headers }) {
   if (!client) return { ok: false, error: 'EMAIL_NOT_CONFIGURED' };
   try {
     const { data, error } = await client.emails.send(
-      { from: env.RESEND_FROM_EMAIL, to, subject, html, text, replyTo: env.SUPPORT_EMAIL },
+      { from: env.RESEND_FROM_EMAIL, to, subject, html, text, replyTo: env.SUPPORT_EMAIL, ...(headers ? { headers } : {}) },
       idempotencyKey ? { idempotencyKey } : undefined,
     );
     if (error) {

@@ -35,11 +35,20 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 | POST | `/auth/phone/send` · `/auth/phone/verify` | 🔑 | `{ code }` (SMS via Termii) |
 | POST | `/auth/password/forgot` | 🔓 | `{ email }` — same response whether or not the account exists |
 | POST | `/auth/password/reset` | 🔓 | `{ email, code, newPassword }` — signs out all devices |
-| POST | `/auth/password/change` | 🔑 | `{ currentPassword, newPassword }` — revokes every other session |
+| POST | `/auth/challenges` | 🔑 | `{ action: password_change\|email_change\|phone_change\|account_deletion, password }` → `{ challengeId, sentTo, expiresAt }`; a single-use code is emailed |
+| POST | `/auth/password/change` | 🔑 | `{ currentPassword, newPassword, challengeId, code }` — revokes every other session, confirmation email |
+| GET | `/auth/providers` | 🔓 | `{ google, facebook }` enabled in Supabase Auth |
+| GET | `/auth/oauth/{google\|facebook}/start?next=` | 🔓 | browser navigation → provider consent (PKCE state in HTTP-only cookie) |
+| GET | `/auth/oauth/callback` | 🔓 | Supabase redirect target; signs in, or redirects to `/complete-profile` for a new identity |
+| GET / POST | `/auth/oauth/pending` · `/auth/oauth/complete` | identity cookie | new social user: read provider identity · create the ACHIEVER profile (same fields as registration minus email/password) |
+| GET · POST 🔐 · DELETE 🔐 | `/auth/identities` · `/auth/oauth/:provider/link` · `/auth/identities/:provider` | 🔑 | list / link / unlink sign-in methods (step-up required) |
 | GET | `/auth/sessions` | 🔑 | active sessions (device, masked IP, last active, `current`) |
 | DELETE | `/auth/sessions/:id` | 🔑 | sign out one of your sessions |
 | POST | `/auth/sessions/revoke-others` | 🔑 | sign out every other session |
 | POST | `/auth/step-up` | 🔑 | `{ password }` — re-authenticates this session for sensitive staff actions (valid `security.step_up_minutes`) |
+
+## Public status
+`GET /status` → `{ maintenance, signInProviders: { google, facebook } }`
 
 ## Reference data (public)
 `GET /reference/states` → 37 states (+FCT) · `GET /reference/states/:code/lgas` → LGAs of a state (774 total).
@@ -49,8 +58,13 @@ Base path: `/api`. JSON in, JSON out. Amounts are **integers in kobo** (₦1 = 1
 |---|---|---|---|
 | GET/PATCH | `/profiles/me` | 🔑 | identity/address fields (`firstName`, `lastName`, `middleName`, `dateOfBirth` locked once KYC ≥ 2), `preferredName`, `gender`, `occupation`, `employmentStatus`, `businessName`, `stateCode`, `lgaId`, `city`, `address`, `addressUnit`, `postalCode`, `showPublicLocation`; GET includes `kyc` and `permissions` |
 | GET | `/profiles/me/security` | 🔑 | your account-change history and security notices |
-| POST | `/profiles/me/email/change` · `/email/confirm` | 🔑 | `{ newEmail, password }` → code to the new address · `{ code }`; old address alerted |
-| POST | `/profiles/me/phone/change` · `/phone/confirm` | 🔑 | `{ newPhone, password }` → SMS code · `{ code }` |
+| POST | `/profiles/me/email/change` · `/email/confirm` | 🔑 | `{ newEmail, challengeId, code }` → code to the new address · `{ code }`; old address alerted |
+| POST | `/profiles/me/phone/change` · `/phone/confirm` | 🔑 | `{ newPhone, challengeId, code }` → SMS code · `{ code }`; old number and email alerted |
+| GET / PUT | `/profiles/me/preferences` | 🔑 | `{ accessibility, messages, privacy, security }` settings (partial updates) |
+| GET | `/privacy/policy` | 🔑 | what is erased vs retained |
+| GET / POST | `/privacy/deletion-requests` | 🔑 | list · `{ type: account\|personal_data, reason?, challengeId, code }` |
+| POST | `/privacy/deletion-requests/:id/cancel` | 🔑 | within the 7-day window |
+| GET · POST | `/notifications/unsubscribe?u=&c=&t=` | signed link | one-click unsubscribe from platform notices / marketing email |
 | POST | `/profiles/me/deactivate` | 🔑 | `{ password, reason? }` — refused while groups/plans/payouts are open (`OPEN_OBLIGATIONS`); records retained |
 | GET | `/users/:id/trust` | ✅ | public-safe trust profile |
 | POST | `/profiles/me/avatar` | 🔑 | multipart `file` (jpeg/png/webp ≤ 2 MB) |
@@ -174,4 +188,5 @@ Any staff role may enter; each route requires a **permission** (see `docs/SECURI
 | GET | `/admin/data-access-logs` | data_access.read |
 | GET · PUT 🔐 | `/admin/settings` · `/admin/settings/:key { value }` | overview.read · settings.manage |
 | POST | `/admin/notifications/broadcast` | notifications.broadcast |
+| GET · POST 🔐 | `/admin/privacy/requests` · `/admin/privacy/requests/:id/decision { decision: in_review\|complete\|reject, note? }` | privacy.requests.manage |
 | GET | `/reports/platform` | reports.platform |

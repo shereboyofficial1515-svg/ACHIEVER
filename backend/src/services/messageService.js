@@ -1,5 +1,6 @@
 import { BUCKETS } from '../config/constants.js';
 import { canAny } from './permissionService.js';
+import * as preferencesService from './preferencesService.js';
 import * as messageRepo from '../repositories/messageRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as storageService from './storageService.js';
@@ -55,6 +56,7 @@ export async function postSystemMessage(conversationId, body, metadata = {}, kin
 // User-facing ------------------------------------------------------------------------
 export async function listConversations(userId) {
   const rows = await messageRepo.summaries(userId);
+  const flags = await preferencesService.flagsFor(rows.map((r) => r.other_user_id).filter(Boolean));
   return rows.map((r) => ({
     id: r.conversation_id,
     type: r.type,
@@ -71,7 +73,7 @@ export async function listConversations(userId) {
           id: r.other_user_id,
           name: r.other_user_name,
           avatarUrl: storageService.publicUrl(BUCKETS.avatars, r.other_user_avatar),
-          online: isOnline(r.other_user_last_seen),
+          online: flags(r.other_user_id).showOnlineStatus ? isOnline(r.other_user_last_seen) : false,
         }
       : null,
   }));
@@ -83,20 +85,28 @@ export async function getConversation(userId, conversationId) {
     messageRepo.findConversation(conversationId),
     messageRepo.listMembers(conversationId),
   ]);
+  // Read receipts are reciprocal: if you hide yours you don't see others' either.
+  const flags = await preferencesService.flagsFor(members.map((m) => m.user_id));
+  const viewerShares = flags(userId).readReceipts;
   return {
     id: conversation.id,
     type: conversation.type,
     title: conversation.title,
     groupId: conversation.osusu_group_id,
     planId: conversation.collector_saver_id,
-    members: members.map((m) => ({
-      id: m.user_id,
-      name: m.profile?.full_name,
-      role: m.role,
-      avatarUrl: storageService.publicUrl(BUCKETS.avatars, m.profile?.avatar_path),
-      online: isOnline(m.profile?.last_seen_at),
-      lastReadAt: m.last_read_at,
-    })),
+    readReceipts: viewerShares,
+    members: members.map((m) => {
+      const f = flags(m.user_id);
+      const self = m.user_id === userId;
+      return {
+        id: m.user_id,
+        name: m.profile?.full_name,
+        role: m.role,
+        avatarUrl: storageService.publicUrl(BUCKETS.avatars, m.profile?.avatar_path),
+        online: self || f.showOnlineStatus ? isOnline(m.profile?.last_seen_at) : false,
+        lastReadAt: self || (viewerShares && f.readReceipts) ? m.last_read_at : null,
+      };
+    }),
   };
 }
 
@@ -160,8 +170,9 @@ export async function markRead(userId, conversationId) {
 export async function contacts(userId) {
   const ids = await messageRepo.contactIds(userId);
   const profiles = await userRepo.findManyBasic(ids);
+  const flags = await preferencesService.flagsFor(profiles.map((p) => p.id));
   return profiles
-    .map((p) => ({ id: p.id, name: p.full_name, avatarUrl: storageService.publicUrl(BUCKETS.avatars, p.avatar_path), online: isOnline(p.last_seen_at) }))
+    .map((p) => ({ id: p.id, name: p.full_name, avatarUrl: storageService.publicUrl(BUCKETS.avatars, p.avatar_path), online: flags(p.id).showOnlineStatus ? isOnline(p.last_seen_at) : false }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

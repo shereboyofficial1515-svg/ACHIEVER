@@ -4,6 +4,7 @@ import { Loader } from './components/ui/index.js';
 import { RedirectIfAuthenticated, RequireAuth, RequirePermission, RequireRole } from './routes/guards.jsx';
 import { STAFF_ROLES } from './contexts/AuthContext.jsx';
 import StepUpPrompt from './components/domain/StepUpPrompt.jsx';
+import ErrorPage from './pages/public/ErrorPage.jsx';
 import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import { CallProvider } from './contexts/CallContext.jsx';
 import AuthLayout from './layouts/AuthLayout.jsx';
@@ -59,6 +60,9 @@ const AdminApprovals = lazy(() => import('./pages/admin/AdminApprovals.jsx'));
 const AdminTrace = lazy(() => import('./pages/admin/AdminTrace.jsx'));
 const AdminDataAccess = lazy(() => import('./pages/admin/AdminDataAccess.jsx'));
 const TrustProfile = lazy(() => import('./pages/app/TrustProfile.jsx'));
+const Settings = lazy(() => import('./pages/settings/Settings.jsx'));
+const CompleteProfile = lazy(() => import('./pages/auth/CompleteProfile.jsx'));
+const AdminPrivacy = lazy(() => import('./pages/admin/AdminPrivacy.jsx'));
 
 function SignedInShell() {
   return (
@@ -77,6 +81,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/legal" element={<Legal />} />
+        <Route path="/403" element={<ErrorPage kind="403" />} />
+        <Route path="/500" element={<ErrorPage kind="500" />} />
+        <Route path="/offline" element={<ErrorPage kind="network" />} />
+        <Route path="/maintenance" element={<ErrorPage kind="maintenance" />} />
 
         <Route element={<AuthLayout />}>
           <Route element={<RedirectIfAuthenticated />}>
@@ -86,6 +94,7 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
           </Route>
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/invite/:token" element={<InviteLanding />} />
         </Route>
 
@@ -94,6 +103,8 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="settings/:section" element={<Settings />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="payments/callback" element={<PaymentCallback />} />
@@ -161,6 +172,9 @@ export default function App() {
               </Route>
               <Route element={<RequirePermission permissions={['audit.read']} />}>
                 <Route path="audit" element={<AdminAudit />} />
+              </Route>
+              <Route element={<RequirePermission permissions={['privacy.requests.manage']} />}>
+                <Route path="privacy" element={<AdminPrivacy />} />
               </Route>
               <Route element={<RequirePermission permissions={['reports.platform']} />}>
                 <Route path="reports" element={<AdminReports />} />

@@ -4,6 +4,7 @@ import { UserAvatar, ErrorState, Loader } from '../ui/index.js';
 import { api } from '../../services/api.js';
 import { useRealtimeEvent } from '../../contexts/RealtimeContext.jsx';
 import { useCalls } from '../../contexts/CallContext.jsx';
+import { usePreferences } from '../../contexts/PreferencesContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { fileSize, formatDate, formatTime } from '../../utils/format.js';
 
@@ -14,12 +15,14 @@ function Attachment({ a }) {
   const [url, setUrl] = useState(null);
   const isImage = a.mimeType.startsWith('image/');
   const toast = useToast();
+  const { prefs } = usePreferences();
+  const autoLoad = prefs.messages.autoLoadImages !== false; // Settings > Messages
 
   // Private files: fetch a short-lived signed URL only when needed.
   useEffect(() => {
-    if (!isImage) return;
+    if (!isImage || !autoLoad) return;
     api.get(`/messages/attachments/${a.id}/url`).then(({ data }) => setUrl(data.url)).catch(() => {});
-  }, [a.id, isImage]);
+  }, [a.id, isImage, autoLoad]);
 
   const open = async () => {
     try {
@@ -33,6 +36,7 @@ function Attachment({ a }) {
   return (
     <button type="button" className="attachment" onClick={open}>
       {isImage && url ? <img src={url} alt={a.fileName} loading="lazy" /> : <FileText size={20} aria-hidden />}
+      {isImage && !url && !autoLoad && <span className="small">Photo · tap to open</span>}
       {!isImage && (
         <span>
           <span style={{ display: 'block', fontWeight: 600 }}>{a.fileName}</span>

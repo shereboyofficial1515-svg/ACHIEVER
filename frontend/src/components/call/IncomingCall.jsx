@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { UserAvatar } from '../ui/index.js';
+import { usePreferences } from '../../contexts/PreferencesContext.jsx';
 
 /** Short, polite ring generated with Web Audio (no audio files to fetch). */
 function useRing(active) {
@@ -34,7 +35,8 @@ function useRing(active) {
 }
 
 export default function IncomingCall({ call, onAccept, onReject, pending }) {
-  useRing(true);
+  const { prefs } = usePreferences();
+  useRing(prefs.messages.callRingtone !== false); // Settings > Messages > Call ringtone
   const video = call.callType === 'video';
   return (
     <div className="incoming-call" role="alertdialog" aria-labelledby="incoming-title">

@@ -12,6 +12,8 @@ import * as permissionService from './permissionService.js';
 import * as securityService from './securityService.js';
 import * as sessionService from './sessionService.js';
 import * as complianceRepo from '../repositories/complianceRepository.js';
+import * as challengeService from './challengeService.js';
+import * as emailService from './emailService.js';
 import { AppError } from '../utils/AppError.js';
 import { sha256 } from '../utils/crypto.js';
 import { sessionMaxAgeMs } from '../utils/cookies.js';
@@ -101,7 +103,8 @@ export async function resolveUser(accessToken, sessionStartedAt) {
   if (entry.exp && entry.exp * 1000 < Date.now()) throw AppError.unauthorized('Your session has expired', 'TOKEN_EXPIRED');
 
   const user = await loadUser(entry.userId);
-  if (!user) throw AppError.unauthorized('Account not found', 'UNAUTHENTICATED');
+  // Signed in with Google/Facebook but the ACHIEVER profile is not created yet.
+  if (!user) throw AppError.forbidden('Finish creating your ACHIEVER profile to continue', 'PROFILE_INCOMPLETE');
   const resolved = { ...user };
 
   const started = sessionStartedAt ?? (entry.iat ? entry.iat * 1000 : Date.now());
@@ -385,8 +388,15 @@ export async function resetPassword({ email, code, newPassword }, req) {
   sendEmail({ to: profile.email, ...t }).catch(() => {});
 }
 
-export async function changePassword(userId, { currentPassword, newPassword }, req) {
+/**
+ * Password change: current password + a single-use security code (challenge)
+ * emailed to the verified address. All checks happen here, server-side.
+ */
+export async function changePassword(user, { currentPassword, newPassword, challengeId, code }, req) {
+  const userId = user.id;
+  await challengeService.use(user, { challengeId, code, action: 'password_change' }, req);
   const profile = await userRepo.findById(userId);
+  if (currentPassword === newPassword) throw AppError.unprocessable('Choose a password different from your current one', 'PASSWORD_UNCHANGED');
   if (!(await signIn(profile.email, currentPassword))) {
     await auditService.record({ actorId: userId, action: 'auth.password_change', resourceType: 'profile', resourceId: userId, result: 'failure', req });
     throw AppError.badRequest('Your current password is incorrect', 'INVALID_CREDENTIALS');
@@ -397,7 +407,7 @@ export async function changePassword(userId, { currentPassword, newPassword }, r
   await new Promise((r) => setTimeout(r, 5));
   const session = await signIn(profile.email, newPassword);
   await auditService.record({ actorId: userId, action: 'auth.password_change', resourceType: 'profile', resourceId: userId, req });
-  const t = templates.securityAlert({ name: profile.full_name, event: 'Your ACHIEVER password was changed. Other devices were signed out.' });
-  sendEmail({ to: profile.email, ...t }).catch(() => {});
+  await securityService.recordEvent({ userId, type: 'password_reset', severity: 'low', description: 'The account password was changed. Other sessions were signed out.', metadata: { method: 'change' } });
+  emailService.sendPasswordChanged(profile.email, profile.full_name).catch(() => {});
   return session;
 }

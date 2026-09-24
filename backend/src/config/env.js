@@ -22,6 +22,11 @@ const schema = z.object({
 
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
   SERVER_URL: z.string().url().default('http://localhost:4100'),
+  // Public origin that serves /brand/* and the public pages (used in email links/images).
+  PUBLIC_SITE_URL: z.string().url().optional(),
+  // Where Supabase redirects after Google/Facebook sign-in (must be in Supabase Auth → URL Configuration → Redirect URLs).
+  // Defaults to <CLIENT_URL>/api/auth/oauth/callback (same origin as the web app).
+  OAUTH_CALLBACK_URL: z.string().url().optional(),
   CORS_EXTRA_ORIGINS: z.string().optional().default(''),
 
   SUPABASE_URL: isTest ? z.string().default('http://localhost:54321') : z.string().url(),

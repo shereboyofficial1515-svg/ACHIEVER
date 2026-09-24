@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as c from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
+import { requireStepUp } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 import { authLimiter, otpLimiter, passwordResetLimiter, refreshLimiter } from '../middleware/rateLimiters.js';
 import * as s from '../validators/authValidators.js';
@@ -24,6 +25,18 @@ r.post('/phone/verify', authenticate, otpLimiter, validate({ body: s.verifyCode 
 r.post('/password/forgot', passwordResetLimiter, validate({ body: s.forgotPassword }), c.forgotPassword);
 r.post('/password/reset', passwordResetLimiter, validate({ body: s.resetPassword }), c.resetPassword);
 r.post('/password/change', authenticate, authLimiter, validate({ body: s.changePassword }), c.changePassword);
+// Security code for sensitive changes (password verified, code emailed)
+r.post('/challenges', authenticate, authLimiter, validate({ body: s.createChallenge }), c.createChallenge);
+
+// Social sign-in (Supabase Auth OAuth). Start/callback are top-level browser navigations.
+r.get('/providers', c.providers);
+r.get('/oauth/callback', authLimiter, c.oauthCallback);
+r.get('/oauth/:provider/start', authLimiter, validate({ params: s.oauthProvider }), c.oauthStart);
+r.get('/oauth/pending', c.oauthPending);
+r.post('/oauth/complete', authLimiter, validate({ body: s.completeProfile }), c.oauthComplete);
+r.get('/identities', authenticate, c.identities);
+r.post('/oauth/:provider/link', authenticate, requireStepUp, validate({ params: s.oauthProvider }), c.linkIdentity);
+r.delete('/identities/:provider', authenticate, requireStepUp, validate({ params: s.oauthProvider }), c.unlinkIdentity);
 
 // Sessions (own) and step-up re-authentication for sensitive actions
 r.get('/sessions', authenticate, c.sessions);

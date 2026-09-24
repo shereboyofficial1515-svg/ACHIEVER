@@ -2,7 +2,7 @@ import { forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 
 export const Button = forwardRef(function Button(
-  { variant = 'primary', size, block, loading, loadingText, icon: Icon, children, className = '', to, type = 'button', disabled, ...rest },
+  { variant = 'primary', size, block, loading, loadingText, icon: Icon, children, className = '', to, href, type = 'button', disabled, ...rest },
   ref,
 ) {
   const cls = ['btn', `btn-${variant}`, size === 'sm' && 'btn-sm', block && 'btn-block', className].filter(Boolean).join(' ');
@@ -12,6 +12,14 @@ export const Button = forwardRef(function Button(
       <span>{loading && loadingText ? loadingText : children}</span>
     </>
   );
+  // Plain link for static public pages (e.g. /documentation.html) outside the SPA router.
+  if (href) {
+    return (
+      <a ref={ref} href={href} className={cls} {...rest}>
+        {content}
+      </a>
+    );
+  }
   if (to) {
     return (
       <Link ref={ref} to={to} className={cls} {...rest}>

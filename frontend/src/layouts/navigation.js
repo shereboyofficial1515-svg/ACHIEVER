@@ -1,7 +1,7 @@
 import {
   Activity, BadgeCheck, Banknote, Bell, CalendarDays, FileBarChart, FileText, HandCoins, Home, LifeBuoy,
-  MessageSquare, PiggyBank, Receipt, ScrollText, Settings, ShieldAlert, User, Users, UsersRound, Wallet, Zap,
-  ShieldCheck, Stamp, Route as RouteIcon, Eye,
+  MessageSquare, PiggyBank, Receipt, ScrollText, Settings, ShieldAlert, Users, UsersRound, Wallet, Zap,
+  ShieldCheck, Stamp, Route as RouteIcon, Eye, Trash2,
 } from 'lucide-react';
 
 const STAFF = ['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_ADMIN', 'FINANCE_ADMIN', 'DISPUTE_ADMIN', 'SECURITY_ADMIN', 'SUPPORT_ADMIN', 'AUDITOR', 'READ_ONLY_ADMIN'];
@@ -24,7 +24,7 @@ export function buildNavigation(has, can = () => false) {
     osusu && { to: '/app/meetings', label: 'Meetings', icon: CalendarDays },
     { to: '/app/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
     { to: '/app/support', label: 'Help & disputes', icon: LifeBuoy },
-    { to: '/app/profile', label: 'Profile', icon: User },
+    { to: '/app/settings', label: 'Settings', short: 'Settings', icon: Settings },
   ].filter(Boolean);
 
   // Each admin page appears only when the user holds a permission for it (least privilege).
@@ -45,6 +45,7 @@ export function buildNavigation(has, can = () => false) {
         can('risk.review', 'security.events.read') && { to: '/app/admin/risk', label: 'Risk & review', icon: ShieldAlert },
         can('audit.read') && { to: '/app/admin/audit', label: 'Audit logs', icon: ScrollText },
         can('data_access.read') && { to: '/app/admin/data-access', label: 'Data access log', icon: Eye },
+        can('privacy.requests.manage') && { to: '/app/admin/privacy', label: 'Deletion requests', icon: Trash2 },
         can('reports.platform') && { to: '/app/admin/reports', label: 'Reports', icon: FileBarChart },
         { to: '/app/admin/settings', label: 'Settings', icon: Settings },
       ].filter(Boolean)
@@ -53,13 +54,13 @@ export function buildNavigation(has, can = () => false) {
   // Five most relevant destinations for the phone bottom bar.
   let bottom;
   if (osusu && saver && !collector) {
-    bottom = ['/app', '/app/osusu', '/app/savings', '/app/messages', '/app/profile'];
+    bottom = ['/app', '/app/osusu', '/app/savings', '/app/messages', '/app/settings'];
   } else if (collector) {
-    bottom = ['/app', '/app/collector', '/app/transactions', '/app/messages', '/app/profile'];
+    bottom = ['/app', '/app/collector', '/app/transactions', '/app/messages', '/app/settings'];
   } else if (saver) {
-    bottom = ['/app', '/app/savings', '/app/transactions', '/app/messages', '/app/profile'];
+    bottom = ['/app', '/app/savings', '/app/transactions', '/app/messages', '/app/settings'];
   } else {
-    bottom = ['/app', '/app/osusu', '/app/transactions', '/app/messages', '/app/profile'];
+    bottom = ['/app', '/app/osusu', '/app/transactions', '/app/messages', '/app/settings'];
   }
   const bottomItems = bottom.map((to) => main.find((m) => m.to === to)).filter(Boolean);
 

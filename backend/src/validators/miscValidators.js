@@ -27,8 +27,8 @@ export const updateProfile = z.object({
   showPublicLocation: z.boolean().optional(),
 }).strict();
 
-export const emailChange = z.object({ newEmail: email, password: z.string().min(1).max(128) });
-export const phoneChange = z.object({ newPhone: phone, password: z.string().min(1).max(128) });
+export const emailChange = z.object({ newEmail: email, challengeId: uuid, code: otpCode });
+export const phoneChange = z.object({ newPhone: phone, challengeId: uuid, code: otpCode });
 export const confirmCode = z.object({ code: otpCode });
 export const deactivate = z.object({ password: z.string().min(1).max(128), reason: optionalText(500) });
 export const stepUp = z.object({ password: z.string().min(1).max(128) });
@@ -110,7 +110,7 @@ const channelPref = z.object({ email: z.boolean(), sms: z.boolean() });
 export const preferences = z.object({
   emailEnabled: z.boolean(),
   smsEnabled: z.boolean(),
-  categories: z.record(z.enum(['payments', 'reminders', 'payouts', 'meetings', 'messages', 'account', 'system']), channelPref).default({}),
+  categories: z.record(z.enum(['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing']), channelPref).default({}),
 });
 export const listNotifications = paging.extend({ unreadOnly: z.enum(['true', 'false']).optional().transform((v) => v === 'true') });
 
@@ -285,3 +285,32 @@ export const approvalRequest = z.object({
   }).default({}),
 });
 export const approvalDecision = z.object({ decision: z.enum(['approve', 'reject']), note: optionalText(500) });
+
+// Settings: preferences & privacy -----------------------------------------------------------
+export const userSettings = z.object({
+  accessibility: z.object({
+    fontScale: z.union([z.literal(0.9), z.literal(1), z.literal(1.125), z.literal(1.25), z.literal(1.5)]).optional(),
+    reducedMotion: z.enum(['system', 'reduce', 'full']).optional(),
+    highContrast: z.boolean().optional(),
+    largerTargets: z.boolean().optional(),
+    underlineLinks: z.boolean().optional(),
+    strongFocus: z.boolean().optional(),
+  }).strict().optional(),
+  messages: z.object({
+    messageSound: z.boolean().optional(),
+    callRingtone: z.boolean().optional(),
+    messagePreview: z.boolean().optional(),
+    autoLoadImages: z.boolean().optional(),
+    readReceipts: z.boolean().optional(),
+  }).strict().optional(),
+  privacy: z.object({ showOnlineStatus: z.boolean().optional() }).strict().optional(),
+  security: z.object({ loginAlerts: z.enum(['new_device', 'every_sign_in']).optional() }).strict().optional(),
+}).strict();
+export const deletionRequest = z.object({
+  type: z.enum(['account', 'personal_data']),
+  reason: optionalText(1000),
+  challengeId: uuid,
+  code: otpCode,
+});
+export const deletionList = paging.extend({ status: z.enum(['pending', 'in_review', 'completed', 'rejected', 'cancelled']).optional() });
+export const deletionDecision = z.object({ decision: z.enum(['in_review', 'complete', 'reject']), note: optionalText(2000) });

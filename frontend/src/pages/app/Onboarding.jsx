@@ -273,7 +273,7 @@ export default function Onboarding() {
                   </p>
                   {s.kyc.level < 1 && (
                     <p className="small muted">
-                      Level 1 also needs your legal name, date of birth, state, LGA and city. Complete them in <Link to="/app/profile">your profile</Link>.
+                      Level 1 also needs your legal name, date of birth, state, LGA and city. Complete them in <Link to="/app/settings/profile">Settings → Profile</Link>.
                     </p>
                   )}
                 </div>

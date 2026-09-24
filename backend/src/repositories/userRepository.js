@@ -128,3 +128,17 @@ export async function openObligations(userId) {
   ]);
   return { organisedGroups, activeMemberships, plans, pendingPayouts };
 }
+
+// Per-user settings (accessibility, messages, privacy, security) -------------------------
+export async function getUserPreferences(userId) {
+  return one(db.from('user_preferences').select('*').eq('user_id', userId).maybeSingle());
+}
+
+export async function upsertUserPreferences(row) {
+  return one(db.from('user_preferences').upsert(row, { onConflict: 'user_id' }).select('*').maybeSingle());
+}
+
+export async function listUserPreferences(userIds) {
+  if (!userIds.length) return [];
+  return run(db.from('user_preferences').select('user_id, messages, privacy').in('user_id', userIds));
+}

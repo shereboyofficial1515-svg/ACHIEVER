@@ -10,6 +10,7 @@ import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { daysUntil, formatDate, naira } from '../../utils/format.js';
+import { useReveal } from '../../hooks/useMotion.js';
 
 function dueLabel(date) {
   const d = daysUntil(date);
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const toast = useToast();
   const [paying, setPaying] = useState(null);
   const dash = useAsync(() => api.get('/users/me/dashboard'), []);
+  const cardsRef = useReveal({ children: true, deps: [Boolean(dash.data)] });
 
   const pay = async (contributionId) => {
     setPaying(contributionId);
@@ -94,7 +96,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="grid-4">
+            <div className="grid-4" ref={cardsRef}>
               <StatCard accent icon={TrendingUp} label="Total contributed" value={naira(d.member.totalContributed)} sub="All verified contributions and savings" />
               {has('SAVER') && <StatCard icon={PiggyBank} label="Savings balance" value={naira(d.member.savingsBalance)} sub="Held with collectors" />}
               <StatCard icon={Wallet} label="Received" value={naira(d.member.totalReceived)} sub="Payouts and returns paid to you" />

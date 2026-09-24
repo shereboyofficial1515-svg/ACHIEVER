@@ -61,7 +61,7 @@ function NewTicket({ onClose, onCreated }) {
       <form className="stack" onSubmit={submit}>
         {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
         {['unauthorized_activity', 'account_takeover'].includes(form.category) && (
-          <Alert tone="danger">If you think someone else accessed your account, change your password and sign out other sessions now from Profile → Security.</Alert>
+          <Alert tone="danger">If you think someone else accessed your account, change your password and sign out other sessions now from Settings → Security and Settings → Password.</Alert>
         )}
         <Select label="What is the problem about?" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} options={TICKET_CATEGORIES} />
         <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} error={fe.subject} />

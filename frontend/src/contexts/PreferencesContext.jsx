@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../services/api.js';
 import { useAuth } from './AuthContext.jsx';
 
@@ -64,13 +64,23 @@ export function PreferencesProvider({ children }) {
     }
   }, [prefs.accessibility]);
 
-  /** Update one section; saved to the server when signed in. */
-  const update = useCallback(async (section, patch) => {
+  // Saves are sent one at a time, and only the newest response is applied, so
+  // quick successive changes never overwrite each other.
+  const queue = useRef(Promise.resolve());
+  const latest = useRef(0);
+
+  /** Update one section (applied immediately); saved to the server when signed in. */
+  const update = useCallback((section, patch) => {
     setPrefs((p) => ({ ...p, [section]: { ...p[section], ...patch } }));
-    if (status !== 'authenticated') return null;
-    const { data } = await api.put('/profiles/me/preferences', { [section]: patch });
-    setPrefs((p) => ({ ...p, ...data }));
-    return data;
+    if (status !== 'authenticated') return Promise.resolve(null);
+    const ticket = ++latest.current;
+    const run = queue.current.catch(() => {}).then(async () => {
+      const { data } = await api.put('/profiles/me/preferences', { [section]: patch });
+      if (ticket === latest.current) setPrefs((p) => ({ ...p, ...data }));
+      return data;
+    });
+    queue.current = run;
+    return run;
   }, [status]);
 
   const value = useMemo(() => ({ prefs, update }), [prefs, update]);

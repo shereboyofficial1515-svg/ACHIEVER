@@ -28,6 +28,7 @@ const privacyService = await import('../../src/services/privacyService.js');
 const oauthService = await import('../../src/services/oauthService.js');
 const emailService = await import('../../src/services/emailService.js');
 const messageService = await import('../../src/services/messageService.js');
+const preferencesService = await import('../../src/services/preferencesService.js');
 const { hmac } = await import('../../src/utils/crypto.js');
 const { env } = await import('../../src/config/env.js');
 
@@ -202,5 +203,18 @@ describe('read receipts & online status privacy', () => {
     userRepo.listUserPreferences.mockResolvedValue([{ user_id: 'u1', messages: { readReceipts: false } }]);
     const mine = await messageService.getConversation('u1', 'cv');
     expect(mine.members.find((m) => m.id === 'u3').lastReadAt).toBeNull();
+  });
+});
+
+describe('preferences', () => {
+  it('keeps both of two concurrent partial updates (no lost write)', async () => {
+    let stored = null;
+    userRepo.getUserPreferences.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 5)); return stored; });
+    userRepo.upsertUserPreferences.mockImplementation(async (row) => { await new Promise((r) => setTimeout(r, 5)); stored = row; return row; });
+    await Promise.all([
+      preferencesService.update('u1', { accessibility: { fontScale: 1.25 } }),
+      preferencesService.update('u1', { accessibility: { highContrast: true } }),
+    ]);
+    expect(stored.accessibility).toMatchObject({ fontScale: 1.25, highContrast: true });
   });
 });

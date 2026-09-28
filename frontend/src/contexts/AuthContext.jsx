@@ -3,10 +3,6 @@ import { api, setSessionEndedHandler } from '../services/api.js';
 
 const AuthContext = createContext(null);
 
-export const STAFF_ROLES = [
-  'SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_ADMIN', 'FINANCE_ADMIN', 'DISPUTE_ADMIN', 'SECURITY_ADMIN', 'SUPPORT_ADMIN', 'AUDITOR', 'READ_ONLY_ADMIN',
-];
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState('loading'); // loading | authenticated | anonymous
@@ -62,7 +58,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     const roles = user?.roles || [];
     const has = (...r) => r.some((x) => roles.includes(x));
-    // Permissions come from the server (role_permissions); UI checks are for display only.
+    // Member sessions never carry staff permissions (administration is a separate app).
     const permissions = user?.permissions || [];
     const can = (...p) => p.some((x) => permissions.includes(x));
     return {
@@ -72,8 +68,6 @@ export function AuthProvider({ children }) {
       has,
       can,
       permissions,
-      isStaff: has(...STAFF_ROLES),
-      isFinanceStaff: can('finance.payouts.execute'),
       isOrganiser: has('OSUSU_ADMIN'),
       isCollector: has('COLLECTOR'),
       login,

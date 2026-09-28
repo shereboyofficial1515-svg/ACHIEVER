@@ -68,6 +68,8 @@ export async function logDataAccess({ actor, subjectUserId = null, resourceType,
     fields,
     reason: reason.trim().slice(0, 500),
     session_id: actor.sessionId ?? null,
+    admin_session_id: req?.adminSession?.id ?? null,
+    request_id: req?.id ?? null,
     ip_address: req?.ip || null,
   });
 }

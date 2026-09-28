@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockLimitedAccounts } from '../middleware/memberGuards.js';
 import * as c from '../controllers/userController.js';
 import * as sc from '../controllers/securityController.js';
 import { idParam } from '../validators/common.js';
@@ -32,8 +33,8 @@ export const privacyRoutes = Router()
 export const userRoutes = Router()
   .get('/me/dashboard', c.dashboard)
   .get('/me/payout-account', c.getPayoutAccount)
-  .put('/me/payout-account', otpLimiter, validate({ body: s.payoutAccount }), c.setPayoutAccount)
-  .post('/me/payout-account/confirm', otpLimiter, validate({ body: s.payoutAccountConfirm }), sc.confirmPayoutAccount)
+  .put('/me/payout-account', blockLimitedAccounts, otpLimiter, validate({ body: s.payoutAccount }), c.setPayoutAccount)
+  .post('/me/payout-account/confirm', blockLimitedAccounts, otpLimiter, validate({ body: s.payoutAccountConfirm }), sc.confirmPayoutAccount)
   .get('/:id/trust', validate({ params: idParam }), sc.trustProfile)
   .post('/me/roles', validate({ body: s.addRole }), c.addRole);
 

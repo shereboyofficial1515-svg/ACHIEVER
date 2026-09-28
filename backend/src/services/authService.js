@@ -1,8 +1,10 @@
 import { env } from '../config/env.js';
-import { LOGIN_LOCK, REGISTRATION_ROLE_MAP } from '../config/constants.js';
+import { BLOCKED_STATES, LOGIN_LOCK, REGISTRATION_ROLE_MAP, STAFF_ROLES } from '../config/constants.js';
 import { supabaseAdmin, createAuthClient } from '../integrations/supabase/client.js';
 import { sendEmail } from '../integrations/resend/resendClient.js';
-import { sendSms } from '../integrations/termii/termiiClient.js';
+import * as smsService from './smsService.js';
+import * as verificationService from './verificationService.js';
+import * as settingsService from './settingsService.js';
 import { templates } from '../integrations/resend/templates.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as otpService from './otpService.js';
@@ -60,6 +62,9 @@ export function toSessionUser(profile) {
     primaryAccountType: profile.primary_account_type,
     emailVerified: Boolean(profile.email_verified_at),
     phoneVerified: Boolean(profile.phone_verified_at),
+    phoneVerificationWaived: Boolean(profile.phone_verification_waived_at),
+    statusReason: profile.status_reason ?? null,
+    statusExpiresAt: profile.status_expires_at ?? null,
     sessionsRevokedAt: profile.sessions_revoked_at,
     deactivated: Boolean(profile.deactivated_at),
     avatarUrl: storageService.publicUrl(BUCKETS.avatars, profile.avatar_path),
@@ -105,7 +110,9 @@ export async function resolveUser(accessToken, sessionStartedAt) {
   const user = await loadUser(entry.userId);
   // Signed in with Google/Facebook but the ACHIEVER profile is not created yet.
   if (!user) throw AppError.forbidden('Finish creating your ACHIEVER profile to continue', 'PROFILE_INCOMPLETE');
-  const resolved = { ...user };
+  // Member sessions never carry staff powers: administration happens only in the
+  // separate admin platform (own sign-in with an authenticator app, own session).
+  const resolved = { ...user, roles: user.roles.filter((r) => !STAFF_ROLES.includes(r)), permissions: [] };
 
   const started = sessionStartedAt ?? (entry.iat ? entry.iat * 1000 : Date.now());
   if (Date.now() - started > sessionMaxAgeMs()) {
@@ -114,7 +121,7 @@ export async function resolveUser(accessToken, sessionStartedAt) {
   if (user.sessionsRevokedAt && started < new Date(user.sessionsRevokedAt).getTime()) {
     throw AppError.unauthorized('Your session was signed out. Please sign in again.', 'SESSION_REVOKED');
   }
-  if (user.status === 'suspended' || user.status === 'closed') {
+  if (BLOCKED_STATES.includes(user.status)) {
     throw AppError.forbidden('This account is not active. Contact support for help.', 'ACCOUNT_SUSPENDED');
   }
   return resolved;
@@ -172,7 +179,17 @@ function profileDetails(input) {
   };
 }
 
+/** Minimum length from settings (never below the validator's floor of 10). */
+export async function assertPasswordPolicy(password) {
+  const min = Math.max(10, await settingsService.getInt('auth.password_min_length', 10));
+  if (String(password).length < min) throw AppError.unprocessable(`Use at least ${min} characters`, 'WEAK_PASSWORD', { fields: { password: `Use at least ${min} characters` } });
+}
+
 export async function register(input, req) {
+  if (!(await settingsService.getBool('registration.enabled', true))) {
+    throw AppError.unavailable('New registrations are paused. Please try again later.', 'REGISTRATION_PAUSED');
+  }
+  await assertPasswordPolicy(input.password);
   const roles = REGISTRATION_ROLE_MAP[`${input.accountType}:${input.role}`];
   if (!roles) throw AppError.unprocessable('Choose a valid account type and role', 'INVALID_ACCOUNT_TYPE');
 
@@ -238,12 +255,16 @@ export async function login({ email, password }, req) {
   const session = await signIn(normalised, password);
   if (!session || !profile) {
     if (profile) {
-      const lockedUntil = await userRepo.registerLoginFailure(profile.id, LOGIN_LOCK.maxFailures, LOGIN_LOCK.lockMinutes);
+      const [maxFailures, lockMinutes] = await Promise.all([
+        settingsService.getInt('auth.login_max_attempts', LOGIN_LOCK.maxFailures),
+        settingsService.getInt('auth.lockout_minutes', LOGIN_LOCK.lockMinutes),
+      ]);
+      const lockedUntil = await userRepo.registerLoginFailure(profile.id, maxFailures, lockMinutes);
       await auditService.record({ actorId: profile.id, action: 'auth.login', resourceType: 'profile', resourceId: profile.id, result: 'failure', req });
       if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) {
         await securityService.recordEvent({
           userId: profile.id, type: 'account_locked', severity: 'medium',
-          description: `Sign-in was locked for ${LOGIN_LOCK.lockMinutes} minutes after ${LOGIN_LOCK.maxFailures} incorrect password attempts.`,
+          description: `Sign-in was locked for ${lockMinutes} minutes after ${maxFailures} incorrect password attempts.`,
           metadata: { ip: req?.ip || null },
         });
         const t = templates.securityAlert({ name: profile.full_name, event: 'Your account was temporarily locked after several failed sign-in attempts.' });
@@ -253,7 +274,7 @@ export async function login({ email, password }, req) {
     throw AppError.unauthorized('Incorrect email or password', 'INVALID_CREDENTIALS');
   }
 
-  if (profile.account_status === 'suspended' || profile.account_status === 'closed') {
+  if (BLOCKED_STATES.includes(profile.account_status)) {
     throw AppError.forbidden(
       profile.deactivated_at ? 'This account has been deactivated. Contact support to reactivate it.' : 'This account is not active. Contact support for help.',
       'ACCOUNT_SUSPENDED',
@@ -276,7 +297,7 @@ export async function refresh(refreshToken, sessionStartedAt, sessionId = null) 
   if (profile.sessions_revoked_at && sessionStartedAt < new Date(profile.sessions_revoked_at).getTime()) {
     throw AppError.unauthorized('Your session was signed out. Please sign in again.', 'SESSION_REVOKED');
   }
-  if (profile.account_status === 'suspended' || profile.account_status === 'closed') {
+  if (BLOCKED_STATES.includes(profile.account_status)) {
     throw AppError.forbidden('This account is not active.', 'ACCOUNT_SUSPENDED');
   }
   if (sessionId) await sessionService.validate(sessionId, profile.id);
@@ -319,22 +340,34 @@ export async function verifyEmail(userId, code, req) {
   await complianceRepo.recomputeKyc(userId);
   invalidateUserCache(userId);
   await auditService.record({ actorId: userId, action: 'auth.email_verified', resourceType: 'profile', resourceId: userId, req });
+  // While SMS verification is switched off, the verified email covers the phone step.
+  await verificationService.applyFallbackIfSmsDisabled({ id: userId, emailVerified: true, phoneVerified: Boolean(profile.phone_verified_at), phoneVerificationWaived: Boolean(profile.phone_verification_waived_at) }, req)
+    .then((applied) => applied && invalidateUserCache(userId))
+    .catch((err) => logger.warn({ err: err.message }, 'phone fallback not applied'));
   sendEmail({ to: profile.email, ...templates.welcome({ name: profile.full_name }) }).catch(() => {});
 }
 
 export async function sendPhoneOtp(userId) {
   const profile = await userRepo.findById(userId);
   if (profile.phone_verified_at) throw AppError.conflict('Your phone number is already verified', 'ALREADY_VERIFIED');
-  if (!env.features.sms && env.isProduction) {
-    throw AppError.unavailable('SMS verification is temporarily unavailable', 'SMS_NOT_CONFIGURED');
-  }
+  const unavailable = () => AppError.unavailable(verificationService.SMS_UNAVAILABLE_MESSAGE, 'SMS_UNAVAILABLE', { fallback: 'email' });
+  if ((await smsService.verificationState()) !== smsService.SMS_STATES.ENABLED) throw unavailable();
   const code = await otpService.issue(userId, 'phone_verification', 'sms');
-  const result = await sendSms({ to: profile.phone, message: `Your ACHIEVER verification code is ${code}. It expires in 10 minutes. Do not share it.` });
+  const result = await smsService.send({ to: profile.phone, kind: 'verification', message: `Your ACHIEVER verification code is ${code}. It expires in 10 minutes. Do not share it.` });
   if (!result.ok) {
-    if (env.isProduction) throw AppError.unavailable('We could not send the SMS. Please try again shortly.', 'SMS_SEND_FAILED');
-    logger.warn({ userId }, `SMS not delivered (${result.error}). Development phone code: ${code}`);
+    if (!env.isProduction) logger.warn({ userId }, `SMS not delivered (${result.error}). Development phone code: ${code}`);
+    else throw unavailable();
   }
   return { sent: result.ok };
+}
+
+/** Use the verified email instead of an SMS code (only while SMS is off or failing). */
+export async function phoneEmailFallback(userId, req) {
+  const { allowed, reason } = await verificationService.emailFallbackAllowed();
+  if (!allowed) throw AppError.conflict('SMS verification is working. Please verify your phone with the SMS code.', 'SMS_AVAILABLE');
+  const result = await verificationService.waivePhoneVerification(userId, reason, req);
+  invalidateUserCache(userId);
+  return result;
 }
 
 export async function verifyPhone(userId, code, req) {
@@ -376,7 +409,15 @@ async function setPasswordAndRevoke(profile, newPassword, reason) {
   tokenCache.clear();
 }
 
+/** Set a new password and sign out every member session (used by the admin platform). */
+export async function setPassword(userId, newPassword, reason) {
+  const profile = await userRepo.findById(userId);
+  if (!profile) throw AppError.notFound('Account not found');
+  await setPasswordAndRevoke(profile, newPassword, reason);
+}
+
 export async function resetPassword({ email, code, newPassword }, req) {
+  await assertPasswordPolicy(newPassword);
   const profile = await userRepo.findByEmail(email.toLowerCase());
   if (!profile) throw AppError.badRequest('The code is invalid or has expired', 'OTP_INVALID');
   await otpService.verify(profile.id, 'password_reset', code);
@@ -394,6 +435,7 @@ export async function resetPassword({ email, code, newPassword }, req) {
  */
 export async function changePassword(user, { currentPassword, newPassword, challengeId, code }, req) {
   const userId = user.id;
+  await assertPasswordPolicy(newPassword);
   await challengeService.use(user, { challengeId, code, action: 'password_change' }, req);
   const profile = await userRepo.findById(userId);
   if (currentPassword === newPassword) throw AppError.unprocessable('Choose a password different from your current one', 'PASSWORD_UNCHANGED');

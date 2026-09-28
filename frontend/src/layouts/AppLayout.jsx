@@ -118,6 +118,14 @@ export default function AppLayout() {
         </header>
         <main className="main" id="main" tabIndex={-1}>
           <div ref={pageRef}>
+            {['restricted', 'verification_required'].includes(user?.status) && (
+              <div className="alert alert-warning" role="status" style={{ marginBottom: 16 }}>
+                {user.status === 'restricted'
+                  ? 'Payments, withdrawals and payout changes are paused on your account while a review is completed.'
+                  : 'Please complete the requested verification to continue using payments.'}
+                {user.statusReason ? ` Reason: ${user.statusReason}.` : ''} <Link to="/app/support">Contact support</Link>
+              </div>
+            )}
             <Suspense fallback={<Loader />}>
               <Outlet />
             </Suspense>

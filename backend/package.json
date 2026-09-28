@@ -2,7 +2,7 @@
   "name": "achiever-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "ACHIEVER API — Osusu, Collector savings, payments, bills, messaging and calling",
+  "description": "ACHIEVER API \u2014 Osusu, Collector savings, payments, bills, messaging and calling",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -13,8 +13,8 @@
     "start": "node src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "grant-role": "node scripts/grantRole.js",
-    "check:queries": "node scripts/checkQueries.js"
+    "check:queries": "node scripts/checkQueries.js",
+    "admin:create": "node scripts/createAdmin.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

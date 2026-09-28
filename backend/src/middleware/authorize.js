@@ -28,6 +28,8 @@ export function requirePermission(...permissions) {
     if (!canAny(req.user, permissions)) {
       return next(AppError.forbidden('You do not have permission to perform this action', 'PERMISSION_DENIED'));
     }
+    // Recorded on audit rows written during this request.
+    req.permissionUsed = permissions.find((p) => req.user.permissions.includes(p));
     return next();
   };
 }

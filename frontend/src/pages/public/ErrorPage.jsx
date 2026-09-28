@@ -7,7 +7,7 @@ const KINDS = {
   403: { icon: Lock, code: '403', title: 'You do not have access', message: 'Your account does not have permission to open this page. If you think this is a mistake, contact support.' },
   500: { icon: ServerCrash, code: '500', title: 'Something went wrong', message: 'An unexpected error stopped this page from loading. Your money and records are not affected. Please try again.' },
   network: { icon: WifiOff, code: 'Offline', title: 'No connection', message: 'ACHIEVER could not reach the server. Check your internet connection and try again. Do not repeat a payment while offline.' },
-  maintenance: { icon: Wrench, code: 'Maintenance', title: 'Scheduled maintenance', message: 'ACHIEVER is being updated. Payments are paused until maintenance ends. Your balances and records are safe.' },
+  maintenance: { icon: Wrench, code: 'Maintenance', title: 'ACHIEVER is temporarily undergoing maintenance.', message: 'Please try again soon. Your balances and records are safe.' },
 };
 
 /** Branded error / status page. Uses plain links so it still works if the router failed. */

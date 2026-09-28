@@ -129,18 +129,13 @@ Render free instances sleep when idle; the first request after a sleep can take
 - Webhook (optional): `https://achiever-api-uu08.onrender.com/api/calls/livekit/webhook`.
 - Tokens are minted by the API (`/api/calls/...`); the secret never reaches the browser.
 
-## 8. First administrator
+## 8. Admin platform (separate Vercel project)
 
-No default admin exists. After the person has registered and verified their account:
-
-```bash
-cd backend
-npm run grant-role -- <email> SUPER_ADMIN
-```
-
-Run it from a trusted machine with the production `backend/.env` (or a Render
-shell). ACHIEVER has no two-step (MFA) sign-in yet, so give staff accounts long unique
-passwords, and protect the Supabase, Render, Vercel and Paystack dashboards with MFA.
+See [ADMIN_PLATFORM.md](ADMIN_PLATFORM.md). In short:
+1. Apply migration `20260928000009_admin_platform.sql`.
+2. Render: add `ADMIN_CLIENT_URL`, `ADMIN_SESSION_SECRET`, `ADMIN_MFA_ENCRYPTION_KEY`.
+3. Vercel: a second project with Root Directory `admin`; point the `/api` rewrite in `admin/vercel.json` at Render.
+4. First administrator: `cd backend && npm run admin:create -- <email> SUPER_ADMIN`, then sign in at the admin app and set up an authenticator app. There is no default admin account.
 
 ## 9. Moving to a custom domain later
 

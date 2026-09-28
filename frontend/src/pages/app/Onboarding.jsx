@@ -4,6 +4,7 @@ import { BadgeCheck, Camera, CheckCircle2, FileUp, Phone, ScrollText, ShieldChec
 import { Alert, AsyncContent, Button, Card, Checkbox, Input, PageHeader, Select, StatusBadge, fieldErrors } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
+import PhoneVerification from '../../components/domain/PhoneVerification.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 
@@ -18,46 +19,6 @@ function Step({ n, done, current, icon: Icon, title, children }) {
         </div>
         {children}
       </div>
-    </div>
-  );
-}
-
-function PhoneStep({ onDone }) {
-  const toast = useToast();
-  const [sent, setSent] = useState(false);
-  const [code, setCode] = useState('');
-  const [pending, setPending] = useState(false);
-  const send = async () => {
-    setPending(true);
-    try {
-      await api.post('/auth/phone/send');
-      setSent(true);
-      toast.success('Code sent by SMS');
-    } catch (err) {
-      toast.error(err);
-    } finally {
-      setPending(false);
-    }
-  };
-  const verify = async () => {
-    setPending(true);
-    try {
-      await api.post('/auth/phone/verify', { code });
-      toast.success('Phone number verified');
-      onDone();
-    } catch (err) {
-      toast.error(err);
-    } finally {
-      setPending(false);
-    }
-  };
-  if (!sent) return <Button onClick={send} loading={pending} size="sm">Send SMS code</Button>;
-  return (
-    <div className="row-wrap">
-      <Input label="SMS code" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
-      <Button onClick={verify} loading={pending} disabled={code.length !== 6} style={{ alignSelf: 'flex-end' }}>
-        Verify
-      </Button>
     </div>
   );
 }
@@ -288,10 +249,12 @@ export default function Onboarding() {
               <Step n={1} done={s.emailVerified} icon={CheckCircle2} title="Verify email">
                 <p className="small muted">Completed at sign-up.</p>
               </Step>
-              <Step n={2} done={s.phoneVerified} current={!s.phoneVerified} icon={Phone} title="Verify phone number">
-                {s.phoneVerified ? <p className="small">Verified.</p> : <PhoneStep onDone={reload} />}
+              <Step n={2} done={s.phoneVerified || s.phoneVerification === 'email_fallback'} current={!s.phoneVerified && s.phoneVerification !== 'email_fallback'} icon={Phone} title="Verify phone number">
+                {s.phoneVerified ? <p className="small">Verified.</p>
+                  : s.phoneVerification === 'email_fallback' ? <p className="small">Covered by your verified email while SMS verification is unavailable. You can confirm your phone by SMS later.</p>
+                  : <PhoneVerification onDone={reload} />}
               </Step>
-              <Step n={3} done={s.identity?.status === 'verified'} current={s.phoneVerified && s.identity?.status !== 'verified'} icon={BadgeCheck} title="Verify a government ID">
+              <Step n={3} done={s.identity?.status === 'verified'} current={(s.phoneVerified || s.phoneVerification === 'email_fallback') && s.identity?.status !== 'verified'} icon={BadgeCheck} title="Verify a government ID">
                 <IdentityStep identity={s.identity} onDone={reload} />
               </Step>
               <Step n={4} done={s.identity?.liveness === 'passed'} icon={ShieldCheck} title="Selfie & liveness check">

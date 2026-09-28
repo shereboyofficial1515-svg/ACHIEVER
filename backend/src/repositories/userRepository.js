@@ -6,7 +6,8 @@ const PROFILE_COLUMNS =
   'email_verified_at, phone_verified_at, failed_login_count, locked_until, last_login_at, last_seen_at, sessions_revoked_at, created_at, ' +
   'first_name, middle_name, last_name, preferred_name, gender, nationality, occupation, employment_status, business_name, ' +
   'country, state_code, lga_id, city, address_unit, postal_code, address_verification_status, address_verified_at, ' +
-  'show_public_location, deactivated_at, deactivation_reason';
+  'show_public_location, deactivated_at, deactivation_reason, phone_verification_waived_at, phone_verification_waiver, ' +
+  'status_changed_at, status_expires_at';
 
 export async function findById(id) {
   return one(db.from('profiles').select(`${PROFILE_COLUMNS}, user_roles!user_roles_user_id_fkey(role_code)`).eq('id', id).maybeSingle());

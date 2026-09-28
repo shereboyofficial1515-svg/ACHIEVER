@@ -16,10 +16,6 @@ export const overview = asyncHandler(async (_req, res) => ok(res, await adminSer
 
 export const listUsers = asyncHandler(async (req, res) => paged(res, await adminService.listUsers(req.user, v(req).query)));
 export const getUser = asyncHandler(async (req, res) => ok(res, await adminService.getUser(req.user, v(req).params.id, req)));
-export const setUserStatus = asyncHandler(async (req, res) => {
-  await adminService.setUserStatus(req.user, v(req).params.id, req.body, req);
-  return ok(res, {}, 'Status updated');
-});
 export const grantRole = asyncHandler(async (req, res) => {
   await adminService.grantRole(req.user, v(req).params.id, req.body.role, req);
   return ok(res, {}, 'Role granted');
@@ -79,12 +75,6 @@ export const auditLogs = asyncHandler(async (req, res) => {
   return ok(res, rows, 'OK', 200, pageMeta(q, total));
 });
 
-export const getSettings = asyncHandler(async (_req, res) => ok(res, await settingsService.list()));
-export const updateSetting = asyncHandler(async (req, res) => {
-  const row = await settingsService.update(v(req).params.key, req.body.value, req.user.id);
-  await auditService.record({ actorId: req.user.id, action: 'admin.setting.update', resourceType: 'app_setting', resourceId: v(req).params.key, metadata: { value: req.body.value }, req });
-  return ok(res, row, 'Setting saved');
-});
 
 export const broadcast = asyncHandler(async (req, res) => ok(res, await adminService.broadcast(req.user, req.body, req), 'Notice sent'));
 

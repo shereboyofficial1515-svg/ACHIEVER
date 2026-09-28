@@ -28,7 +28,7 @@ export const updateProfile = z.object({
 }).strict();
 
 export const emailChange = z.object({ newEmail: email, challengeId: uuid, code: otpCode });
-export const phoneChange = z.object({ newPhone: phone, challengeId: uuid, code: otpCode });
+export const phoneChange = z.object({ newPhone: phone, challengeId: uuid, code: otpCode, useEmailFallback: z.boolean().optional() });
 export const confirmCode = z.object({ code: otpCode });
 export const deactivate = z.object({ password: z.string().min(1).max(128), reason: optionalText(500) });
 export const stepUp = z.object({ password: z.string().min(1).max(128) });
@@ -199,7 +199,11 @@ export const listUsers = paging.extend({
   role: z.enum(ALL_ROLES).optional(),
   status: z.enum(['pending_verification', 'active', 'suspended', 'closed']).optional(),
 });
-export const userStatus = z.object({ status: z.enum(['active', 'suspended', 'closed']), reason: line(5, 300) });
+export const userStatus = z.object({
+  status: z.enum(['active', 'verification_required', 'restricted', 'suspended', 'closed']),
+  reason: line(5, 300),
+  expiresAt: z.string().datetime({ offset: true }).optional().nullable(),
+});
 export const roleBody = z.object({ role: z.enum(ALL_ROLES) });
 export const roleParam = z.object({ id: uuid, role: roleBody.shape.role });
 export const adminGroups = paging.extend({ status: z.string().max(20).optional(), search });

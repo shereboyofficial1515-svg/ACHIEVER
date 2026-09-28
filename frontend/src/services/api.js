@@ -133,6 +133,10 @@ async function request(method, path, { body, params, raw = false, retry = true, 
     if (retry && error.code === 'STEP_UP_REQUIRED' && onStepUpRequired) {
       if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, signal });
     }
+    // Maintenance mode (switched on in the admin platform): show the maintenance page.
+    if (error.code === 'MAINTENANCE_MODE' && typeof window !== 'undefined' && window.location.pathname !== '/maintenance') {
+      window.location.replace('/maintenance');
+    }
     if (retry && error.code === 'CSRF_INVALID') {
       await ensureCsrf(true);
       return request(method, path, { body, params, raw, retry: false, signal });

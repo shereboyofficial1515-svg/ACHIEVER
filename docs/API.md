@@ -190,3 +190,50 @@ Any staff role may enter; each route requires a **permission** (see `docs/SECURI
 | POST | `/admin/notifications/broadcast` | notifications.broadcast |
 | GET · POST 🔐 | `/admin/privacy/requests` · `/admin/privacy/requests/:id/decision { decision: in_review\|complete\|reject, note? }` | privacy.requests.manage |
 | GET | `/reports/platform` | reports.platform |
+
+## Site Administration API (`/api/admin`)
+
+Authenticated **only** by the admin session cookie (`ach_adm`); member cookies and bearer
+tokens are ignored. Mutations need the admin CSRF token (`GET /api/admin/auth/csrf`,
+header `X-CSRF-Token`). Routes marked (step-up) also need an authenticator code
+confirmed via `POST /api/admin/auth/step-up` within the last few minutes
+(`admin.step_up_minutes`, default 5); otherwise `403 STEP_UP_REQUIRED`.
+
+| Method & path | Permission | Notes |
+|---|---|---|
+| `POST /auth/login` | — | email + password → `{ next: 'mfa' }` or `{ next: 'enroll', secret, otpauthUri }` |
+| `POST /auth/mfa` | — | `{ code }` or `{ backupCode }` → admin session; enrolment also returns 10 backup codes once |
+| `POST /auth/logout`, `POST /auth/logout-all` | session | |
+| `GET /auth/me`, `GET /auth/sessions`, `DELETE /auth/sessions/:id` | session | |
+| `POST /auth/step-up` | session | `{ code }` |
+| `POST /auth/password` | session | `{ currentPassword, newPassword, code }`; ends other sessions |
+| `GET /auth/mfa`, `POST /auth/mfa/backup-codes` | session | regenerate needs `{ code }` |
+| `POST /auth/password/forgot`, `POST /auth/password/reset` | — | emailed code; ends admin sessions |
+| `GET /dashboard` | overview.read | aggregate counts only |
+| `GET /admins` · `POST /admins` · `PUT /admins/:id/roles` · `POST /admins/:id/status` · `POST /admins/:id/mfa-reset` | admins.read / admins.manage (step-up) | reason required |
+| `GET /admin-sessions` · `DELETE /admin-sessions/:id` | admins.read / admins.manage (step-up) | |
+| `GET /security/admin-activity` | security.events.read or audit.read | `actions`, `actorId`, `from`, `to`, paging |
+| `PATCH /users/:id/status` | users.manage_status (step-up) | `{ status: active\|verification_required\|restricted\|suspended\|closed, reason, expiresAt? }` |
+| `GET /users/:id/status-history` | users.read | |
+| `GET /settings` · `GET /settings/:key/history` | settings.read | typed rows with warnings |
+| `PUT /settings/:key` | settings.manage (step-up) | `{ value, reason }`; `sms.*` keys also need sms.configure |
+| `GET /sms` · `PUT /sms` | sms.read / sms.configure (step-up) | `{ verificationEnabled?, notificationsEnabled?, reason }` |
+| `GET /reports/types` · `GET /reports/platform` | per report + reports.export for CSV | exports are audited |
+| `GET /osusu/groups/:groupId[/members\|/cycles\|/payouts\|/activity]`, `GET /collector/plans/:planId` | oversight permissions | read-only |
+| `GET /support/tickets/:id` · `POST /support/tickets/:id/messages` · `GET /support/evidence/:id/url` | support.tickets / disputes.manage / disputes.evidence.view | evidence access is logged |
+
+Existing admin routes (users, KYC, collectors, transactions, payouts, approvals, risk,
+security events, audit and data-access logs, privacy requests, notices) keep their
+paths under `/api/admin`, now behind the admin session.
+
+### Member API additions
+
+| Method & path | Notes |
+|---|---|
+| `GET /api/auth/verification-methods` | `{ email, sms: { enabled, available, state }, phoneVerification: 'sms'\|'email_fallback', message }` |
+| `POST /api/auth/phone/email-fallback` | use the verified email while SMS is off or failing (server decides) |
+| `POST /api/auth/phone/send` | `503 SMS_UNAVAILABLE` with `details.fallback = 'email'` when SMS cannot be used |
+| `POST /api/profiles/me/phone/change` | returns `{ changed: true, method: 'email_fallback' }` when SMS is unavailable |
+| `GET /api/status` | adds `registrationOpen` and `verification` |
+
+Member responses: `403 ACCOUNT_RESTRICTED` / `VERIFICATION_REQUIRED` for money actions on limited accounts; `503 MAINTENANCE_MODE` during maintenance.

@@ -68,13 +68,18 @@ describe('HTTP hardening', () => {
     ['get', '/api/users/me/dashboard'],
     ['get', '/api/osusu/groups'],
     ['get', '/api/payments/transactions'],
-    ['get', '/api/admin/overview'],
     ['get', '/api/messages/conversations'],
     ['get', '/api/events/stream'],
   ])('requires authentication for %s %s', async (method, path) => {
     const res = await request(app)[method](path);
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('the admin API requires an admin session (member sign-in does not count)', async () => {
+    const res = await request(app).get('/api/admin/overview');
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('ADMIN_AUTH_REQUIRED');
   });
 
   it('rejects Paystack webhooks with an invalid signature', async () => {

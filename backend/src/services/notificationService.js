@@ -1,5 +1,5 @@
 import { env } from '../config/env.js';
-import { sendSms } from '../integrations/termii/termiiClient.js';
+import * as smsService from './smsService.js';
 import * as notificationRepo from '../repositories/notificationRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as settingsService from './settingsService.js';
@@ -58,13 +58,14 @@ async function deliver(item, profile, channel, smsCap) {
         return;
       }
     }
-    result = await sendSms({ to: profile.phone, message: `ACHIEVER: ${item.body}` });
+    result = await smsService.send({ to: profile.phone, kind: item.category === 'security' ? 'security' : 'notification', message: `ACHIEVER: ${item.body}` });
   }
 
   if (result.ok) {
     await notificationRepo.setChannelStatus(item.id, channel, 'sent');
-  } else if (['EMAIL_NOT_CONFIGURED', 'SMS_NOT_CONFIGURED'].includes(result.error) || attempts + 1 >= MAX_ATTEMPTS) {
-    await notificationRepo.setChannelStatus(item.id, channel, result.error?.endsWith('NOT_CONFIGURED') ? 'skipped' : 'failed', result.error);
+  } else if (result.skipped || ['EMAIL_NOT_CONFIGURED', 'SMS_NOT_CONFIGURED'].includes(result.error) || attempts + 1 >= MAX_ATTEMPTS) {
+    // Switched off, not configured or provider paused: not retried (email/in-app still deliver).
+    await notificationRepo.setChannelStatus(item.id, channel, result.skipped || result.error?.endsWith('NOT_CONFIGURED') ? 'skipped' : 'failed', result.error);
   }
   // otherwise stays 'pending' for the next dispatcher run (retry)
 }

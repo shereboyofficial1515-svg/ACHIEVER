@@ -6,7 +6,10 @@ import { logger } from '../utils/logger.js';
  * failure is logged loudly but does not break the user's request (financial
  * functions write their own audit rows inside the same DB transaction).
  */
-export async function record({ actorId = null, action, resourceType, resourceId = null, result = 'success', metadata = {}, req }) {
+export async function record({
+  actorId = null, action, resourceType, resourceId = null, result = 'success', metadata = {}, req,
+  reason = null, permission = null, previousState = null, newState = null,
+}) {
   const row = {
     actor_id: actorId,
     action,
@@ -16,6 +19,13 @@ export async function record({ actorId = null, action, resourceType, resourceId 
     metadata,
     ip_address: req?.ip || null,
     user_agent: req?.get?.('user-agent')?.slice(0, 300) || null,
+    // Admin platform context: which admin session and request did this.
+    request_id: req?.id ?? null,
+    admin_session_id: req?.adminSession?.id ?? null,
+    permission: permission ?? req?.permissionUsed ?? null,
+    reason: reason ? String(reason).slice(0, 1000) : null,
+    previous_state: previousState,
+    new_state: newState,
   };
   try {
     const error = await auditRepo.insert(row);

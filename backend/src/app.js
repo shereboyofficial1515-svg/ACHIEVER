@@ -18,7 +18,7 @@ import { readiness } from './services/healthService.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  // Number of reverse proxies in front of the API (Render = 1; Vercel rewrite -> Render = 2),
+  // Number of reverse proxies in front of the API (Vercel -> Cloudflare -> Render proxy = 4),
   // so req.ip is the visitor's address for rate limits and audit logs.
   app.set('trust proxy', env.TRUST_PROXY_HOPS);
 

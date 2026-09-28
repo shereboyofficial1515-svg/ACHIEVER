@@ -5,7 +5,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://achiever-api.onrender.com/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://achiever-api-uu08.onrender.com/api/:path*" },
     { "source": "/documentation", "destination": "/documentation.html" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/privacy", "destination": "/privacy.html" },

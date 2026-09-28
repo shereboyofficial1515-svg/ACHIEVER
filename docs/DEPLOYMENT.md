@@ -23,10 +23,10 @@ different sites.
 |---|---|---|---|---|
 | **A. Forward /api through Vercel (recommended)** | *empty* | *empty* | SameSite=Lax, first-party | All browsers |
 | B. Custom domains on one site (`app.achiever.ng` + `api.achiever.ng`) | `https://api.achiever.ng` | `https://api.achiever.ng` | SameSite=Lax | All browsers |
-| C. Call Render directly (`*.vercel.app` → `*.onrender.com`) | `https://achiever-api.onrender.com` | same | SameSite=None; Secure (automatic) | Chrome/Edge. **Safari blocks; Firefox isolates** (Google/Facebook sign-in fails) |
+| C. Call Render directly (`*.vercel.app` → `*.onrender.com`) | `https://achiever-api-uu08.onrender.com` | same | SameSite=None; Secure (automatic) | Chrome/Edge. **Safari blocks; Firefox isolates** (Google/Facebook sign-in fails) |
 
 Mode A needs one line in `frontend/vercel.json`: the `/api/:path*` rewrite
-destination must be your Render URL (default `https://achiever-api.onrender.com`,
+destination must be your Render URL (default `https://achiever-api-uu08.onrender.com`,
 matching the service name in `render.yaml`). In mode B or C that rewrite is unused
 and harmless.
 
@@ -46,7 +46,7 @@ and harmless.
 | `NODE_ENV` | `production` |
 | `PORT` | set by Render automatically — do not set |
 | `CLIENT_URL` | `https://<your-app>.vercel.app` (later your custom domain) |
-| `SERVER_URL` | `https://achiever-api.onrender.com` |
+| `SERVER_URL` | `https://achiever-api-uu08.onrender.com` |
 | `API_PUBLIC_URL` | empty in mode A; the API URL in modes B/C |
 | `TRUST_PROXY_HOPS` | `2` in mode A (Vercel → Render), `1` in modes B/C |
 | `PUBLIC_SITE_URL` | same as `CLIENT_URL` (email logos and links) |
@@ -63,7 +63,7 @@ The server refuses to start if a required variable is missing (it prints the
 variable **names** only), and logs an error if `CLIENT_URL`/`SERVER_URL` are not
 `https://` in production.
 
-3. Check `https://achiever-api.onrender.com/api/health` (liveness) and
+3. Check `https://achiever-api-uu08.onrender.com/api/health` (liveness) and
    `/api/health/ready` (database + which integrations are configured).
 
 Render free instances sleep when idle; the first request after a sleep can take
@@ -118,7 +118,7 @@ Render free instances sleep when idle; the first request after a sleep can take
 
 ## 6. Paystack
 
-- Webhook URL: `https://achiever-api.onrender.com/api/paystack/webhook` (call Render
+- Webhook URL: `https://achiever-api-uu08.onrender.com/api/paystack/webhook` (call Render
   directly, not through Vercel). The API checks the HMAC signature, stores each event
   once (duplicates are ignored), and confirms charges by querying Paystack
   server-side before crediting.
@@ -126,7 +126,7 @@ Render free instances sleep when idle; the first request after a sleep can take
 
 ## 7. LiveKit
 
-- Webhook (optional): `https://achiever-api.onrender.com/api/calls/livekit/webhook`.
+- Webhook (optional): `https://achiever-api-uu08.onrender.com/api/calls/livekit/webhook`.
 - Tokens are minted by the API (`/api/calls/...`); the secret never reaches the browser.
 
 ## 8. First administrator

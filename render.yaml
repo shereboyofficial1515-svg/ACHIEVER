@@ -4,7 +4,7 @@
 # See docs/DEPLOYMENT.md for the full list and what each value is.
 services:
   - type: web
-    name: achiever-api            # public URL becomes https://achiever-api.onrender.com if the name is free
+    name: achiever-api            # Render adds a suffix if the name is taken (live: https://achiever-api-uu08.onrender.com)
     runtime: node
     rootDir: backend
     buildCommand: npm ci --omit=dev

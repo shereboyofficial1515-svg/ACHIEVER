@@ -38,7 +38,7 @@ and harmless.
    - Build command `npm ci --omit=dev` (plain Node.js, no build step)
    - Start command `npm start` (`node src/server.js`; never `npm run dev`)
    - Health check path `/api/health`
-   - Node 20.3 or later
+   - Node 22 recommended (`NODE_VERSION=22`); Node 20.3+ also works
 2. Fill in the environment variables:
 
 | Variable | Value |

@@ -37,7 +37,8 @@ const schema = z.object({
   // frontend calls the API directly (VITE_API_URL set). See docs/DEPLOYMENT.md.
   API_PUBLIC_URL: optional(z.string().url()),
   // Reverse proxies in front of this server that append X-Forwarded-For
-  // (Render = 1; Vercel rewrite -> Render = 2). Used for per-IP rate limits and audit IPs.
+  // (Vercel -> Render = 4: Vercel, Cloudflare, Render proxy; check /api/health/client).
+  // Used for per-IP rate limits and audit IPs.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   // Override the automatic SameSite choice for auth cookies (normally not needed).
   COOKIE_SAMESITE: optional(z.enum(['lax', 'strict', 'none'])),

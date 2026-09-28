@@ -18,9 +18,9 @@ services:
         value: "22"          # recommended; Node 20.3+ also works (ws package supplies WebSocket)
       - key: LOG_LEVEL
         value: info
-      # Vercel forwards /api to this service (recommended), so two proxies add X-Forwarded-For.
+      # Visitor -> Vercel -> Cloudflare -> Render internal proxy -> API (measured with /api/health/client).
       - key: TRUST_PROXY_HOPS
-        value: "2"
+        value: "4"
       - key: ENABLE_JOBS
         value: "true"
       - key: ENABLE_REALTIME_BRIDGE

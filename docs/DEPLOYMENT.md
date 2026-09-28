@@ -48,7 +48,7 @@ and harmless.
 | `CLIENT_URL` | `https://<your-app>.vercel.app` (later your custom domain) |
 | `SERVER_URL` | `https://achiever-api-uu08.onrender.com` |
 | `API_PUBLIC_URL` | empty in mode A; the API URL in modes B/C |
-| `TRUST_PROXY_HOPS` | `2` in mode A (Vercel → Render), `1` in modes B/C |
+| `TRUST_PROXY_HOPS` | `4` in mode A (Vercel → Cloudflare → Render proxy → API); `3` when browsers call Render directly. Check with `/api/health/client`: `ip` must be your own address. |
 | `PUBLIC_SITE_URL` | same as `CLIENT_URL` (email logos and links) |
 | `CORS_EXTRA_ORIGINS` | optional, e.g. the old domain while moving to a custom domain |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |

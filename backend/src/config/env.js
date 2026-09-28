@@ -10,6 +10,9 @@ const bool = (def) =>
     .optional()
     .transform((v) => (v === undefined || v === '' ? def : ['1', 'true', 'yes'].includes(v.toLowerCase())));
 
+// Optional settings left blank in .env (e.g. "API_PUBLIC_URL=") count as not set.
+const optional = (type) => z.preprocess((v) => (v === '' ? undefined : v), type.optional());
+
 const isTest = process.env.NODE_ENV === 'test';
 // In tests, integrations are mocked; provide inert placeholders so modules load.
 const secret = isTest ? z.string().default('test-secret-test-secret-test-secret-00') : z.string().min(32);
@@ -23,11 +26,21 @@ const schema = z.object({
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
   SERVER_URL: z.string().url().default('http://localhost:4100'),
   // Public origin that serves /brand/* and the public pages (used in email links/images).
-  PUBLIC_SITE_URL: z.string().url().optional(),
+  PUBLIC_SITE_URL: optional(z.string().url()),
   // Where Supabase redirects after Google/Facebook sign-in (must be in Supabase Auth → URL Configuration → Redirect URLs).
   // Defaults to <CLIENT_URL>/api/auth/oauth/callback (same origin as the web app).
-  OAUTH_CALLBACK_URL: z.string().url().optional(),
+  OAUTH_CALLBACK_URL: optional(z.string().url()),
   CORS_EXTRA_ORIGINS: z.string().optional().default(''),
+  // Origin browsers use to reach this API. Defaults to CLIENT_URL: the frontend host
+  // forwards /api to this server (Vercel rewrite / Vite proxy), so cookies are first-party.
+  // Set it to the API's own URL (e.g. https://achiever-api.onrender.com) only when the
+  // frontend calls the API directly (VITE_API_URL set). See docs/DEPLOYMENT.md.
+  API_PUBLIC_URL: optional(z.string().url()),
+  // Reverse proxies in front of this server that append X-Forwarded-For
+  // (Render = 1; Vercel rewrite -> Render = 2). Used for per-IP rate limits and audit IPs.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
+  // Override the automatic SameSite choice for auth cookies (normally not needed).
+  COOKIE_SAMESITE: optional(z.enum(['lax', 'strict', 'none'])),
 
   SUPABASE_URL: isTest ? z.string().default('http://localhost:54321') : z.string().url(),
   SUPABASE_ANON_KEY: required,
@@ -77,8 +90,29 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+// Multi-label public suffixes we may deploy under: hosts below them are separate sites.
+const SHARED_SUFFIXES = ['com.ng', 'org.ng', 'net.ng', 'edu.ng', 'gov.ng', 'co.uk', 'vercel.app', 'onrender.com', 'netlify.app', 'pages.dev', 'fly.dev', 'up.railway.app', 'herokuapp.com'];
+
+/** Scheme + registrable domain ("site" in the SameSite sense) of a URL. */
+export function siteOf(url) {
+  const { protocol, hostname } = new URL(url);
+  if (hostname === 'localhost' || /^[\d.]+$/.test(hostname) || hostname.includes(':')) return `${protocol}//${hostname}`;
+  const suffix = SHARED_SUFFIXES.find((s) => hostname.endsWith(`.${s}`));
+  const labels = hostname.split('.');
+  const keep = suffix ? suffix.split('.').length + 1 : 2;
+  return `${protocol}//${labels.slice(-keep).join('.')}`;
+}
+
+const apiPublicUrl = (parsed.data.API_PUBLIC_URL || parsed.data.CLIENT_URL).replace(/\/$/, '');
+// Frontend and API on different sites (e.g. *.vercel.app calling *.onrender.com directly):
+// auth cookies must be SameSite=None; Secure or the browser will not send them.
+const crossSite = siteOf(apiPublicUrl) !== siteOf(parsed.data.CLIENT_URL);
+
 export const env = Object.freeze({
   ...parsed.data,
+  apiPublicUrl,
+  crossSite,
+  cookieSameSite: parsed.data.COOKIE_SAMESITE || (crossSite ? 'none' : 'lax'),
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
   corsOrigins: [parsed.data.CLIENT_URL, ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],

@@ -2,7 +2,8 @@
    and signed-in helpers on the Support and Delete Data pages. No tracking. */
 (function () {
   'use strict';
-  var API = (window.ACHIEVER_API || '') + '/api';
+  var apiMeta = document.querySelector('meta[name="achiever-api"]');
+  var API = ((apiMeta && apiMeta.content) || '') + '/api';
 
   // Year in footer
   document.querySelectorAll('[data-year]').forEach(function (el) { el.textContent = String(new Date().getFullYear()); });

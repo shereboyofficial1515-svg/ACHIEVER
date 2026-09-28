@@ -66,15 +66,9 @@ ${SITE.origin ? `<meta property="og:url" content="${esc(url)}">` : ''}
 <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
 <link rel="stylesheet" href="/site/site.css">
-<script>
-  /* Same accessibility settings as the app (Settings → Accessibility), applied before paint. */
-  try { var a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}'), r = document.documentElement;
-    if (a.fontScale) r.style.fontSize = Math.round(a.fontScale * 100) + '%';
-    r.dataset.motion = a.reducedMotion || 'system'; r.dataset.contrast = a.highContrast ? 'high' : 'normal';
-    r.dataset.links = a.underlineLinks ? 'underline' : 'normal'; r.dataset.focus = a.strongFocus ? 'strong' : 'normal';
-    r.dataset.targets = a.largerTargets ? 'large' : 'normal'; } catch (e) {}
-  window.ACHIEVER_API = ${JSON.stringify(SITE.apiBase)};
-</script>
+<meta name="achiever-api" content="${esc(SITE.apiBase)}">
+<!-- Same accessibility settings as the app, applied before paint (a file, so CSP can forbid inline scripts). -->
+<script src="/site/boot.js"></script>
 ${extraHead}
 </head>
 <body>

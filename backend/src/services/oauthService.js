@@ -43,7 +43,7 @@ export async function enabledProviders() {
 }
 
 export function callbackUrl() {
-  return env.OAUTH_CALLBACK_URL || `${env.CLIENT_URL.replace(/\/$/, '')}/api/auth/oauth/callback`;
+  return env.OAUTH_CALLBACK_URL || `${env.apiPublicUrl}/api/auth/oauth/callback`;
 }
 
 /** Only same-site relative paths may be used as the post-login destination. */

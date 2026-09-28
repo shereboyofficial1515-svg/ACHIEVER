@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { TIMEOUTS, withTimeout } from '../../utils/timeout.js';
 
 const client = env.features.email ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -11,10 +12,10 @@ const client = env.features.email ? new Resend(env.RESEND_API_KEY) : null;
 export async function sendEmail({ to, subject, html, text, idempotencyKey, headers }) {
   if (!client) return { ok: false, error: 'EMAIL_NOT_CONFIGURED' };
   try {
-    const { data, error } = await client.emails.send(
+    const { data, error } = await withTimeout(client.emails.send(
       { from: env.RESEND_FROM_EMAIL, to, subject, html, text, replyTo: env.SUPPORT_EMAIL, ...(headers ? { headers } : {}) },
       idempotencyKey ? { idempotencyKey } : undefined,
-    );
+    ), TIMEOUTS.email, 'resend send');
     if (error) {
       logger.warn({ name: error.name, message: error.message }, 'resend send failed');
       return { ok: false, error: error.message || 'EMAIL_SEND_FAILED' };

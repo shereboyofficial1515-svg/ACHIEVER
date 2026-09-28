@@ -2,10 +2,13 @@ import { env } from '../config/env.js';
 import { COOKIES } from '../config/constants.js';
 import { hmac, safeEqual } from './crypto.js';
 
+// SameSite=Lax when the browser reaches the API on the web app's own site (the
+// recommended set-up); SameSite=None when it calls a different site directly,
+// which browsers only accept together with Secure.
 const base = () => ({
   httpOnly: true,
-  secure: env.isProduction,
-  sameSite: 'lax',
+  secure: env.isProduction || env.cookieSameSite === 'none',
+  sameSite: env.cookieSameSite,
   path: '/',
 });
 

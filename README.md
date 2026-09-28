@@ -47,6 +47,7 @@ supabase test db            # pgTAP: 46 financial-rule assertions + 14 RLS asser
 ## Documentation
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design, database, financial engine, auth, RLS, payments, payouts, notifications, realtime, calls, flows
 * [docs/API.md](docs/API.md) — endpoint specification
+* [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — production deployment: Vercel (frontend) + Render (API), environment variables, cookies/CORS, OAuth, webhooks
 * [docs/SETUP.md](docs/SETUP.md) — environment variables, Supabase/Storage/RLS, Paystack, Resend, Termii, LiveKit, bills, identity, local dev, testing, deployment, security checklist, troubleshooting
 
 ## Before production

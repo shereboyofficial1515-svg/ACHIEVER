@@ -2,6 +2,7 @@ import { AccessToken, RoomServiceClient, WebhookReceiver } from 'livekit-server-
 import { env } from '../../config/env.js';
 import { AppError } from '../../utils/AppError.js';
 import { logger } from '../../utils/logger.js';
+import { TIMEOUTS, withTimeout } from '../../utils/timeout.js';
 
 function assertConfigured() {
   if (!env.features.calls) {
@@ -39,7 +40,7 @@ export async function closeRoom(roomName) {
   if (!env.features.calls) return;
   try {
     const svc = new RoomServiceClient(httpUrl(), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
-    await svc.deleteRoom(roomName);
+    await withTimeout(svc.deleteRoom(roomName), TIMEOUTS.livekit, 'livekit deleteRoom');
   } catch (err) {
     // Room may already be gone; this is best-effort cleanup.
     logger.debug({ err: err.message, roomName }, 'livekit deleteRoom');
@@ -50,7 +51,7 @@ export async function removeParticipant(roomName, identity) {
   if (!env.features.calls) return;
   try {
     const svc = new RoomServiceClient(httpUrl(), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
-    await svc.removeParticipant(roomName, identity);
+    await withTimeout(svc.removeParticipant(roomName, identity), TIMEOUTS.livekit, 'livekit removeParticipant');
   } catch (err) {
     logger.debug({ err: err.message, roomName }, 'livekit removeParticipant');
   }

@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../../config/env.js';
+import { TIMEOUTS, fetchWithTimeout } from '../../utils/timeout.js';
+
+// Every Supabase call (database, auth, storage) gives up after a fixed time.
+const fetch = fetchWithTimeout(TIMEOUTS.supabase);
 
 const baseAuth = { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false };
 
@@ -10,7 +14,7 @@ const baseAuth = { persistSession: false, autoRefreshToken: false, detectSession
 export const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: baseAuth,
   db: { schema: 'public' },
-  global: { headers: { 'x-application-name': 'achiever-api' } },
+  global: { fetch, headers: { 'x-application-name': 'achiever-api' } },
 });
 
 /**
@@ -18,7 +22,7 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE
  * between concurrent requests.
  */
 export function createAuthClient() {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: baseAuth });
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: baseAuth, global: { fetch } });
 }
 
 /**
@@ -35,6 +39,7 @@ export function createPkceClient(initial = {}) {
   };
   const client = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', storage, persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch },
   });
   return { client, store };
 }

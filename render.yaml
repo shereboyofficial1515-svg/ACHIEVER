@@ -1,0 +1,74 @@
+# Render Blueprint for the ACHIEVER API (Node.js + Express).
+# Render -> New -> Blueprint -> pick this repository. Secret values are entered
+# in the Render dashboard when prompted (sync: false); none are stored here.
+# See docs/DEPLOYMENT.md for the full list and what each value is.
+services:
+  - type: web
+    name: achiever-api            # public URL becomes https://achiever-api.onrender.com if the name is free
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: LOG_LEVEL
+        value: info
+      # Vercel forwards /api to this service (recommended), so two proxies add X-Forwarded-For.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      - key: ENABLE_JOBS
+        value: "true"
+      - key: ENABLE_REALTIME_BRIDGE
+        value: "true"
+      # Public URLs (no trailing slash)
+      - key: CLIENT_URL
+        sync: false
+      - key: SERVER_URL
+        sync: false
+      - key: PUBLIC_SITE_URL
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Server secrets (32+ random characters each). They key hashes stored in the
+      # database (devices, payout-account binding, invites, BVN/NIN), so they must
+      # match the values used with the SAME Supabase project. See docs/DEPLOYMENT.md.
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: IDENTITY_HASH_SECRET
+        sync: false
+      # Paystack
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      # Resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      # Termii
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        sync: false
+      # LiveKit
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false

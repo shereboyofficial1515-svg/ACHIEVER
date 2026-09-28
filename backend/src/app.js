@@ -18,8 +18,9 @@ import { readiness } from './services/healthService.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  // Behind one reverse proxy/load balancer (Render, Railway, Nginx, etc.)
-  app.set('trust proxy', 1);
+  // Number of reverse proxies in front of the API (Render = 1; Vercel rewrite -> Render = 2),
+  // so req.ip is the visitor's address for rate limits and audit logs.
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
   app.use(requestContext);
   app.use(
@@ -37,7 +38,8 @@ export function createApp() {
   app.use(
     helmet({
       contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
-      crossOriginResourcePolicy: { policy: 'same-site' },
+      // Cross-site deployments (frontend calling the API's own domain) need cross-origin reads.
+      crossOriginResourcePolicy: { policy: env.crossSite ? 'cross-origin' : 'same-site' },
       hsts: env.isProduction ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
       referrerPolicy: { policy: 'no-referrer' },
     }),
@@ -52,6 +54,8 @@ export function createApp() {
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id', 'Authorization'],
+      // Readable by the web app when it calls the API on another origin (file names, error tracing).
+      exposedHeaders: ['X-Request-Id', 'Content-Disposition', 'Retry-After'],
       maxAge: 600,
     }),
   );

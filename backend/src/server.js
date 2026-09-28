@@ -7,7 +7,15 @@ import { checkDatabase } from './services/healthService.js';
 
 const app = createApp();
 const server = app.listen(env.PORT, async () => {
-  logger.info({ port: env.PORT, env: env.NODE_ENV, features: env.features }, 'ACHIEVER API listening');
+  logger.info({ port: env.PORT, env: env.NODE_ENV, features: env.features, cookieSameSite: env.cookieSameSite }, 'ACHIEVER API listening');
+  if (env.isProduction) {
+    for (const [name, url] of [['CLIENT_URL', env.CLIENT_URL], ['SERVER_URL', env.SERVER_URL], ['API_PUBLIC_URL', env.apiPublicUrl]]) {
+      if (!url.startsWith('https://') || /localhost|127\.0\.0\.1/.test(url)) logger.error(`${name} must be the public https:// address in production (links, cookies and CORS depend on it).`);
+    }
+    if (env.crossSite) {
+      logger.warn('The web app calls the API on a different site: cookies are SameSite=None. Safari and Firefox may block them; prefer forwarding /api through the frontend host (docs/DEPLOYMENT.md).');
+    }
+  }
   // Fail loudly at startup if the database cannot serve requests, instead of
   // letting the first user request discover it.
   const db = await checkDatabase();

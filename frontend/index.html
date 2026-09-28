@@ -18,19 +18,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>ACHIEVER</title>
-    <script>
-      /* Apply saved accessibility settings before first paint (no flash). */
-      try {
-        var a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}');
-        var r = document.documentElement;
-        if (a.fontScale) r.style.fontSize = Math.round(a.fontScale * 100) + '%';
-        r.dataset.motion = a.reducedMotion || 'system';
-        r.dataset.contrast = a.highContrast ? 'high' : 'normal';
-        r.dataset.targets = a.largerTargets ? 'large' : 'normal';
-        r.dataset.links = a.underlineLinks ? 'underline' : 'normal';
-        r.dataset.focus = a.strongFocus ? 'strong' : 'normal';
-      } catch (e) {}
-    </script>
+    <!-- Applies saved accessibility settings before first paint (no flash). -->
+    <script src="/site/boot.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to main content</a>

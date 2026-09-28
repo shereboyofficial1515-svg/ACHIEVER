@@ -16,11 +16,30 @@ export class ApiError extends Error {
   }
 }
 
+export const NETWORK_MESSAGE = 'Unable to connect to ACHIEVER. Please check your internet connection.';
+const SERVER_MESSAGE = 'ACHIEVER is temporarily unable to process this request. Please try again.';
+const UNAVAILABLE_MESSAGE = 'ACHIEVER is temporarily unavailable. Please try again shortly.';
+
+/** Error for responses that did not come from the API itself (proxy, gateway, or no response). */
 function unavailable(status = 0) {
-  return new ApiError(status, {
-    message: status ? 'ACHIEVER is temporarily unavailable. Please try again shortly.' : 'Network error. Check your connection and try again.',
-    error: { code: status ? 'SERVICE_UNAVAILABLE' : 'NETWORK_ERROR' },
-  });
+  if (!status) return new ApiError(0, { message: NETWORK_MESSAGE, error: { code: 'NETWORK_ERROR' } });
+  if (status >= 500 && status !== 500) return new ApiError(status, { message: UNAVAILABLE_MESSAGE, error: { code: 'SERVICE_UNAVAILABLE' } });
+  if (status === 500) return new ApiError(status, { message: SERVER_MESSAGE, error: { code: 'INTERNAL_ERROR' } });
+  if (status === 429) return new ApiError(status, { message: 'Too many requests. Please wait a moment and try again.', error: { code: 'RATE_LIMITED' } });
+  if (status === 404) return new ApiError(status, { message: 'That was not found.', error: { code: 'NOT_FOUND' } });
+  return new ApiError(status, { message: 'The request could not be completed. Please try again.', error: { code: 'REQUEST_FAILED' } });
+}
+
+/**
+ * Server errors (5xx) always show a fixed, friendly message; the request id is
+ * kept so support can find the matching server log. 4xx messages come from the
+ * API and are written for users (validation, 401/403/404/409/422/429).
+ */
+function fromResponse(status, payload) {
+  if (!payload) return unavailable(status);
+  const error = new ApiError(status, payload);
+  if (status >= 500) error.message = status === 500 ? SERVER_MESSAGE : UNAVAILABLE_MESSAGE;
+  return error;
 }
 
 const NO_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/csrf', '/auth/password/forgot', '/auth/password/reset'];
@@ -102,7 +121,7 @@ async function request(method, path, { body, params, raw = false, retry = true, 
     });
   } catch (err) {
     if (err.name === 'AbortError') throw err;
-    throw new ApiError(0, { message: 'Network error. Check your connection and try again.', error: { code: 'NETWORK_ERROR' } });
+    throw unavailable(0);
   }
 
   if (raw && res.ok) return res;
@@ -110,7 +129,7 @@ async function request(method, path, { body, params, raw = false, retry = true, 
 
   if (!res.ok) {
     // Non-JSON errors come from proxies/load balancers, not the API itself.
-    const error = payload ? new ApiError(res.status, payload) : unavailable(res.status);
+    const error = fromResponse(res.status, payload);
     if (retry && error.code === 'STEP_UP_REQUIRED' && onStepUpRequired) {
       if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, signal });
     }

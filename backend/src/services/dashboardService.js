@@ -91,6 +91,6 @@ export async function forUser(user) {
   if (roles.includes(ROLES.COLLECTOR)) {
     result.collector = collectorDash;
   }
-  result.onboarding = { operators: onboarding.operators, phoneVerified: onboarding.phoneVerified, identity: onboarding.identity };
+  result.onboarding = { operators: onboarding.operators, phoneVerified: onboarding.phoneVerified, phoneVerification: onboarding.phoneVerification, identity: onboarding.identity };
   return result;
 }

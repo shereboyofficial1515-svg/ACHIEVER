@@ -284,6 +284,29 @@ export async function collectorReport(user, filters, req) {
   return report;
 }
 
+// Compliance and security summaries for the admin platform (no identity numbers or document data).
+Object.assign(PLATFORM_REPORTS, {
+  kyc: {
+    title: 'KYC status report',
+    rows: (_, { from, to }) => run(range(db.from('kyc_profiles').select('level, status, restricted, verified_at, expires_at, updated_at, user:profiles!kyc_profiles_user_id_fkey(full_name, email, account_status, created_at)').order('updated_at', { ascending: false }).limit(MAX_ROWS), from, to, 'updated_at')),
+    columns: [
+      { label: 'Name', value: (r) => r.user?.full_name }, { label: 'Email', value: (r) => r.user?.email },
+      { label: 'Account status', value: (r) => r.user?.account_status }, { label: 'KYC level', key: 'level' },
+      { label: 'KYC status', key: 'status' }, { label: 'Restricted', value: (r) => (r.restricted ? 'yes' : 'no') },
+      { label: 'Verified', key: 'verified_at' }, { label: 'ID expires', key: 'expires_at' }, { label: 'Updated', key: 'updated_at' },
+    ],
+  },
+  'security-events': {
+    title: 'Security events report',
+    rows: (_, { from, to }) => run(range(db.from('security_events').select('event_type, severity, status, detection_source, description, created_at, user:profiles!security_events_user_id_fkey(full_name, email)').order('created_at', { ascending: false }).limit(MAX_ROWS), from, to)),
+    columns: [
+      { label: 'Created', key: 'created_at' }, { label: 'Type', key: 'event_type' }, { label: 'Severity', key: 'severity' },
+      { label: 'Status', key: 'status' }, { label: 'Source', key: 'detection_source' }, { label: 'Description', key: 'description' },
+      { label: 'User', value: (r) => r.user?.full_name }, { label: 'Email', value: (r) => r.user?.email },
+    ],
+  },
+});
+
 export async function platformReport(user, filters, req) {
   const report = await build(PLATFORM_REPORTS, filters.type, null, filters);
   await auditService.record({ actorId: user.id, action: 'report.platform', resourceType: 'platform', metadata: { type: filters.type, from: filters.from, to: filters.to }, req });

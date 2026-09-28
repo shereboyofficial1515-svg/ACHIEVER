@@ -4,6 +4,7 @@ export const ROLES = Object.freeze({
   COMPLIANCE_ADMIN: 'COMPLIANCE_ADMIN',
   FINANCE_ADMIN: 'FINANCE_ADMIN',
   DISPUTE_ADMIN: 'DISPUTE_ADMIN',
+  CONTENT_ADMIN: 'CONTENT_ADMIN',
   SECURITY_ADMIN: 'SECURITY_ADMIN',
   SUPPORT_ADMIN: 'SUPPORT_ADMIN',
   AUDITOR: 'AUDITOR',
@@ -18,7 +19,7 @@ export const ROLES = Object.freeze({
 // database (least privilege); code checks permissions, not role names.
 export const STAFF_ROLES = [
   ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.COMPLIANCE_ADMIN, ROLES.FINANCE_ADMIN, ROLES.DISPUTE_ADMIN,
-  ROLES.SECURITY_ADMIN, ROLES.SUPPORT_ADMIN, ROLES.AUDITOR, ROLES.READ_ONLY_ADMIN,
+  ROLES.SECURITY_ADMIN, ROLES.SUPPORT_ADMIN, ROLES.CONTENT_ADMIN, ROLES.AUDITOR, ROLES.READ_ONLY_ADMIN,
 ];
 export const ALL_ROLES = Object.values(ROLES);
 export const OPERATOR_ROLES = [ROLES.OSUSU_ADMIN, ROLES.COLLECTOR];
@@ -40,7 +41,25 @@ export const COOKIES = Object.freeze({
   session: 'ach_ss',
   csrf: 'ach_csrf',
   device: 'ach_did',
+  // Site Administration (separate from the member session; scoped to /api/admin)
+  admin: 'ach_adm',
+  adminChallenge: 'ach_adm_mfa',
+  adminDevice: 'ach_adm_did',
 });
+
+// Account states (profiles.account_status)
+export const ACCOUNT_STATES = Object.freeze({
+  PENDING: 'pending_verification',
+  ACTIVE: 'active',
+  VERIFICATION_REQUIRED: 'verification_required',
+  RESTRICTED: 'restricted',
+  SUSPENDED: 'suspended',
+  DEACTIVATED: 'closed',
+});
+// Can sign in but cannot move money or change payout details.
+export const LIMITED_STATES = [ACCOUNT_STATES.RESTRICTED, ACCOUNT_STATES.VERIFICATION_REQUIRED];
+// Cannot sign in.
+export const BLOCKED_STATES = [ACCOUNT_STATES.SUSPENDED, ACCOUNT_STATES.DEACTIVATED];
 
 // Minimum KYC level per activity (overridable via app_settings kyc.required_levels).
 export const KYC_ACTIVITIES = Object.freeze({ contribute: 1, receive_payout: 2, withdraw: 2, operator: 2 });

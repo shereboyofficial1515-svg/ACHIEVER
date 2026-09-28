@@ -13,6 +13,9 @@ import { apiLimiter, webhookLimiter } from './middleware/rateLimiters.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import * as paymentController from './controllers/paymentController.js';
 import api from './routes/index.js';
+import adminRoutes, { adminAuthRoutes } from './routes/adminRoutes.js';
+import { adminCsrf, authenticateAdmin } from './middleware/adminAuth.js';
+import { adminApiLimiter } from './middleware/rateLimiters.js';
 import { readiness } from './services/healthService.js';
 
 export function createApp() {
@@ -107,6 +110,18 @@ export function createApp() {
   // session; POST supports RFC 8058 one-click unsubscribe.
   app.get('/api/notifications/unsubscribe', apiLimiter, userController.unsubscribe);
   app.post('/api/notifications/unsubscribe', apiLimiter, userController.unsubscribe);
+  // Site Administration API: admin session cookie only (member sign-ins are ignored),
+  // its own CSRF token and rate limits. Mounted before the member API.
+  const admin = express.Router();
+  // Admin data is never stored by browsers or intermediaries.
+  admin.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+  admin.use('/auth', adminAuthRoutes);
+  admin.use(authenticateAdmin, adminApiLimiter, adminRoutes);
+  app.use('/api/admin', adminCsrf, admin);
+
   app.use('/api', apiLimiter, csrfProtection, api);
 
   app.use(notFound);

@@ -161,8 +161,10 @@ select throws_ok($$ update kyc_profiles set status = 'verified' $$, '42501', nul
 select throws_ok($$ update profiles set address = 'x', date_of_birth = '2000-01-01' where id = auth.uid() $$, '42501', null,
                  'users cannot directly change verification-relevant profile fields');
 set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000c2","role":"authenticated"}';
-select ok((select count(*) from transactions where user_id <> '00000000-0000-0000-0000-0000000000c2') > 0,
-          'finance admin can read the ledger');
+-- Staff powers are exercised only through the admin API session (password + authenticator app),
+-- never with an ordinary sign-in token (migration 009).
+select is((select count(*)::int from transactions where user_id <> '00000000-0000-0000-0000-0000000000c2'), 0,
+          'a finance admin''s ordinary sign-in token cannot read other users'' ledger');
 select is((select count(*)::int from dispute_evidence), 0, 'finance admin cannot open dispute evidence');
 reset role;
 

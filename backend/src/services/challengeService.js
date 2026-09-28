@@ -4,6 +4,7 @@ import * as securityRepo from '../repositories/securityRepository.js';
 import * as emailService from './emailService.js';
 import * as securityService from './securityService.js';
 import * as auditService from './auditService.js';
+import * as otpService from './otpService.js';
 import { AppError } from '../utils/AppError.js';
 import { hmac, randomDigits, safeEqual } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
@@ -27,7 +28,6 @@ export const ACTIONS = {
   payout_account_change: 'change your payout account',
   account_deletion: 'request deletion of your account',
 };
-const TTL_MINUTES = 10;
 const MAX_PER_HOUR = 5;
 
 const codeHash = (id, userId, action, code) => hmac(env.JWT_SECRET, `challenge:${id}:${userId}:${action}:${code}`);
@@ -44,6 +44,7 @@ export async function create(user, { action, password }, verifyPassword, req) {
   }
   const id = crypto.randomUUID();
   const code = randomDigits(6);
+  const { ttlMinutes, maxAttempts } = await otpService.rules();
   const row = await securityRepo.insertChallenge({
     id,
     user_id: user.id,
@@ -53,7 +54,8 @@ export async function create(user, { action, password }, verifyPassword, req) {
     code_hash: codeHash(id, user.id, action, code),
     session_id: user.sessionId ?? null,
     ip_address: req?.ip || null,
-    expires_at: new Date(Date.now() + TTL_MINUTES * 60_000).toISOString(),
+    expires_at: new Date(Date.now() + ttlMinutes * 60_000).toISOString(),
+    max_attempts: maxAttempts,
   });
   const result = await emailService.sendSecurityCode(user.email, user.fullName, code, ACTIONS[action]);
   if (!result.ok && !env.isProduction) logger.warn({ userId: user.id }, `Email not delivered (${result.error}). Development security code: ${code}`);

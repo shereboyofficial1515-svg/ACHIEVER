@@ -1,8 +1,9 @@
 import { env } from '../config/env.js';
-import { BUCKETS } from '../config/constants.js';
+import { BUCKETS, STAFF_ROLES } from '../config/constants.js';
 import { paystack } from '../integrations/paystack/paystackClient.js';
 import { sendEmail } from '../integrations/resend/resendClient.js';
-import { sendSms } from '../integrations/termii/termiiClient.js';
+import * as smsService from './smsService.js';
+import * as verificationService from './verificationService.js';
 import { templates } from '../integrations/resend/templates.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as complianceRepo from '../repositories/complianceRepository.js';
@@ -19,7 +20,6 @@ import * as otpService from './otpService.js';
 import * as challengeService from './challengeService.js';
 import * as preferencesService from './preferencesService.js';
 import * as emailService from './emailService.js';
-import { permissionsForRoles } from './permissionService.js';
 import { AppError } from '../utils/AppError.js';
 import { hmac } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
@@ -40,7 +40,8 @@ export async function me(userId) {
     kycService.summary(userId),
     preferencesService.get(userId),
   ]);
-  const roles = (profile.user_roles || []).map((r) => r.role_code);
+  // The member app never receives staff roles or permissions (admin platform only).
+  const roles = (profile.user_roles || []).map((r) => r.role_code).filter((r) => !STAFF_ROLES.includes(r));
   return {
     id: profile.id,
     fullName: profile.full_name,
@@ -71,8 +72,12 @@ export async function me(userId) {
     status: profile.account_status,
     emailVerified: Boolean(profile.email_verified_at),
     phoneVerified: Boolean(profile.phone_verified_at),
+    // verified (SMS) | email_fallback (SMS was off or failing) | pending
+    phoneVerification: profile.phone_verified_at ? 'verified' : profile.phone_verification_waived_at ? 'email_fallback' : 'pending',
+    statusReason: ['restricted', 'verification_required', 'suspended'].includes(profile.account_status) ? profile.status_reason : null,
+    statusExpiresAt: profile.status_expires_at ?? null,
     roles,
-    permissions: await permissionsForRoles(roles),
+    permissions: [],
     kyc,
     identityLocked: kyc.level >= 2,
     preferences,
@@ -205,42 +210,66 @@ export async function confirmEmailChange(user, { code }, req) {
 }
 
 /**
- * Phone change: (1) password + security code to the verified email
- * (challenge), (2) OTP by SMS to the NEW number, (3) update, (4) alert the old
- * number (SMS) and the email address.
+ * Phone change. Always: (1) current password + a security code emailed to the
+ * verified address (challenge). Then either
+ *   SMS path:   (2) code by SMS to the NEW number, (3) update as verified;
+ *   email path: while SMS verification is off or failing, the emailed challenge
+ *               is the verification; the number is updated and marked "not
+ *               yet verified by SMS" (verify later when SMS is back).
+ * Both paths alert the email address (and the old number when SMS works).
  */
-export async function requestPhoneChange(user, { newPhone, challengeId, code: challengeCode }, req) {
+export async function requestPhoneChange(user, { newPhone, challengeId, code: challengeCode, useEmailFallback = false }, req) {
   if (newPhone === user.phone) throw AppError.badRequest('That is already your phone number', 'SAME_PHONE');
   if (await userRepo.findByPhone(newPhone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
-  if (!env.features.sms && env.isProduction) throw AppError.unavailable('SMS verification is temporarily unavailable', 'SMS_NOT_CONFIGURED');
+  const smsOn = (await smsService.verificationState()) === smsService.SMS_STATES.ENABLED;
+  const fallback = await verificationService.emailFallbackAllowed();
+  if (!smsOn || useEmailFallback) {
+    if (!fallback.allowed) throw AppError.conflict('SMS verification is working. Please confirm the new number with the SMS code.', 'SMS_AVAILABLE');
+    await challengeService.use(user, { challengeId, code: challengeCode, action: 'phone_change' }, req);
+    return applyPhoneChange(user, newPhone, { verified: false, waiver: fallback.reason, req });
+  }
   await challengeService.use(user, { challengeId, code: challengeCode, action: 'phone_change' }, req);
   const code = await otpService.issue(user.id, 'phone_change', 'sms', newPhone);
-  const result = await sendSms({ to: newPhone, message: `Your ACHIEVER code to confirm this phone number is ${code}. It expires in 10 minutes. Do not share it.` });
+  const result = await smsService.send({ to: newPhone, kind: 'verification', message: `Your ACHIEVER code to confirm this phone number is ${code}. It expires in 10 minutes. Do not share it.` });
   if (!result.ok) {
-    if (env.isProduction) throw AppError.unavailable('We could not send the SMS. Please try again shortly.', 'SMS_SEND_FAILED');
+    if (env.isProduction) {
+      // Identity was already confirmed (password + emailed code): fall back to it
+      // rather than making the person start again while SMS is failing.
+      return applyPhoneChange(user, newPhone, { verified: false, waiver: 'sms_unavailable', req });
+    }
     logger.warn({ userId: user.id }, `SMS not delivered (${result.error}). Development phone-change code: ${code}`);
   }
   await auditService.record({ actorId: user.id, action: 'profile.phone_change.requested', resourceType: 'profile', resourceId: user.id, metadata: { to: maskPhone(newPhone) }, req });
-  return { sent: result.ok, to: maskPhone(newPhone) };
+  return { sent: result.ok, to: maskPhone(newPhone), method: 'sms' };
+}
+
+async function applyPhoneChange(user, phone, { verified, waiver = null, req }) {
+  if (await userRepo.findByPhone(phone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
+  const previous = user.phone;
+  const now = new Date().toISOString();
+  await userRepo.update(user.id, verified
+    ? { phone, phone_verified_at: now }
+    : { phone, phone_verified_at: null, phone_verification_waived_at: now, phone_verification_waiver: waiver });
+  await securityService.recordChange({ userId: user.id, type: 'phone_changed', previous: maskPhone(previous), next: maskPhone(phone), req });
+  await kycService.recompute(user.id);
+  authService.invalidateUserCache(user.id);
+  await auditService.record({
+    actorId: user.id, action: 'profile.phone_changed', resourceType: 'profile', resourceId: user.id,
+    metadata: { method: verified ? 'sms' : 'email_fallback', ...(waiver ? { reason: waiver } : {}) }, req,
+  });
+  emailService.sendPhoneChanged(user.email, user.fullName, maskPhone(phone)).catch(() => {});
+  if (previous && user.phoneVerified) {
+    // Tell the old number too, without revealing the new one.
+    smsService.send({ to: previous, kind: 'security', message: 'ACHIEVER: the phone number on your account was changed. If this was not you, contact ACHIEVER Support immediately.' }).catch(() => {});
+  }
+  return { changed: true, method: verified ? 'sms' : 'email_fallback', profile: await me(user.id) };
 }
 
 export async function confirmPhoneChange(user, { code }, req) {
   const row = await otpService.verify(user.id, 'phone_change', code);
   const phone = row.pending_value;
   if (!phone) throw AppError.badRequest('The code is invalid or has expired', 'OTP_INVALID');
-  if (await userRepo.findByPhone(phone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
-  const previous = user.phone;
-  await userRepo.update(user.id, { phone, phone_verified_at: new Date().toISOString() });
-  await securityService.recordChange({ userId: user.id, type: 'phone_changed', previous: maskPhone(previous), next: maskPhone(phone), req });
-  await kycService.recompute(user.id);
-  authService.invalidateUserCache(user.id);
-  await auditService.record({ actorId: user.id, action: 'profile.phone_changed', resourceType: 'profile', resourceId: user.id, req });
-  emailService.sendPhoneChanged(user.email, user.fullName, maskPhone(phone)).catch(() => {});
-  if (previous && user.phoneVerified) {
-    // Tell the old number too, without revealing the new one.
-    sendSms({ to: previous, message: 'ACHIEVER: the phone number on your account was changed. If this was not you, contact ACHIEVER Support immediately.' }).catch(() => {});
-  }
-  return me(user.id);
+  return (await applyPhoneChange(user, phone, { verified: true, req })).profile;
 }
 
 // Payout account (payment-account protection) -------------------------------------------------

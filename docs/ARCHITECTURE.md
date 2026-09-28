@@ -64,7 +64,7 @@ backend/
     validators/        zod schemas
     jobs/scheduler.js  background jobs with DB leases
     app.js, server.js
-  scripts/grantRole.js bootstrap the first SUPER_ADMIN
+  scripts/createAdmin.js controlled setup of the first administrator (see docs/ADMIN_PLATFORM.md)
   tests/               vitest + supertest
 frontend/
   src/

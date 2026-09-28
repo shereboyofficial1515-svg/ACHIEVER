@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireVerifiedEmail } from '../middleware/auth.js';
+import { blockLimitedAccounts, maintenanceGate } from '../middleware/memberGuards.js';
 import authRoutes from './authRoutes.js';
 import { privacyRoutes, profileRoutes, userRoutes, verificationRoutes } from './accountRoutes.js';
 import osusuRoutes from './osusuRoutes.js';
@@ -8,14 +9,19 @@ import {
   billRoutes, callRoutes, eventRoutes, inviteRoutes, meetingRoutes, messageRoutes,
   notificationRoutes, paymentRoutes, supportRoutes,
 } from './featureRoutes.js';
-import adminRoutes, { reportRoutes } from './adminRoutes.js';
+import { reportRoutes } from './adminRoutes.js';
 import * as sc from '../controllers/securityController.js';
 import { validate } from '../middleware/validate.js';
 import { stateParam } from '../validators/miscValidators.js';
 
+// Member API. The Site Administration API is mounted separately in app.js
+// (/api/admin) with its own sign-in, session, CSRF token and rate limits.
 const api = Router();
 const member = [authenticate, requireVerifiedEmail];
+// Restricted accounts can read and talk to support, but not move money or change payout details.
+const money = [...member, blockLimitedAccounts];
 
+api.use(maintenanceGate);
 api.use('/auth', authRoutes);
 
 // Public platform status (maintenance mode, available sign-in providers)
@@ -34,16 +40,15 @@ api.use('/events', authenticate, eventRoutes);
 // Full application
 api.use('/users', ...member, userRoutes);
 api.use('/verification', ...member, verificationRoutes);
-api.use('/osusu', ...member, osusuRoutes);
-api.use('/collector', ...member, collectorRoutes);
-api.use('/invites', ...member, inviteRoutes);
-api.use('/payments', ...member, paymentRoutes);
-api.use('/bills', ...member, billRoutes);
+api.use('/osusu', ...money, osusuRoutes);
+api.use('/collector', ...money, collectorRoutes);
+api.use('/invites', ...money, inviteRoutes);
+api.use('/payments', ...money, paymentRoutes);
+api.use('/bills', ...money, billRoutes);
 api.use('/messages', ...member, messageRoutes);
 api.use('/calls', ...member, callRoutes);
 api.use('/meetings', ...member, meetingRoutes);
 api.use('/support', ...member, supportRoutes);
 api.use('/reports', ...member, reportRoutes);
-api.use('/admin', ...member, adminRoutes);
 
 export default api;

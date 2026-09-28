@@ -21,6 +21,10 @@ r.post('/email/resend', authenticate, otpLimiter, c.resendEmailCode);
 r.post('/email/verify', authenticate, otpLimiter, validate({ body: s.verifyCode }), c.verifyEmail);
 r.post('/phone/send', authenticate, otpLimiter, c.sendPhoneCode);
 r.post('/phone/verify', authenticate, otpLimiter, validate({ body: s.verifyCode }), c.verifyPhone);
+// SMS off or failing: use the verified email instead (server decides whether that is allowed)
+r.post('/phone/email-fallback', authenticate, otpLimiter, c.phoneEmailFallback);
+// Which verification methods are available right now (SMS can be switched off by admins)
+r.get('/verification-methods', c.verificationMethods);
 
 r.post('/password/forgot', passwordResetLimiter, validate({ body: s.forgotPassword }), c.forgotPassword);
 r.post('/password/reset', passwordResetLimiter, validate({ body: s.resetPassword }), c.resetPassword);

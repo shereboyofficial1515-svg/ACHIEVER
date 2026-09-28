@@ -12,6 +12,9 @@ const server = app.listen(env.PORT, async () => {
     for (const [name, url] of [['CLIENT_URL', env.CLIENT_URL], ['SERVER_URL', env.SERVER_URL], ['API_PUBLIC_URL', env.apiPublicUrl]]) {
       if (!url.startsWith('https://') || /localhost|127\.0\.0\.1/.test(url)) logger.error(`${name} must be the public https:// address in production (links, cookies and CORS depend on it).`);
     }
+    if (env.adminSecretsDerived) {
+      logger.warn('ADMIN_SESSION_SECRET / ADMIN_MFA_ENCRYPTION_KEY are not set; admin keys are derived from SESSION_SECRET. Set dedicated values (docs/ADMIN_PLATFORM.md).');
+    }
     if (env.crossSite) {
       logger.warn('The web app calls the API on a different site: cookies are SameSite=None. Safari and Firefox may block them; prefer forwarding /api through the frontend host (docs/DEPLOYMENT.md).');
     }

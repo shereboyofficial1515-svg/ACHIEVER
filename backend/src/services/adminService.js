@@ -6,6 +6,7 @@ import * as collectorRepo from '../repositories/collectorRepository.js';
 import * as paymentRepo from '../repositories/paymentRepository.js';
 import * as riskRepo from '../repositories/riskRepository.js';
 import * as verificationRepo from '../repositories/verificationRepository.js';
+import * as adminRepo from '../repositories/adminRepository.js';
 import * as authService from './authService.js';
 import * as auditService from './auditService.js';
 import * as notificationService from './notificationService.js';
@@ -20,6 +21,12 @@ import { can } from './permissionService.js';
 import { maskEmail, maskPhone } from '../utils/sanitize.js';
 import { AppError } from '../utils/AppError.js';
 import { pageMeta } from '../utils/pagination.js';
+
+/** Operations dashboard: aggregate counts only (computed in SQL, no row transfer). */
+export async function dashboard() {
+  const [metrics, overviewData] = await Promise.all([adminRepo.dashboardMetrics(), rpc('platform_overview')]);
+  return { metrics, overview: overviewData };
+}
 
 export function overview() {
   return rpc('platform_overview');
@@ -120,36 +127,93 @@ export async function userSecurity(actor, id, req) {
   return { sessions, accountChanges: changes, securityEvents: events.items };
 }
 
-export async function setUserStatus(actor, id, { status, reason }, req) {
+const STATUS_LABELS = {
+  active: 'active', pending_verification: 'pending verification', verification_required: 'verification required',
+  restricted: 'restricted', suspended: 'suspended', closed: 'deactivated',
+};
+const STATUS_MESSAGES = {
+  active: 'Your ACHIEVER account is active again.',
+  restricted: 'Payments, withdrawals and payout changes are paused on your ACHIEVER account while a review is completed. You can still sign in and contact support.',
+  verification_required: 'Please complete the requested verification to continue using payments on your ACHIEVER account.',
+  suspended: 'Your ACHIEVER account has been suspended. Contact support for details.',
+  closed: 'Your ACHIEVER account has been deactivated. Contact support for details.',
+};
+
+/**
+ * Explicit account states. Every change has a reason, an actor, a timestamp,
+ * an optional time limit, a history row and an audit record; suspension and
+ * deactivation also sign the person out everywhere.
+ */
+export async function setUserStatus(actor, id, { status, reason, expiresAt = null }, req) {
   if (id === actor.id) throw AppError.badRequest('You cannot change your own status');
   const profile = await userRepo.findById(id);
   if (!profile) throw AppError.notFound('User not found');
   const targetRoles = (profile.user_roles || []).map((r) => r.role_code);
-  if (targetRoles.some((r) => STAFF_ROLES.includes(r)) && !can(actor, 'roles.manage')) {
-    throw AppError.forbidden('Only a super admin can change the status of a staff account');
+  if (targetRoles.some((r) => STAFF_ROLES.includes(r)) && !can(actor, 'admins.manage')) {
+    throw AppError.forbidden('Only an administrator manager can change the status of a staff account');
   }
-  const patch = { account_status: status, status_reason: reason ?? null };
-  if (status === 'suspended' || status === 'closed') patch.sessions_revoked_at = new Date().toISOString();
+  if (profile.account_status === status) throw AppError.conflict(`The account is already ${STATUS_LABELS[status]}`, 'UNCHANGED');
+  if (expiresAt) {
+    if (!['restricted', 'suspended', 'verification_required'].includes(status)) {
+      throw AppError.unprocessable('Only restrictions, suspensions and verification requests can have an end date', 'INVALID_EXPIRY');
+    }
+    const t = new Date(expiresAt).getTime();
+    if (!(t > Date.now() + 60_000) || t > Date.now() + 366 * 24 * 3600_000) throw AppError.unprocessable('Choose an end date within the next year', 'INVALID_EXPIRY');
+  }
+  const now = new Date().toISOString();
+  const patch = {
+    account_status: status, status_reason: reason, status_changed_at: now, status_changed_by: actor.id,
+    status_expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+  };
+  if (status === 'suspended' || status === 'closed') patch.sessions_revoked_at = now;
   if (status === 'active' && profile.deactivated_at) {
     patch.deactivated_at = null;
     patch.deactivation_reason = null;
   }
   await userRepo.update(id, patch);
+  await adminRepo.insertStatusHistory({
+    user_id: id, previous_status: profile.account_status, new_status: status, reason, actor_id: actor.id,
+    expires_at: patch.status_expires_at, request_id: req?.id ?? null, admin_session_id: req?.adminSession?.id ?? null,
+  });
   if (status === 'suspended' || status === 'closed') await sessionService.revokeAll(id, `account_${status}`);
   await securityService.recordEvent({
     userId: id, type: 'admin_action', severity: status === 'active' ? 'low' : 'medium', source: 'admin',
-    description: `Account status set to ${status} by staff.`, metadata: { actor_id: actor.id, reason },
+    description: `Account status set to ${STATUS_LABELS[status]} by staff.`, metadata: { actor_id: actor.id, reason, expires_at: patch.status_expires_at },
   });
   authService.invalidateUserCache(id);
-  await auditService.record({ actorId: actor.id, action: 'admin.user.status', resourceType: 'profile', resourceId: id, metadata: { status, reason }, req });
+  await auditService.record({
+    actorId: actor.id, action: `admin.user.status.${status}`, resourceType: 'profile', resourceId: id, reason,
+    previousState: { status: profile.account_status }, newState: { status, expiresAt: patch.status_expires_at }, req,
+  });
   await notificationService.notify(id, {
     type: 'account_status', category: 'security', title: 'Account status changed',
-    body: status === 'active' ? 'Your ACHIEVER account has been reactivated.' : `Your ACHIEVER account is now ${status}. Contact support for details.`,
+    body: STATUS_MESSAGES[status] ?? `Your ACHIEVER account is now ${STATUS_LABELS[status]}.`,
     data: {}, dedupeKey: `status:${id}:${status}:${Date.now()}`,
   });
+  return { id, status, expiresAt: patch.status_expires_at };
+}
+
+/** Job: time-limited restrictions/suspensions end automatically (recorded like any other change). */
+export async function expireTimedStatuses() {
+  const rows = await adminRepo.expiredStatuses(new Date().toISOString());
+  for (const p of rows) {
+    await userRepo.update(p.id, { account_status: 'active', status_reason: null, status_changed_at: new Date().toISOString(), status_changed_by: null, status_expires_at: null });
+    await adminRepo.insertStatusHistory({ user_id: p.id, previous_status: p.account_status, new_status: 'active', reason: 'The time limit set for this status ended.' });
+    await auditService.record({ action: 'admin.user.status.expired', resourceType: 'profile', resourceId: p.id, previousState: { status: p.account_status }, newState: { status: 'active' } });
+    authService.invalidateUserCache(p.id);
+    await notificationService.notify(p.id, {
+      type: 'account_status', category: 'security', title: 'Account status changed', body: STATUS_MESSAGES.active, data: {}, dedupeKey: `status-expired:${p.id}:${p.status_expires_at}`,
+    });
+  }
+  return rows.length;
+}
+
+export async function statusHistory(id) {
+  return adminRepo.statusHistory(id);
 }
 
 export async function grantRole(actor, id, role, req) {
+  if (STAFF_ROLES.includes(role)) throw AppError.unprocessable('Administrator roles are managed under Administrators', 'USE_ADMIN_MANAGEMENT');
   if (STAFF_ROLES.includes(role) && !can(actor, 'roles.manage')) {
     throw AppError.forbidden('Only a super admin can grant staff roles');
   }
@@ -164,6 +228,7 @@ export async function grantRole(actor, id, role, req) {
 }
 
 export async function revokeRole(actor, id, role, req) {
+  if (STAFF_ROLES.includes(role)) throw AppError.unprocessable('Administrator roles are managed under Administrators', 'USE_ADMIN_MANAGEMENT');
   if (STAFF_ROLES.includes(role) && !can(actor, 'roles.manage')) throw AppError.forbidden();
   if (id === actor.id && role === ROLES.SUPER_ADMIN) throw AppError.badRequest('You cannot remove your own super admin role');
   await userRepo.removeRole(id, role);

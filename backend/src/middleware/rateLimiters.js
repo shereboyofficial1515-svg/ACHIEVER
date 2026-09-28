@@ -42,3 +42,11 @@ export const paymentLimiter = make(15, 40, true);
 export const uploadLimiter = make(15, 40, true);
 export const messageLimiter = make(1, 60, true);
 export const webhookLimiter = make(1, 300);
+
+// Site Administration: stricter than member limits on sign-in, per-admin budgets elsewhere.
+export const adminLoginLimiter = make(15, 10);
+export const adminMfaLimiter = make(15, 10);
+export const adminApiLimiter = make(1, 240, true);
+export const adminSearchLimiter = make(1, 60, true);
+export const adminExportLimiter = make(15, 20, true);
+export const adminSensitiveLimiter = make(15, 60, true);

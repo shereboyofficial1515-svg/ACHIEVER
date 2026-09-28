@@ -2,7 +2,7 @@ import { env } from '../config/env.js';
 import { INVITE_TTL_DAYS } from '../config/constants.js';
 import { sendEmail } from '../integrations/resend/resendClient.js';
 import { templates } from '../integrations/resend/templates.js';
-import { sendSms } from '../integrations/termii/termiiClient.js';
+import * as smsService from './smsService.js';
 import * as inviteRepo from '../repositories/inviteRepository.js';
 import * as osusuRepo from '../repositories/osusuRepository.js';
 import * as collectorRepo from '../repositories/collectorRepository.js';
@@ -21,7 +21,7 @@ async function deliver(invite, token, inviterName, contextName) {
     results.email = r.ok;
   }
   if (invite.phone) {
-    const r = await sendSms({ to: invite.phone, message: `ACHIEVER: ${inviterName} invited you to ${contextName}. Review: ${url}` });
+    const r = await smsService.send({ to: invite.phone, kind: 'notification', message: `ACHIEVER: ${inviterName} invited you to ${contextName}. Review: ${url}` });
     results.sms = r.ok;
   }
   return results;

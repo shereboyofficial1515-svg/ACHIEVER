@@ -10,6 +10,7 @@ import * as supportService from '../services/supportService.js';
 import * as onboardingService from '../services/onboardingService.js';
 import * as collectorService from '../services/collectorService.js';
 import * as complianceRepo from '../repositories/complianceRepository.js';
+import * as verificationService from '../services/verificationService.js';
 import * as settingsService from '../services/settingsService.js';
 import * as oauthService from '../services/oauthService.js';
 import { asyncHandler, created, ok } from '../utils/http.js';
@@ -28,11 +29,14 @@ export const lgas = asyncHandler(async (req, res) => {
 });
 
 export const platformStatus = asyncHandler(async (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=60');
-  return ok(res, {
-    maintenance: Boolean(await settingsService.get('platform.maintenance_mode', false)),
-    signInProviders: await oauthService.enabledProviders(),
-  });
+  res.set('Cache-Control', 'public, max-age=30');
+  const [maintenance, registrationOpen, signInProviders, verification] = await Promise.all([
+    settingsService.maintenanceMode(),
+    settingsService.getBool('registration.enabled', true),
+    oauthService.enabledProviders(),
+    verificationService.methods(),
+  ]);
+  return ok(res, { maintenance, registrationOpen, signInProviders, verification });
 });
 
 // Account owner --------------------------------------------------------------------------

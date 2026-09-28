@@ -8,6 +8,7 @@ import * as payoutService from '../services/payoutService.js';
 import * as billService from '../services/billService.js';
 import * as notificationService from '../services/notificationService.js';
 import * as inviteRepo from '../repositories/inviteRepository.js';
+import * as adminService from '../services/adminService.js';
 import { logger } from '../utils/logger.js';
 
 const OWNER = `${os.hostname()}:${process.pid}:${crypto.randomUUID().slice(0, 8)}`;
@@ -49,6 +50,8 @@ export const JOBS = [
   { name: 'invites.expire', schedule: '30 1 * * *', ttl: 300, run: () => inviteRepo.expireOld() },
   // Compliance: expire identity documents, flag late collector settlements, expire stale approvals
   { name: 'compliance.checks', schedule: '20 2 * * *', ttl: 900, run: () => rpc('run_compliance_checks') },
+  // Time-limited account restrictions/suspensions end on schedule
+  { name: 'accounts.status_expiry', schedule: '*/10 * * * *', ttl: 300, run: () => adminService.expireTimedStatuses() },
 ];
 
 const tasks = [];

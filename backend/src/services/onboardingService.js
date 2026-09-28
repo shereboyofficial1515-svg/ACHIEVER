@@ -51,11 +51,13 @@ export async function getStatus(userId) {
     role,
     undertakingAccepted: accepted(role),
     kycLevelRequired: operatorLevel,
-    active: Boolean(profile.phone_verified_at) && kycOk && accepted(role),
+    // Phone: verified by SMS, or covered by the verified email while SMS verification is unavailable.
+    active: Boolean(profile.phone_verified_at || profile.phone_verification_waived_at) && kycOk && accepted(role),
   }));
   return {
     emailVerified: Boolean(profile.email_verified_at),
     phoneVerified: Boolean(profile.phone_verified_at),
+    phoneVerification: profile.phone_verified_at ? 'verified' : profile.phone_verification_waived_at ? 'email_fallback' : 'pending',
     identity: identity
       ? {
           status: identity.status,

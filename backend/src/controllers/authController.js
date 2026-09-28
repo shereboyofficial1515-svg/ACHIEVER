@@ -1,4 +1,5 @@
 import { COOKIES } from '../config/constants.js';
+import * as verificationService from '../services/verificationService.js';
 import * as authService from '../services/authService.js';
 import * as profileService from '../services/profileService.js';
 import * as sessionService from '../services/sessionService.js';
@@ -47,7 +48,21 @@ export const logout = asyncHandler(async (req, res) => {
   return ok(res, {}, 'Signed out');
 });
 
-export const me = asyncHandler(async (req, res) => ok(res, await profileService.me(req.user.id)));
+export const me = asyncHandler(async (req, res) => {
+  // While SMS verification is switched off, a verified email covers the phone step.
+  if (await verificationService.applyFallbackIfSmsDisabled(req.user, req).catch(() => false)) authService.invalidateUserCache(req.user.id);
+  return ok(res, await profileService.me(req.user.id));
+});
+
+export const verificationMethods = asyncHandler(async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return ok(res, await verificationService.methods());
+});
+
+export const phoneEmailFallback = asyncHandler(async (req, res) => {
+  await authService.phoneEmailFallback(req.user.id, req);
+  return ok(res, await profileService.me(req.user.id), 'Your verified email will be used until SMS verification is available');
+});
 
 export const resendEmailCode = asyncHandler(async (req, res) => {
   const result = await authService.sendEmailVerification(req.user.id);

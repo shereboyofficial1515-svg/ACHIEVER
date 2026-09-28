@@ -22,7 +22,7 @@ function dueLabel(date) {
 }
 
 export default function Dashboard() {
-  const { user, has, isStaff } = useAuth();
+  const { user, has } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const [paying, setPaying] = useState(null);
@@ -54,11 +54,6 @@ export default function Dashboard() {
           {has('OSUSU_ADMIN') && (
             <Button to="/app/osusu/new" icon={Plus} size="sm">
               New group
-            </Button>
-          )}
-          {isStaff && (
-            <Button to="/app/admin" variant="secondary" size="sm">
-              Admin console
             </Button>
           )}
         </div>

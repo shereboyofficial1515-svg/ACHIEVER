@@ -7,6 +7,7 @@ import {
   Alert, AsyncContent, Button, Card, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea, fieldErrors,
 } from '../../components/ui/index.js';
 import SecurityChallenge from '../../components/domain/SecurityChallenge.jsx';
+import { useVerificationMethods } from '../../components/domain/PhoneVerification.jsx';
 import { Activity, Deactivate, Details, PayoutAccount, Sessions } from '../app/Profile.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { usePreferences } from '../../contexts/PreferencesContext.jsx';
@@ -109,6 +110,8 @@ function PasswordSection() {
 function ContactSection({ kind }) {
   const { user, refresh } = useAuth();
   const toast = useToast();
+  const methods = useVerificationMethods();
+  const [fallbackUsed, setFallbackUsed] = useState(false);
   const [stage, setStage] = useState('verify');
   const [value, setValue] = useState('');
   const [code, setCode] = useState('');
@@ -121,7 +124,14 @@ function ContactSection({ kind }) {
     setPending(true);
     setError(null);
     try {
-      await api.post(`/profiles/me/${kind}/change`, email ? { newEmail: value, challengeId, code: challengeCode } : { newPhone: value, challengeId, code: challengeCode });
+      const { data } = await api.post(`/profiles/me/${kind}/change`, email ? { newEmail: value, challengeId, code: challengeCode } : { newPhone: value, challengeId, code: challengeCode });
+      if (data?.changed) {
+        // SMS verification off or failing: the emailed security code was the verification.
+        setFallbackUsed(data.method === 'email_fallback');
+        setStage('done');
+        refresh();
+        return;
+      }
       setStage('confirm');
     } catch (err) {
       setError(err);
@@ -150,13 +160,19 @@ function ContactSection({ kind }) {
       <div className="stack">
         <KeyValue items={[[`Current ${label}`, `${email ? user.email : user.phone} ${(email ? user.emailVerified : user.phoneVerified) ? '(verified)' : '(not verified)'}`]]} />
         {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-        {stage === 'done' && <Alert tone="success">Done. We sent a security notice to your previous {label}.</Alert>}
+        {stage === 'done' && (
+          <Alert tone="success">
+            {fallbackUsed
+              ? 'Done. SMS verification is temporarily unavailable, so the code sent to your email confirmed this change. You can verify the new number by SMS later. We sent a security notice to your email.'
+              : `Done. We sent a security notice to your previous ${label}.`}
+          </Alert>
+        )}
         {stage === 'verify' && (
           <SecurityChallenge action={`${kind}_change`} intro={`To change your ${label} we first confirm it’s you: your password, then a code sent to your current email.`}>
             {(ch) => (
               <form className="stack" onSubmit={(e) => { e.preventDefault(); request(ch); }}>
-                <Input label={`New ${label}`} type={email ? 'email' : 'tel'} value={value} onChange={(e) => setValue(e.target.value)} error={fe.newEmail || fe.newPhone} hint={email ? 'We will send a confirmation code to this address.' : 'We will send an SMS code to this number.'} />
-                <div><Button type="submit" loading={pending} disabled={!value}>Send code to new {email ? 'address' : 'number'}</Button></div>
+                <Input label={`New ${label}`} type={email ? 'email' : 'tel'} value={value} onChange={(e) => setValue(e.target.value)} error={fe.newEmail || fe.newPhone} hint={email ? 'We will send a confirmation code to this address.' : methods && !methods.sms.available ? 'SMS verification is temporarily unavailable. The code sent to your email confirms this change.' : 'We will send an SMS code to this number.'} />
+                <div><Button type="submit" loading={pending} disabled={!value}>{!email && methods && !methods.sms.available ? 'Change phone number' : `Send code to new ${email ? 'address' : 'number'}`}</Button></div>
               </form>
             )}
           </SecurityChallenge>

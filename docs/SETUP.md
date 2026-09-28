@@ -51,7 +51,8 @@ Generate secrets with `openssl rand -hex 32`.
 5. **Realtime**: migration `…003` adds `messages`, `notifications`, `calls`, `call_participants` to the `supabase_realtime` publication. Confirm under **Database → Replication**.
 6. Create your first user through the app, then grant platform access from a trusted machine:
    ```bash
-   cd backend && npm run grant-role -- you@example.com SUPER_ADMIN
+   cd backend && npm run admin:create -- you@example.com SUPER_ADMIN
+   # then sign in at the admin app (admin/, http://localhost:5174) and set up an authenticator app
    ```
 
 ### RLS explained

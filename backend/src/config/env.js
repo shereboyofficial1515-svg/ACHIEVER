@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -42,6 +43,16 @@ const schema = z.object({
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   // Override the automatic SameSite choice for auth cookies (normally not needed).
   COOKIE_SAMESITE: optional(z.enum(['lax', 'strict', 'none'])),
+
+  // Site Administration app (separate deployment). Its origin is allowed by CORS and
+  // its browser session uses separate cookies. ADMIN_API_PUBLIC_URL: where the admin
+  // app's browser reaches the API (defaults to ADMIN_CLIENT_URL, i.e. /api forwarded).
+  ADMIN_CLIENT_URL: optional(z.string().url()),
+  ADMIN_API_PUBLIC_URL: optional(z.string().url()),
+  // Keys admin session tokens and encrypts authenticator-app secrets. Dedicated values are
+  // strongly recommended; if unset they are derived from SESSION_SECRET (logged at startup).
+  ADMIN_SESSION_SECRET: isTest ? z.string().default('test-admin-secret-test-admin-secret-00') : optional(z.string().min(32)),
+  ADMIN_MFA_ENCRYPTION_KEY: isTest ? z.string().default('test-admin-mfa-key-test-admin-mfa-key-0') : optional(z.string().min(32)),
 
   SUPABASE_URL: isTest ? z.string().default('http://localhost:54321') : z.string().url(),
   SUPABASE_ANON_KEY: required,
@@ -105,6 +116,10 @@ export function siteOf(url) {
 }
 
 const apiPublicUrl = (parsed.data.API_PUBLIC_URL || parsed.data.CLIENT_URL).replace(/\/$/, '');
+const adminClientUrl = parsed.data.ADMIN_CLIENT_URL?.replace(/\/$/, '') || null;
+const adminApiPublicUrl = (parsed.data.ADMIN_API_PUBLIC_URL || adminClientUrl || apiPublicUrl).replace(/\/$/, '');
+const adminCrossSite = siteOf(adminApiPublicUrl) !== siteOf(adminClientUrl || parsed.data.CLIENT_URL);
+const derive = (label) => crypto.createHmac('sha256', parsed.data.SESSION_SECRET).update(`achiever:${label}`).digest('base64url');
 // Frontend and API on different sites (e.g. *.vercel.app calling *.onrender.com directly):
 // auth cookies must be SameSite=None; Secure or the browser will not send them.
 const crossSite = siteOf(apiPublicUrl) !== siteOf(parsed.data.CLIENT_URL);
@@ -114,9 +129,15 @@ export const env = Object.freeze({
   apiPublicUrl,
   crossSite,
   cookieSameSite: parsed.data.COOKIE_SAMESITE || (crossSite ? 'none' : 'lax'),
+  adminClientUrl,
+  adminApiPublicUrl,
+  adminCookieSameSite: adminCrossSite ? 'none' : 'strict',
+  adminSessionSecret: parsed.data.ADMIN_SESSION_SECRET || derive('admin-session'),
+  adminMfaKey: parsed.data.ADMIN_MFA_ENCRYPTION_KEY || derive('admin-mfa'),
+  adminSecretsDerived: !parsed.data.ADMIN_SESSION_SECRET || !parsed.data.ADMIN_MFA_ENCRYPTION_KEY,
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
-  corsOrigins: [parsed.data.CLIENT_URL, ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
+  corsOrigins: [parsed.data.CLIENT_URL, ...(adminClientUrl ? [adminClientUrl] : []), ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
   features: {
     // Real Paystack secret keys look like sk_test_... / sk_live_...; anything else is a placeholder.
     payments: /^sk_(test|live)_[A-Za-z0-9]+$/.test(parsed.data.PAYSTACK_SECRET_KEY.trim()),

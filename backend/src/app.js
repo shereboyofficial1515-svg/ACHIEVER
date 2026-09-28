@@ -75,6 +75,23 @@ export function createApp() {
     });
   });
 
+  // Shows the caller only their own address as the API sees it, plus the
+  // forwarding headers of their own request, to set TRUST_PROXY_HOPS correctly
+  // behind Vercel/Render/Cloudflare. Reveals nothing about other users.
+  app.get('/api/health/client', (req, res) =>
+    res.json({
+      success: true,
+      data: {
+        ip: req.ip,
+        trustProxyHops: env.TRUST_PROXY_HOPS,
+        forwardedFor: req.get('x-forwarded-for') || null,
+        realIp: req.get('x-real-ip') || null,
+        cfConnectingIp: req.get('cf-connecting-ip') || null,
+        trueClientIp: req.get('true-client-ip') || null,
+        vercelForwardedFor: req.get('x-vercel-forwarded-for') || null,
+      },
+    }));
+
   // Webhooks need the exact raw bytes for signature verification, so they are
   // mounted BEFORE the JSON parser and are exempt from CSRF (they are
   // authenticated by HMAC / signed JWT instead).

@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   Activity, BadgeCheck, Banknote, ClipboardCheck, FileText, Gauge, GitBranch, HandCoins, KeyRound, LifeBuoy, LogOut, Menu,
   MessageSquare, Receipt, ScrollText, Settings, ShieldAlert, ShieldCheck, UserCog, Users, UsersRound, X, Zap, Eye, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
+import { pushOverlay } from '../platform/overlays.js';
 
 // Navigation mirrors the API permissions; hiding a link is convenience only — the API enforces access.
 export const NAV = [
@@ -46,6 +48,19 @@ export const NAV = [
 export default function AdminLayout() {
   const { admin, logout, can } = useAuth();
   const [open, setOpen] = useState(false);
+  const confirmAction = useConfirm();
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.themePref || 'system');
+  const changeTheme = (value) => {
+    setTheme(value);
+    try { localStorage.setItem('achiever.admin.theme', value); } catch { /* private mode */ }
+    const dark = value === 'dark' || (value === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.themePref = value;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  };
+  useEffect(() => (open ? pushOverlay(() => setOpen(false)) : undefined), [open]);
+  const signOut = async () => {
+    if (await confirmAction({ type: 'logout' })) logout();
+  };
   return (
     <>
     <a className="skip-link" href="#main">Skip to main content</a>
@@ -83,7 +98,12 @@ export default function AdminLayout() {
             <span>{admin?.name}</span>
             <span className="roles">{admin?.roles?.join(' · ')}</span>
           </NavLink>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={logout}><LogOut size={14} aria-hidden="true" /> Sign out</button>
+          <select className="select theme-select" aria-label="Theme" value={theme} onChange={(e) => changeTheme(e.target.value)}>
+            <option value="system">System theme</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}><LogOut size={14} aria-hidden="true" /> Sign out</button>
         </header>
         <main id="main" className="admin-content">
           <Outlet />

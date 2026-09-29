@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AsyncContent, Button, Card, DataTable, PageHeader, Pagination, Select, StatusBadge, Tabs } from '../components/ui/index.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
 import { useAsync } from '../hooks/useAsync.js';
 import { api } from '../services/api.js';
@@ -44,7 +45,9 @@ function Sessions() {
   const toast = useToast();
   const [page, setPage] = useState(1);
   const list = useAsync(() => api.get('/admin/admin-sessions', { page, pageSize: 50 }), [page]);
+  const confirmAction = useConfirm();
   const end = async (id) => {
+    if (!(await confirmAction({ type: 'end_admin_session' }))) return;
     try {
       await api.del(`/admin/admin-sessions/${id}`);
       toast.success('Session signed out');

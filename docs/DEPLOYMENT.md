@@ -129,6 +129,12 @@ Render free instances sleep when idle; the first request after a sleep can take
 - Webhook (optional): `https://achiever-api-uu08.onrender.com/api/calls/livekit/webhook`.
 - Tokens are minted by the API (`/api/calls/...`); the secret never reaches the browser.
 
+## 7b. Android app
+
+See [ANDROID.md](ANDROID.md). The app calls the Render API directly from `https://localhost`
+(allowed by `ANDROID_APP_ORIGIN`). Apply migration `20260929000010_idempotency.sql` before
+deploying this API version: payments send an `Idempotency-Key` that is stored there.
+
 ## 8. Admin platform (separate Vercel project)
 
 See [ADMIN_PLATFORM.md](ADMIN_PLATFORM.md). In short:

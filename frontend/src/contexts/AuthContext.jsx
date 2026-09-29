@@ -21,6 +21,26 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Android: Google/Facebook sign-in returns through the app's deep link with a one-time code.
+  useEffect(() => {
+    const onHandoff = async (e) => {
+      const { code, error } = e.detail || {};
+      if (error || !code) {
+        window.location.assign(`/login?oauth_error=${encodeURIComponent(error || 'OAUTH_FAILED')}`);
+        return;
+      }
+      try {
+        const { data } = await api.post('/auth/oauth/handoff', { code });
+        await loadMe();
+        window.location.assign(data?.next || '/app');
+      } catch (err) {
+        window.location.assign(`/login?oauth_error=${encodeURIComponent(err.code || 'OAUTH_FAILED')}`);
+      }
+    };
+    window.addEventListener('achiever:oauth-handoff', onHandoff);
+    return () => window.removeEventListener('achiever:oauth-handoff', onHandoff);
+  }, [loadMe]);
+
   useEffect(() => {
     setSessionEndedHandler(() => {
       setUser(null);

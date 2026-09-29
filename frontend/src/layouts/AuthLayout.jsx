@@ -23,7 +23,7 @@ export default function AuthLayout() {
             </li>
           </ul>
         </div>
-        <p className="xsmall" style={{ color: '#7f8fab' }}>
+        <p className="xsmall" style={{ color: 'var(--color-nav-muted)' }}>
           ACHIEVER is a record-keeping and payments coordination platform. It is not a bank and does not hold deposit insurance.
         </p>
       </aside>

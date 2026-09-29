@@ -7,6 +7,7 @@ import * as auditService from './auditService.js';
 import * as securityService from './securityService.js';
 import * as emailService from './emailService.js';
 import { AppError } from '../utils/AppError.js';
+import { createSecretBox } from '../utils/secretBox.js';
 import { hmac, safeEqual } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 
@@ -76,7 +77,7 @@ async function assertEnabled(provider) {
 }
 
 /** Begin sign-in: returns the provider URL to redirect to and sets the state cookie. */
-export async function start(provider, next, res) {
+export async function start(provider, next, res, { client: clientPlatform = 'web' } = {}) {
   await assertEnabled(provider);
   const { client, store } = createPkceClient();
   const { data, error } = await client.auth.signInWithOAuth({
@@ -84,8 +85,36 @@ export async function start(provider, next, res) {
     options: { redirectTo: callbackUrl(), skipBrowserRedirect: true, scopes: provider === 'facebook' ? 'email public_profile' : undefined },
   });
   if (error || !data?.url) throw AppError.unavailable('Could not start social sign-in. Please try again.', 'OAUTH_START_FAILED');
-  res.cookie(STATE_COOKIE, sign({ s: Object.fromEntries(store), p: provider, n: safeNext(next), m: 'signin', t: Date.now() }), stateCookieOptions());
+  res.cookie(STATE_COOKIE, sign({ s: Object.fromEntries(store), p: provider, n: safeNext(next), m: 'signin', c: clientPlatform === 'android' ? 'android' : 'web', t: Date.now() }), stateCookieOptions());
   return data.url;
+}
+
+// Android: sign-in happens in the system browser (Google blocks embedded WebViews), so the
+// session is handed to the app through its deep link as a sealed, 2-minute code, then
+// exchanged by the app for its own cookies. The code is encrypted and authenticated.
+const HANDOFF_TTL_MS = 2 * 60_000;
+const handoffBox = createSecretBox(env.SESSION_SECRET, 'achiever-oauth-handoff');
+
+export function handoffUrl(result, error = null) {
+  const url = new URL(`${env.ANDROID_APP_SCHEME}://auth/callback`);
+  if (error) url.searchParams.set('error', error);
+  else {
+    url.searchParams.set('code', handoffBox.seal(JSON.stringify({
+      k: result.kind, p: result.provider, n: result.next, u: result.user?.id,
+      a: result.session?.access_token, r: result.session?.refresh_token, e: result.session?.expires_at, t: Date.now(),
+    })));
+  }
+  return url.toString();
+}
+
+export function readHandoff(code) {
+  try {
+    const h = JSON.parse(handoffBox.open(code));
+    if (Date.now() - h.t > HANDOFF_TTL_MS) return null;
+    return h;
+  } catch {
+    return null;
+  }
 }
 
 /** Begin linking another sign-in method to the signed-in account. */

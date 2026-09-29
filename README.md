@@ -47,6 +47,8 @@ supabase test db            # pgTAP: 46 financial-rule assertions + 14 RLS asser
 ## Documentation
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design, database, financial engine, auth, RLS, payments, payouts, notifications, realtime, calls, flows
 * [docs/API.md](docs/API.md) — endpoint specification
+* [docs/ANDROID.md](docs/ANDROID.md) — Android app (Capacitor): build, signing, how it talks to the API, test checklist
+* [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — colours, light/dark/system themes, imagery and credits, critical-action confirmations
 * [docs/ADMIN_PLATFORM.md](docs/ADMIN_PLATFORM.md) — separate Site Administration app: admin sign-in with authenticator app, roles/permissions, audit, SMS switch and fallback, settings, account states
 * [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — production deployment: Vercel (frontend) + Render (API), environment variables, cookies/CORS, OAuth, webhooks
 * [docs/SETUP.md](docs/SETUP.md) — environment variables, Supabase/Storage/RLS, Paystack, Resend, Termii, LiveKit, bills, identity, local dev, testing, deployment, security checklist, troubleshooting

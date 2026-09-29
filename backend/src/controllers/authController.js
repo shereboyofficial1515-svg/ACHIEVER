@@ -125,7 +125,7 @@ export const providers = asyncHandler(async (_req, res) => ok(res, await oauthSe
 
 export const oauthStart = async (req, res) => {
   try {
-    const url = await oauthService.start(req.params.provider, req.query.next, res);
+    const url = await oauthService.start(req.params.provider, req.query.next, res, { client: req.query.client });
     return res.redirect(302, url);
   } catch (err) {
     return oauthError(res, err.code);
@@ -134,10 +134,15 @@ export const oauthStart = async (req, res) => {
 
 export const oauthCallback = async (req, res) => {
   const stateCookie = req.cookies?.ach_oauth;
+  const android = oauthService.readState(stateCookie)?.c === 'android';
   oauthService.clearState(res);
-  if (req.query.error) return oauthError(res, req.query.error === 'access_denied' ? 'OAUTH_CANCELLED' : 'OAUTH_PROVIDER_ERROR');
+  if (req.query.error) {
+    const code = req.query.error === 'access_denied' ? 'OAUTH_CANCELLED' : 'OAUTH_PROVIDER_ERROR';
+    return android ? res.redirect(302, oauthService.handoffUrl(null, code)) : oauthError(res, code);
+  }
   try {
     const result = await oauthService.callback({ code: req.query.code, stateCookie }, req);
+    if (android && result.kind !== 'linked') return res.redirect(302, oauthService.handoffUrl(result));
     if (result.kind === 'linked') return res.redirect(302, toClient(`${result.next}?linked=${result.provider}`));
     if (result.kind === 'signin') {
       const sessionId = await sessionService.start({ userId: result.user.id, authMethod: `oauth_${result.provider}`, req, res });
@@ -152,6 +157,20 @@ export const oauthCallback = async (req, res) => {
     return oauthError(res, err.code);
   }
 };
+
+/** Android: exchange the one-time handoff code for this app's own session cookies. */
+export const oauthHandoff = asyncHandler(async (req, res) => {
+  const h = oauthService.readHandoff(String(req.body?.code || ''));
+  if (!h?.a || !h?.r) throw AppError.unauthorized('This sign-in link has expired. Please try again.', 'OAUTH_HANDOFF_EXPIRED');
+  const session = { access_token: h.a, refresh_token: h.r, expires_at: h.e };
+  if (h.k === 'signin') {
+    const sessionId = await sessionService.start({ userId: h.u, authMethod: `oauth_${h.p}`, req, res });
+    setSessionCookies(res, session, Date.now(), sessionId);
+    return ok(res, { next: h.n });
+  }
+  setSessionCookies(res, session, Date.now(), null);
+  return ok(res, { next: '/complete-profile' });
+});
 
 export const oauthPending = asyncHandler(async (req, res) => ok(res, await oauthService.pendingIdentity(req.cookies?.ach_at)));
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, AsyncContent, Button, Card, DataTable, Input, PageHeader } from '../components/ui/index.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
 import { useAsync } from '../hooks/useAsync.js';
 import { api } from '../services/api.js';
@@ -96,7 +97,9 @@ function Sessions() {
   const toast = useToast();
   const { logout } = useAuth();
   const list = useAsync(() => api.get('/admin/auth/sessions'), []);
+  const confirmAction = useConfirm();
   const revoke = async (id) => {
+    if (!(await confirmAction({ type: 'end_own_session' }))) return;
     try {
       await api.del(`/admin/auth/sessions/${id}`);
       toast.success('Session signed out');
@@ -106,6 +109,7 @@ function Sessions() {
     }
   };
   const all = async () => {
+    if (!(await confirmAction({ type: 'logout_all' }))) return;
     await api.post('/admin/auth/logout-all').catch(() => {});
     await logout();
   };

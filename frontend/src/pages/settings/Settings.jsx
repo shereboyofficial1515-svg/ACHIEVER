@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Accessibility, Bell, KeyRound, Landmark, Lock, Mail, MessageSquare, MonitorSmartphone, Phone, ShieldCheck, Trash2, User,
+  Accessibility, Bell, Palette, KeyRound, Landmark, Lock, Mail, MessageSquare, MonitorSmartphone, Phone, ShieldCheck, Trash2, User,
 } from 'lucide-react';
 import {
   Alert, AsyncContent, Button, Card, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea, fieldErrors,
 } from '../../components/ui/index.js';
 import SecurityChallenge from '../../components/domain/SecurityChallenge.jsx';
+import CriticalGate from '../../components/domain/CriticalGate.jsx';
+import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { useVerificationMethods } from '../../components/domain/PhoneVerification.jsx';
 import { Activity, Deactivate, Details, PayoutAccount, Sessions } from '../app/Profile.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -25,6 +27,7 @@ const SECTIONS = [
   { key: 'phone', label: 'Phone', icon: Phone },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'messages', label: 'Messages', icon: MessageSquare },
+  { key: 'appearance', label: 'Appearance', icon: Palette },
   { key: 'accessibility', label: 'Accessibility', icon: Accessibility },
   { key: 'privacy', label: 'Privacy', icon: Lock },
   { key: 'devices', label: 'Devices & sessions', icon: MonitorSmartphone },
@@ -90,6 +93,8 @@ function PasswordSection() {
   return (
     <Card title="Change password">
       {done && <Alert tone="success">Your password was changed. We emailed you a confirmation and signed out your other sessions.</Alert>}
+      <CriticalGate type="change_password" startLabel="Change password" description="You will need your current password and a security code sent to your email.">
+      {() => (
       <SecurityChallenge action="password_change" intro="For your protection, changing your password needs your current password and a security code sent to your email.">
         {(ch) => (
           <form className="stack" onSubmit={(e) => { e.preventDefault(); submit(ch); }}>
@@ -101,6 +106,8 @@ function PasswordSection() {
           </form>
         )}
       </SecurityChallenge>
+      )}
+      </CriticalGate>
       <p className="xsmall muted" style={{ marginTop: 12 }}>Signed in with Google or Facebook and never set a password? Use “Forgot password” on the sign-in page to create one.</p>
     </Card>
   );
@@ -158,7 +165,8 @@ function ContactSection({ kind }) {
   return (
     <Card title={`Change ${label}`}>
       <div className="stack">
-        <KeyValue items={[[`Current ${label}`, `${email ? user.email : user.phone} ${(email ? user.emailVerified : user.phoneVerified) ? '(verified)' : '(not verified)'}`]]} />
+        <KeyValue items={[[`Current ${label}`, `${email ? user.email : user.phone} ${email ? (user.emailVerified ? '(verified)' : '(not verified)')
+          : user.phoneVerified ? '(verified by SMS)' : user.phoneVerification === 'email_fallback' ? '(covered by your verified email until SMS is available)' : '(not verified)'}`]]} />
         {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
         {stage === 'done' && (
           <Alert tone="success">
@@ -168,6 +176,9 @@ function ContactSection({ kind }) {
           </Alert>
         )}
         {stage === 'verify' && (
+          <CriticalGate type={email ? 'change_email' : 'change_phone'} startLabel={`Change ${label}`}
+            description={email ? 'You will need your current password, a security code sent to your current email, and a code sent to the new address.' : 'You will need your current password and a security code sent to your email, then the new number is confirmed.'}>
+          {() => (
           <SecurityChallenge action={`${kind}_change`} intro={`To change your ${label} we first confirm it’s you: your password, then a code sent to your current email.`}>
             {(ch) => (
               <form className="stack" onSubmit={(e) => { e.preventDefault(); request(ch); }}>
@@ -176,6 +187,8 @@ function ContactSection({ kind }) {
               </form>
             )}
           </SecurityChallenge>
+          )}
+          </CriticalGate>
         )}
         {stage === 'confirm' && (
           <form className="stack" onSubmit={confirm}>
@@ -351,6 +364,43 @@ function MessagesSection() {
   );
 }
 
+// Appearance -----------------------------------------------------------------------------------
+const THEMES = [
+  { value: 'light', label: 'Light', description: 'Bright surfaces' },
+  { value: 'dark', label: 'Dark', description: 'Easier at night' },
+  { value: 'system', label: 'System', description: 'Follow this device' },
+];
+
+function AppearanceSection() {
+  const [a, save] = useSaver('accessibility');
+  const current = a.theme || 'system';
+  const move = (e, i) => {
+    const next = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % THEMES.length
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i + THEMES.length - 1) % THEMES.length : null;
+    if (next === null) return;
+    e.preventDefault();
+    save({ theme: THEMES[next].value });
+    e.currentTarget.parentElement.children[next]?.focus();
+  };
+  return (
+    <Card title="Appearance">
+      <div className="stack">
+        <p className="small muted">Choose how ACHIEVER looks. It applies immediately on this device (web and Android) and follows your account when you sign in elsewhere.</p>
+        <div className="theme-options" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t, i) => (
+            <button key={t.value} type="button" role="radio" aria-checked={current === t.value} tabIndex={current === t.value ? 0 : -1}
+              className="theme-option" onClick={() => save({ theme: t.value })} onKeyDown={(e) => move(e, i)}>
+              <span className={`theme-swatch ${t.value}`} aria-hidden="true" />
+              <strong className="small">{t.label}</strong>
+              <span className="xsmall muted">{t.description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // Accessibility ---------------------------------------------------------------------------------
 function AccessibilitySection() {
   const [a, save] = useSaver('accessibility');
@@ -412,6 +462,7 @@ function PrivacySection() {
 // Deletion -------------------------------------------------------------------------------------
 function DeletionSection() {
   const toast = useToast();
+  const confirmAction = useConfirm();
   const requests = useAsync(() => api.get('/privacy/deletion-requests'), []);
   const policy = useAsync(() => api.get('/privacy/policy'), []);
   const [type, setType] = useState('account');
@@ -419,6 +470,13 @@ function DeletionSection() {
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
   const submit = async ({ challengeId, code, reset }) => {
+    const final = await confirmAction({
+      severity: 'danger',
+      title: type === 'account' ? 'Send your account deletion request?' : 'Send your data deletion request?',
+      message: 'You can cancel it within 7 days from this page. After that it is processed and cannot be undone.',
+      confirmLabel: 'Request deletion',
+    });
+    if (!final) return;
     setPending(true);
     setError(null);
     try {
@@ -473,9 +531,14 @@ function DeletionSection() {
           <Select label="What would you like to delete?" value={type} onChange={(e) => setType(e.target.value)} options={[{ value: 'account', label: 'My account' }, { value: 'personal_data', label: 'Optional personal data only' }]} />
           <Textarea label="Reason (optional)" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
           {error && <Alert tone="danger">{error.message}</Alert>}
-          <SecurityChallenge action="account_deletion" intro="Deletion requests need your password and a security code, so nobody else can request them.">
-            {(ch) => <div><Button variant="danger" loading={pending} onClick={() => submit(ch)}>Submit deletion request</Button></div>}
-          </SecurityChallenge>
+          <CriticalGate type="delete_account" startLabel={type === 'account' ? 'Delete my account' : 'Delete my optional data'}
+            confirmOptions={type === 'account' ? undefined : { title: 'Delete your optional personal data?', message: 'Optional details such as your preferred name, occupation and photo will be erased. Your account stays open.' }}>
+            {() => (
+              <SecurityChallenge action="account_deletion" intro="Deletion requests need your password and a security code, so nobody else can request them.">
+                {(ch) => <div><Button variant="danger" loading={pending} onClick={() => submit(ch)}>Submit deletion request</Button></div>}
+              </SecurityChallenge>
+            )}
+          </CriticalGate>
         </div>
       </Card>
       <Deactivate />
@@ -506,6 +569,7 @@ export default function Settings() {
           {section === 'phone' && <ContactSection kind="phone" key="phone" />}
           {section === 'notifications' && <NotificationsSection />}
           {section === 'messages' && <MessagesSection />}
+          {section === 'appearance' && <AppearanceSection />}
           {section === 'accessibility' && <AccessibilitySection />}
           {section === 'privacy' && <PrivacySection />}
           {section === 'devices' && <Sessions />}

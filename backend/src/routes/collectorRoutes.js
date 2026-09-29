@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { idempotent } from '../middleware/idempotency.js';
 import * as c from '../controllers/collectorController.js';
 import * as sc from '../controllers/securityController.js';
 import { idParam } from '../validators/common.js';
@@ -34,7 +35,7 @@ r.get('/plans/:planId/contributions', validate({ ...plan, query: paging }), c.li
 r.post('/plans/:planId/returns', validate({ ...plan, body: s.requestReturn }), c.requestReturn);
 
 // Contributions (flexible amounts) and returns
-r.post('/contributions', paymentLimiter, validate({ body: s.contribute }), c.contribute);
+r.post('/contributions', paymentLimiter, idempotent, validate({ body: s.contribute }), c.contribute);
 r.get('/returns', validate({ query: s.listReturns }), c.listReturns);
 r.post('/returns/:returnId/approve', validate({ params: s.returnParam }), c.approveReturn);
 r.post('/returns/:returnId/reject', validate({ params: s.returnParam, body: s.rejectReturn }), c.rejectReturn);

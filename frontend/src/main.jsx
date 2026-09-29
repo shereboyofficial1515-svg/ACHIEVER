@@ -6,6 +6,8 @@ import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './contexts/ToastContext.jsx';
 import { PreferencesProvider } from './contexts/PreferencesContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { ConfirmProvider } from './components/ui/ConfirmProvider.jsx';
+import { initPlatform } from './platform/index.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
@@ -15,15 +17,19 @@ import './styles/chat-call.css';
 import './styles/a11y.css';
 import './styles/brand.css';
 
+initPlatform();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
           <PreferencesProvider>
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
+            <ConfirmProvider>
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
+            </ConfirmProvider>
           </PreferencesProvider>
         </AuthProvider>
       </ToastProvider>

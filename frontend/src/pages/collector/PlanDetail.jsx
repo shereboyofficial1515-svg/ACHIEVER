@@ -8,23 +8,20 @@ import {
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
 import { commissionLabel, daysUntil, FREQUENCY_LABEL, formatDate, formatDateTime, koboToNairaInput, naira, parseNairaToKobo } from '../../utils/format.js';
 
 function ContributeModal({ plan, onClose }) {
-  const toast = useToast();
   const [amount, setAmount] = useState(plan.expectedAmount ? koboToNairaInput(plan.expectedAmount) : '');
-  const [pending, setPending] = useState(false);
+  const { review, activeId } = usePaymentReview();
+  const pending = activeId === plan.id;
   const kobo = parseNairaToKobo(amount);
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    setPending(true);
-    try {
-      const { data } = await api.post('/collector/contributions', { planId: plan.id, amount: kobo });
-      window.location.assign(data.authorizationUrl);
-    } catch (err) {
-      toast.error(err);
-      setPending(false);
-    }
+    review(
+      { id: plan.id, recipient: `${plan.collector?.name || 'Your collector'} (collector savings)`, purpose: 'Savings deposit into your plan', amount: kobo },
+      (idempotencyKey) => api.post('/collector/contributions', { planId: plan.id, amount: kobo }, { idempotencyKey }),
+    );
   };
   return (
     <Modal open onClose={onClose} title="Save into this plan">

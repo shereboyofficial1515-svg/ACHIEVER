@@ -42,6 +42,8 @@ const TicketDetail = lazy(() => import('./pages/support/TicketDetail.jsx'));
 
 const TrustProfile = lazy(() => import('./pages/app/TrustProfile.jsx'));
 const Settings = lazy(() => import('./pages/settings/Settings.jsx'));
+const HelpCenter = lazy(() => import('./help/HelpCenter.jsx'));
+const PublicHelpCenter = lazy(() => import('./help/HelpCenter.jsx').then((m) => ({ default: m.PublicHelpCenter })));
 const CompleteProfile = lazy(() => import('./pages/auth/CompleteProfile.jsx'));
 
 function SignedInShell() {
@@ -61,6 +63,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/legal" element={<Legal />} />
+        <Route path="/help" element={<PublicHelpCenter />} />
+        <Route path="/help/:articleId" element={<PublicHelpCenter />} />
         <Route path="/403" element={<ErrorPage kind="403" />} />
         <Route path="/500" element={<ErrorPage kind="500" />} />
         <Route path="/offline" element={<ErrorPage kind="network" />} />
@@ -102,6 +106,8 @@ export default function App() {
             <Route path="messages" element={<Messages />} />
             <Route path="messages/:conversationId" element={<Messages />} />
             <Route path="meetings" element={<Meetings />} />
+            <Route path="help" element={<HelpCenter />} />
+            <Route path="help/:articleId" element={<HelpCenter />} />
             <Route path="support" element={<Support />} />
             <Route path="support/:id" element={<TicketDetail />} />
 

@@ -11,6 +11,9 @@ import { useToast } from '../contexts/ToastContext.jsx';
 import { usePageTransition } from '../hooks/useMotion.js';
 import { playMessageSound } from '../utils/sounds.js';
 import { api } from '../services/api.js';
+import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
+import { pushOverlay } from '../platform/overlays.js';
+import NetworkBanner from '../components/NetworkBanner.jsx';
 
 function Brand({ compact }) {
   return compact
@@ -66,13 +69,19 @@ export default function AppLayout() {
   const badges = { notifications: unreadNotifications, messages: unreadMessages };
   const current = [...nav.admin, ...nav.main].find((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)));
 
+  const confirmAction = useConfirm();
   const onLogout = async () => {
+    if (!(await confirmAction({ type: 'logout' }))) return;
     await logout();
     navigate('/login', { replace: true });
   };
 
+  // The Android back button closes the menu drawer first.
+  useEffect(() => (drawer ? pushOverlay(() => setDrawer(false)) : undefined), [drawer]);
+
   return (
     <div className="app-shell">
+      <NetworkBanner />
       <aside className="sidebar" aria-label="Main navigation">
         <div className="brand">
           <Brand />

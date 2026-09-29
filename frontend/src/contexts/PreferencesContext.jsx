@@ -8,7 +8,7 @@ import { useAuth } from './AuthContext.jsx';
  * also cached locally so they apply before sign-in and without a flash.
  */
 export const DEFAULTS = {
-  accessibility: { fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false },
+  accessibility: { theme: 'system', fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false },
   messages: { messageSound: true, callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true },
   privacy: { showOnlineStatus: true },
   security: { loginAlerts: 'new_device' },
@@ -24,8 +24,25 @@ function readLocal() {
 }
 
 /** Apply accessibility settings to the document (also used before React renders). */
+/** Resolve Light / Dark / System (the device setting) to the theme actually shown. */
+export function resolveTheme(pref) {
+  if (pref === 'light' || pref === 'dark') return pref;
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(pref) {
+  const root = document.documentElement;
+  const theme = resolveTheme(pref);
+  root.dataset.themePref = pref || 'system';
+  if (root.dataset.theme !== theme) root.dataset.theme = theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#090e0c' : '#0b1210');
+  window.dispatchEvent(new CustomEvent('achiever:theme', { detail: { theme, pref: pref || 'system' } }));
+}
+
 export function applyAccessibility(a) {
   const root = document.documentElement;
+  applyTheme(a.theme);
   root.style.fontSize = `${Math.round((a.fontScale || 1) * 100)}%`;
   root.dataset.motion = a.reducedMotion || 'system';
   root.dataset.contrast = a.highContrast ? 'high' : 'normal';
@@ -54,6 +71,15 @@ export function PreferencesProvider({ children }) {
       setPrefs((p) => ({ ...p, ...user.preferences }));
     }
   }, [status, user?.preferences]);
+
+  // "System" follows the device: react when the device switches light/dark.
+  useEffect(() => {
+    if ((prefs.accessibility.theme || 'system') !== 'system' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => applyTheme('system');
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, [prefs.accessibility.theme]);
 
   useEffect(() => {
     applyAccessibility(prefs.accessibility);

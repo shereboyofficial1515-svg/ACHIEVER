@@ -25,20 +25,29 @@ html[data-motion='reduce'] *::after {
 
 /* High contrast: darker text, stronger borders, no low-contrast greys. */
 html[data-contrast='high'] {
-  --text: #000000;
-  --text-muted: #1f2937;
-  --border: #4b5563;
-  --gray-600: #1f2937;
-  --gray-500: #374151;
-  --bg: #ffffff;
+  --color-text-primary: #000000;
+  --color-text-secondary: #111815;
+  --color-text-muted: #1f2a26;
+  --color-border: #4b5854;
+  --color-border-strong: #26312d;
+  --color-background: #ffffff;
+}
+html[data-contrast='high'][data-theme='dark'] {
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #f1f5f3;
+  --color-text-muted: #dbe4e0;
+  --color-border: #8d9c96;
+  --color-border-strong: #c7d2cd;
+  --color-background: #000000;
+  --color-surface: #0b0f0e;
 }
 html[data-contrast='high'] .card,
 html[data-contrast='high'] .input,
 html[data-contrast='high'] .select,
-html[data-contrast='high'] .textarea { border-color: #374151; }
+html[data-contrast='high'] .textarea { border-color: var(--color-border-strong); }
 html[data-contrast='high'] .badge { outline: 1px solid currentColor; }
-html[data-contrast='high'] .btn-secondary { border-color: #111827; color: #111827; }
-html[data-contrast='high'] .sidebar { background: #000814; }
+html[data-contrast='high'] .btn-secondary { border-color: var(--color-text-primary); color: var(--color-text-primary); }
+html[data-contrast='high'] .sidebar { background: #000000; }
 html[data-contrast='high'] .nav-link { color: #ffffff; }
 
 /* Larger touch targets. */
@@ -59,11 +68,11 @@ html[data-links='underline'] a:not(.btn):not(.nav-link):not(.brand-logo) { text-
 /* Strong, always-visible focus indicators. */
 html[data-focus='strong'] :focus-visible,
 html[data-focus='strong'] :focus {
-  outline: 3px solid #b8860b !important;
+  outline: 3px solid var(--color-sky-primary) !important;
   outline-offset: 2px !important;
-  box-shadow: 0 0 0 5px rgba(11, 42, 91, 0.35) !important;
+  box-shadow: 0 0 0 5px rgba(10, 135, 84, 0.35) !important;
 }
 
 /* Skip link for keyboard users. */
-.skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; background: var(--navy-800); color: #fff; padding: 10px 14px; border-radius: var(--radius-sm); }
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; background: var(--color-black); color: #fff; padding: 10px 14px; border-radius: var(--radius-sm); }
 .skip-link:focus { top: 12px; }

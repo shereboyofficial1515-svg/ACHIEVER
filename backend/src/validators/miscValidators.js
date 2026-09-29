@@ -293,6 +293,7 @@ export const approvalDecision = z.object({ decision: z.enum(['approve', 'reject'
 // Settings: preferences & privacy -----------------------------------------------------------
 export const userSettings = z.object({
   accessibility: z.object({
+    theme: z.enum(['system', 'light', 'dark']).optional(),
     fontScale: z.union([z.literal(0.9), z.literal(1), z.literal(1.125), z.literal(1.25), z.literal(1.5)]).optional(),
     reducedMotion: z.enum(['system', 'reduce', 'full']).optional(),
     highContrast: z.boolean().optional(),

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { idempotent } from '../middleware/idempotency.js';
 import * as c from '../controllers/adminController.js';
 import * as sc from '../controllers/securityController.js';
 import * as rc from '../controllers/reportController.js';
@@ -91,16 +92,16 @@ r.get('/transactions', p('finance.ledger.read'), validate({ query: s.adminTransa
 r.get('/payments', p('finance.ledger.read'), validate({ query: s.adminAttempts }), c.listPaymentAttempts);
 r.get('/bills', p('finance.ledger.read', 'support.tickets'), validate({ query: s.listBills }), c.listBills);
 r.get('/payouts', p('finance.payouts.execute'), c.payoutQueue);
-r.post('/payouts/:kind/:id/confirm', ...sensitive('finance.payouts.execute'), validate({ params: s.disbursementParam, body: s.confirmDisbursement }), c.confirmPayout);
+r.post('/payouts/:kind/:id/confirm', ...sensitive('finance.payouts.execute'), idempotent, validate({ params: s.disbursementParam, body: s.confirmDisbursement }), c.confirmPayout);
 r.post('/payouts/:kind/:id/fail', ...sensitive('finance.payouts.execute'), validate({ params: s.disbursementParam, body: s.failDisbursement }), c.failPayout);
-r.post('/payouts/:kind/:id/retry', ...sensitive('finance.payouts.execute'), validate({ params: s.disbursementParam }), c.retryPayout);
+r.post('/payouts/:kind/:id/retry', ...sensitive('finance.payouts.execute'), idempotent, validate({ params: s.disbursementParam }), c.retryPayout);
 
 // Two-person approvals (reversal, adjustment, collector revocation, restriction lift, large payout)
 r.get('/approvals', p(...APPROVAL_PERMS), validate({ query: s.approvalList }), sc.approvals);
 r.get('/approvals/:id', p(...APPROVAL_PERMS), validate({ params: idParam }), sc.approval);
 r.post('/approvals', ...sensitive(...APPROVAL_PERMS), validate({ body: s.approvalRequest }), sc.requestApproval);
 r.post('/approvals/:id/decision', ...sensitive(...APPROVAL_PERMS), validate({ params: idParam, body: s.approvalDecision }), sc.decideApproval);
-r.post('/approvals/:id/execute', ...sensitive(...APPROVAL_PERMS), validate({ params: idParam }), sc.executeApproval);
+r.post('/approvals/:id/execute', ...sensitive(...APPROVAL_PERMS), idempotent, validate({ params: idParam }), sc.executeApproval);
 r.post('/approvals/:id/cancel', p(...APPROVAL_PERMS), validate({ params: idParam }), sc.cancelApproval);
 
 // Disputes / support cases

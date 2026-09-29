@@ -54,7 +54,8 @@ export async function initialize({ user, purpose, targetId, amount, metadata = {
       email: user.email,
       amount,
       reference,
-      callbackUrl: `${env.CLIENT_URL}/app/payments/callback`,
+      // Fixed, allow-listed return addresses only (never taken from the request).
+      callbackUrl: `${user.clientPlatform === 'android' ? env.androidAppOrigin : env.CLIENT_URL}/app/payments/callback`,
       channels: env.PAYSTACK_CHANNELS.split(',').map((c) => c.trim()).filter(Boolean),
       // Metadata is informational only; the server never trusts it back.
       metadata: { purpose, target_id: targetId, user_id: user.id, attempt_id: attempt.id },

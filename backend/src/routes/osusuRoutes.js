@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { idempotent } from '../middleware/idempotency.js';
 import * as c from '../controllers/osusuController.js';
 import { ROLES } from '../config/constants.js';
 import { requireActiveOperator } from '../middleware/authorize.js';
@@ -38,6 +39,6 @@ r.get('/groups/:groupId/risk', validate(group), c.risk);
 r.get('/cycles/:cycleId', validate({ params: s.cycleParam }), c.getCycle);
 r.post('/cycles/:cycleId/payout/approve', validate({ params: s.cycleParam }), c.approvePayout);
 r.get('/contributions/mine', validate({ query: s.listContributions }), c.myContributions);
-r.post('/contributions/:contributionId/pay', paymentLimiter, validate({ params: s.contributionParam }), c.payContribution);
+r.post('/contributions/:contributionId/pay', paymentLimiter, idempotent, validate({ params: s.contributionParam }), c.payContribution);
 
 export default r;

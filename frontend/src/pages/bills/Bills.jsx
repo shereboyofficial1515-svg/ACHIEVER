@@ -8,25 +8,23 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
 import { formatDateTime, naira, parseNairaToKobo } from '../../utils/format.js';
 
+const BILL_LABEL = { airtime: 'Airtime top-up', data: 'Data bundle', electricity: 'Electricity' };
+
+/** Bills: review (recipient, amount, fee, total) → Confirm payment → Paystack. Amount for data plans comes from the plan. */
 function useCheckout() {
-  const toast = useToast();
-  const [pending, setPending] = useState(false);
+  const { review, activeId } = usePaymentReview();
   const [error, setError] = useState(null);
-  const submit = async (body) => {
-    setPending(true);
+  const submit = (body, { amount, recipient }) => {
     setError(null);
-    try {
-      const { data } = await api.post('/bills', body);
-      window.location.assign(data.authorizationUrl);
-    } catch (err) {
-      setError(err);
-      if (!err.fields) toast.error(err);
-      setPending(false);
-    }
+    review(
+      { id: 'bill', recipient, purpose: BILL_LABEL[body.category] || 'Bill payment', amount },
+      (idempotencyKey) => api.post('/bills', body, { idempotencyKey }).catch((err) => { setError(err); throw err; }),
+    );
   };
-  return { submit, pending, error };
+  return { submit, pending: activeId === 'bill', error };
 }
 
 function AirtimeForm({ services }) {
@@ -36,7 +34,7 @@ function AirtimeForm({ services }) {
   const kobo = parseNairaToKobo(form.amount);
   const fe = fieldErrors(error);
   return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'airtime', serviceId: form.serviceId, phone: form.phone, amount: kobo }); }}>
+    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'airtime', serviceId: form.serviceId, phone: form.phone, amount: kobo }, { amount: kobo, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} airtime for ${form.phone}` }); }}>
       <Select label="Network" value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
       <Input label="Phone number" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} error={fe.phone} />
       <MoneyInput label="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} error={fe.amount} hint="₦50 – ₦50,000" />
@@ -56,7 +54,7 @@ function DataForm({ services }) {
   const fe = fieldErrors(error);
   useEffect(() => setForm((f) => ({ ...f, variationCode: '' })), [form.serviceId]);
   return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'data', serviceId: form.serviceId, phone: form.phone, variationCode: form.variationCode }); }}>
+    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'data', serviceId: form.serviceId, phone: form.phone, variationCode: form.variationCode }, { amount: selected.amount, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} ${selected.name} for ${form.phone}` }); }}>
       <Select label="Network" value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
       <Input label="Phone number" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} error={fe.phone} />
       {plans.loading ? (
@@ -99,7 +97,7 @@ function ElectricityForm({ services }) {
     if (['serviceId', 'meterType', 'customerId'].includes(k)) setCustomer(null);
   };
   return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'electricity', serviceId: form.serviceId, meterType: form.meterType, customerId: form.customerId, phone: form.phone, amount: kobo }); }}>
+    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'electricity', serviceId: form.serviceId, meterType: form.meterType, customerId: form.customerId, phone: form.phone, amount: kobo }, { amount: kobo, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} meter ${form.customerId}` }); }}>
       <Select label="Distribution company" value={form.serviceId} onChange={change('serviceId')} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
       <div className="grid-2">
         <Select label="Meter type" value={form.meterType} onChange={change('meterType')} options={[{ value: 'prepaid', label: 'Prepaid' }, { value: 'postpaid', label: 'Postpaid' }]} />

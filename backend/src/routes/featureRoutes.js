@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { idempotent } from '../middleware/idempotency.js';
 import * as f from '../controllers/featureController.js';
 import * as p from '../controllers/paymentController.js';
 import * as sc from '../controllers/securityController.js';
@@ -20,7 +21,7 @@ export const billRoutes = Router()
   .get('/catalog', f.billCatalog)
   .get('/variations', validate({ query: s.variationsQuery }), f.billVariations)
   .post('/verify-customer', validate({ body: s.verifyCustomer }), f.billVerifyCustomer)
-  .post('/', paymentLimiter, validate({ body: s.createBill }), f.createBill)
+  .post('/', paymentLimiter, idempotent, validate({ body: s.createBill }), f.createBill)
   .get('/', validate({ query: s.listBills }), f.listBills)
   .get('/:id', validate({ params: idParam }), f.getBill)
   .post('/:id/requery', validate({ params: idParam }), f.requeryBill);

@@ -13,18 +13,18 @@ import { useCalls } from '../../contexts/CallContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
 import { FREQUENCY_LABEL, formatDate, formatDateTime, naira } from '../../utils/format.js';
 import { TX_TYPE_LABEL } from '../../utils/status.js';
 
-async function startCheckout(contributionId, toast, setPaying) {
-  setPaying(contributionId);
-  try {
-    const { data } = await api.post(`/osusu/contributions/${contributionId}/pay`);
-    window.location.assign(data.authorizationUrl);
-  } catch (err) {
-    toast.error(err);
-    setPaying(null);
-  }
+/** Payment details for the review screen (see usePaymentReview). */
+function contributionReview(group, c) {
+  return {
+    id: c.id,
+    recipient: `${group?.name || 'This Osusu group'} (group pool)`,
+    purpose: `Osusu contribution${c.cycleNumber ? `, cycle ${c.cycleNumber}` : ''}`,
+    amount: c.amount,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ function Overview({ group, onChanged, conversationId }) {
   const toast = useToast();
   const calls = useCalls();
   const navigate = useNavigate();
-  const [paying, setPaying] = useState(null);
+  const { review, activeId: paying } = usePaymentReview();
   const [confirm, setConfirm] = useState(null);
   const [pending, setPending] = useState(false);
   const { user } = useAuth();
@@ -93,7 +93,7 @@ function Overview({ group, onChanged, conversationId }) {
                 </div>
                 <StatusBadge status={c.status} />
                 <span className="money">{naira(c.amount)}</span>
-                <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'gold'} onClick={() => startCheckout(c.id, toast, setPaying)} loading={paying === c.id}>
+                <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'gold'} onClick={() => review(contributionReview(group, c), (idempotencyKey) => api.post(`/osusu/contributions/${c.id}/pay`, undefined, { idempotencyKey }))} loading={paying === c.id}>
                   Pay now
                 </Button>
               </li>
@@ -435,7 +435,7 @@ function Members({ group }) {
 function CycleModal({ cycleId, onClose, onChanged }) {
   const toast = useToast();
   const cycle = useAsync(() => api.get(`/osusu/cycles/${cycleId}`), [cycleId]);
-  const [paying, setPaying] = useState(null);
+  const { review, activeId: paying } = usePaymentReview();
   const [pending, setPending] = useState(false);
   const approve = async () => {
     setPending(true);
@@ -476,7 +476,7 @@ function CycleModal({ cycleId, onClose, onChanged }) {
                 { key: 'amount', label: 'Amount', align: 'right', render: (x) => <span className="money">{naira(x.amount)}</span> },
                 { key: 'status', label: 'Status', render: (x) => <span className="row-wrap"><StatusBadge status={x.status} />{x.isLate && <span className="chip">Late</span>}</span> },
                 { key: 'paid', label: 'Paid at', render: (x) => formatDateTime(x.paidAt) },
-                { key: 'act', label: '', render: (x) => (x.isMine && x.status !== 'paid' ? <Button size="sm" variant="gold" onClick={() => startCheckout(x.id, toast, setPaying)} loading={paying === x.id}>Pay</Button> : null) },
+                { key: 'act', label: '', render: (x) => (x.isMine && x.status !== 'paid' ? <Button size="sm" variant="gold" onClick={() => review(contributionReview({ name: c.group?.name || c.groupName }, { ...x, cycleNumber: c.cycleNumber }), (idempotencyKey) => api.post(`/osusu/contributions/${x.id}/pay`, undefined, { idempotencyKey }))} loading={paying === x.id}>Pay</Button> : null) },
               ]}
             />
             {c.canApprovePayout && (

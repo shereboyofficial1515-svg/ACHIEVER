@@ -13,7 +13,7 @@ const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
  */
 export function issueCsrfToken(res) {
   const token = randomToken(24);
-  res.cookie(COOKIES.csrf, hmac(env.SESSION_SECRET, `csrf:${token}`), csrfCookieOptions());
+  res.cookie(COOKIES.csrf, hmac(env.SESSION_SECRET, `csrf:${token}`), csrfCookieOptions(res));
   return token;
 }
 

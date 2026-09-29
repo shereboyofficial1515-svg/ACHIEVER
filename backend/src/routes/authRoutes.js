@@ -37,6 +37,8 @@ r.get('/providers', c.providers);
 r.get('/oauth/callback', authLimiter, c.oauthCallback);
 r.get('/oauth/:provider/start', authLimiter, validate({ params: s.oauthProvider }), c.oauthStart);
 r.get('/oauth/pending', c.oauthPending);
+// Android app: one-time code from the sign-in deep link -> session cookies for the app
+r.post('/oauth/handoff', authLimiter, c.oauthHandoff);
 r.post('/oauth/complete', authLimiter, validate({ body: s.completeProfile }), c.oauthComplete);
 r.get('/identities', authenticate, c.identities);
 r.post('/oauth/:provider/link', authenticate, requireStepUp, validate({ params: s.oauthProvider }), c.linkIdentity);

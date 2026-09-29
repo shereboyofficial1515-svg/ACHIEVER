@@ -1,46 +1,73 @@
+/* =====================================================================
+   ACHIEVER design tokens — green (growth, success), sky blue (trust, help,
+   information), white (surfaces) and black (typography, navigation).
+   Components use the semantic tokens only. The theme is chosen by
+   html[data-theme] (set before first paint by /site/boot.js: light, dark,
+   or the device setting).
+   ===================================================================== */
 :root {
-  /* Brand */
-  --navy-900: #071528;
-  --navy-800: #0b1f3a;
-  --navy-700: #13305a;
-  --navy-600: #1d4278;
-  --navy-100: #e6ecf5;
-  --navy-50: #f2f5fa;
-  --gold-600: #a8861a;
-  --gold-500: #c9a227;
-  --gold-100: #f7efd3;
+  color-scheme: light;
 
-  /* Semantic */
-  --green-700: #155e3a;
-  --green-600: #1e7f4f;
-  --green-100: #e3f3ea;
-  --red-700: #9b2c20;
-  --red-600: #c0392b;
-  --red-100: #fbe8e5;
-  --amber-700: #8a5a00;
-  --amber-100: #fdf1d8;
-  --blue-700: #1b4f8f;
-  --blue-100: #e5eefa;
+  /* Brand scales */
+  --color-green-primary: #0a8754;   /* buttons, success (4.7:1 with white text) */
+  --color-green-dark: #06683f;
+  --color-green-bright: #16b36f;    /* decorative fills, gradients */
+  --color-green-light: #e4f5ec;
+  --color-sky-primary: #0ea5e9;     /* decorative fills, gradients */
+  --color-sky-dark: #0369a1;        /* links, info text (5.9:1 on white) */
+  --color-sky-light: #e3f2fd;
+  --color-white: #ffffff;
+  --color-black: #0b0f0e;
 
-  /* Neutrals */
-  --gray-900: #111827;
-  --gray-800: #1f2937;
-  --gray-700: #374151;
-  --gray-600: #4b5563;
-  --gray-500: #6b7280;
-  --gray-400: #9ca3af;
-  --gray-300: #d1d5db;
-  --gray-200: #e5e7eb;
-  --gray-100: #f1f3f6;
-  --gray-50: #f7f8fa;
-  --white: #ffffff;
+  /* Surfaces */
+  --color-background: #f5f7f6;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-sunken: #eff3f1;
+  --color-surface-hover: #f1f5f3;
+  --color-overlay: rgba(6, 12, 10, 0.55);
 
-  --bg: var(--gray-50);
-  --surface: var(--white);
-  --text: var(--gray-900);
-  --text-muted: var(--gray-600);
-  --border: var(--gray-200);
-  --focus: 0 0 0 3px rgba(29, 66, 120, 0.28);
+  /* Text */
+  --color-text-primary: #0b0f0e;
+  --color-text-secondary: #37423e;
+  --color-text-muted: #5b6863;
+  --color-on-primary: #ffffff;       /* text on green / sky buttons */
+  --color-link: var(--color-sky-dark);
+
+  /* Lines */
+  --color-border: #e0e7e3;
+  --color-border-strong: #c3cec9;
+
+  /* Status */
+  --color-success: var(--color-green-primary);
+  --color-success-bg: var(--color-green-light);
+  --color-success-text: #06603a;
+  --color-warning: #b45309;
+  --color-warning-bg: #fdf3dc;
+  --color-warning-text: #7a3d06;
+  --color-error: #c0262d;
+  --color-error-bg: #fde8e8;
+  --color-error-text: #971c21;
+  --color-info: var(--color-sky-dark);
+  --color-info-bg: var(--color-sky-light);
+  --color-info-text: #075985;
+
+  /* Navigation (black) */
+  --color-nav-bg: #0b1210;
+  --color-nav-text: #c6d1cc;
+  --color-nav-muted: #7d8b85;
+  --color-nav-hover: rgba(255, 255, 255, 0.06);
+  --color-nav-active: rgba(22, 179, 111, 0.16);
+  --color-nav-accent: #34d399;
+
+  /* Gradients (used sparingly: hero, primary moments, progress) */
+  --gradient-brand: linear-gradient(135deg, var(--color-green-primary) 0%, var(--color-sky-primary) 100%);
+  --gradient-sky-green: linear-gradient(135deg, var(--color-sky-dark) 0%, var(--color-green-primary) 100%);
+  --gradient-green: linear-gradient(135deg, var(--color-green-bright) 0%, var(--color-green-dark) 100%);
+  --gradient-sky: linear-gradient(135deg, var(--color-sky-primary) 0%, #075985 100%);
+  --gradient-hero-overlay: linear-gradient(100deg, rgba(4, 30, 20, 0.92) 0%, rgba(5, 60, 40, 0.78) 45%, rgba(3, 105, 161, 0.35) 100%);
+
+  --focus: 0 0 0 3px rgba(14, 165, 233, 0.35);
 
   /* Type */
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -51,7 +78,7 @@
   --fs-xl: 1.375rem;
   --fs-2xl: 1.75rem;
 
-  /* Space & shape */
+  /* Space & shape: restrained radii and shadows */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -61,14 +88,101 @@
   --s-8: 32px;
   --s-10: 40px;
   --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(11, 15, 14, 0.05);
+  --shadow: 0 1px 3px rgba(11, 15, 14, 0.07);
+  --shadow-lg: 0 12px 32px rgba(11, 15, 14, 0.16);
 
   --sidebar-w: 248px;
   --topbar-h: 60px;
   --bottomnav-h: 64px;
   --touch: 44px;
+}
+
+/* Dark theme: real dark surfaces (charcoal, not pure black) and brighter,
+   still-accessible green and sky blue. */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-green-primary: #1fb57a;
+  --color-green-dark: #179463;
+  --color-green-bright: #34d399;
+  --color-green-light: #11291f;
+  --color-sky-primary: #38bdf8;
+  --color-sky-dark: #7dd3fc;
+  --color-sky-light: #0d2433;
+
+  --color-background: #0e1412;
+  --color-surface: #151d1a;
+  --color-surface-elevated: #1b2521;
+  --color-surface-sunken: #111816;
+  --color-surface-hover: #1d2824;
+  --color-overlay: rgba(0, 0, 0, 0.65);
+
+  --color-text-primary: #e8eeeb;
+  --color-text-secondary: #bcc8c3;
+  --color-text-muted: #8f9d97;
+  --color-on-primary: #04130c;
+  --color-link: #7dd3fc;
+
+  --color-border: #26322d;
+  --color-border-strong: #37463f;
+
+  --color-success-text: #5ee0a6;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #2a2109;
+  --color-warning-text: #fbc56b;
+  --color-error: #f26b6b;
+  --color-error-bg: #2c1414;
+  --color-error-text: #ff9b9b;
+  --color-info-text: #8fd8fb;
+
+  --color-nav-bg: #090e0c;
+  --color-nav-text: #c6d1cc;
+  --color-nav-active: rgba(52, 211, 153, 0.14);
+
+  --gradient-hero-overlay: linear-gradient(100deg, rgba(3, 12, 9, 0.94) 0%, rgba(4, 38, 26, 0.84) 45%, rgba(3, 60, 94, 0.45) 100%);
+  --focus: 0 0 0 3px rgba(56, 189, 248, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Legacy names kept as aliases so older markup follows the theme. */
+:root, html[data-theme='dark'] {
+  --bg: var(--color-background);
+  --surface: var(--color-surface);
+  --text: var(--color-text-primary);
+  --text-muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --white: var(--color-surface);
+  --gray-50: var(--color-surface-sunken);
+  --gray-100: var(--color-surface-sunken);
+  --gray-200: var(--color-border);
+  --gray-300: var(--color-border-strong);
+  --gray-400: var(--color-text-muted);
+  --gray-500: var(--color-text-muted);
+  --gray-600: var(--color-text-secondary);
+  --gray-700: var(--color-text-secondary);
+  --gray-800: var(--color-text-primary);
+  --gray-900: var(--color-text-primary);
+  --navy-50: var(--color-sky-light);
+  --navy-100: var(--color-sky-light);
+  --navy-600: var(--color-sky-dark);
+  --navy-700: var(--color-sky-dark);
+  --navy-800: var(--color-text-primary);
+  --navy-900: var(--color-black);
+  --green-100: var(--color-success-bg);
+  --green-600: var(--color-green-primary);
+  --green-700: var(--color-success-text);
+  --red-100: var(--color-error-bg);
+  --red-600: var(--color-error);
+  --red-700: var(--color-error-text);
+  --amber-100: var(--color-warning-bg);
+  --amber-700: var(--color-warning-text);
+  --blue-100: var(--color-info-bg);
+  --blue-700: var(--color-info-text);
+  --gold-100: var(--color-warning-bg);
+  --gold-500: var(--color-green-primary);
+  --gold-600: var(--color-green-dark);
 }

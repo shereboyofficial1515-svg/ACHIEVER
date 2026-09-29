@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 
 const ROLE_LABEL = {
@@ -377,7 +378,9 @@ export function Sessions() {
       toast.error(err);
     }
   };
+  const confirmAction = useConfirm();
   const revokeOthers = async () => {
+    if (!(await confirmAction({ type: 'sign_out_others' }))) return;
     try {
       const { data } = await api.post('/auth/sessions/revoke-others');
       toast.success(`${data.revoked} other session(s) signed out`);

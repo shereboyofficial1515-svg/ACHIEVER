@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { isNative, openExternalLink } from '../../platform/index.js';
 import { api } from '../../services/api.js';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const PUBLIC_SITE = (import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, '');
 
 export const OAUTH_ERRORS = {
   OAUTH_CANCELLED: 'Sign-in was cancelled.',
@@ -44,11 +46,18 @@ export default function SocialSignIn({ next = '/app', label = 'Continue' }) {
   }, []);
   if (!providers || (!providers.google && !providers.facebook)) return null;
   const href = (p) => `${API_BASE}/api/auth/oauth/${p}/start?next=${encodeURIComponent(next)}`;
+  // Android app: Google and Facebook do not allow sign-in inside an app WebView, so the
+  // system browser opens the website's sign-in and hands the session back via a deep link.
+  const openNative = (p) => (e) => {
+    e.preventDefault();
+    openExternalLink(`${PUBLIC_SITE}/api/auth/oauth/${p}/start?client=android&next=${encodeURIComponent(next)}`);
+  };
+  const native = isNative();
   return (
     <div className="stack-sm">
       <div className="oauth-buttons">
-        {providers.google && <a className="btn-oauth" href={href('google')}><GoogleIcon /> {label} with Google</a>}
-        {providers.facebook && <a className="btn-oauth" href={href('facebook')}><FacebookIcon /> {label} with Facebook</a>}
+        {providers.google && <a className="btn-oauth" href={href('google')} onClick={native ? openNative('google') : undefined}><GoogleIcon /> {label} with Google</a>}
+        {providers.facebook && <a className="btn-oauth" href={href('facebook')} onClick={native ? openNative('facebook') : undefined}><FacebookIcon /> {label} with Facebook</a>}
       </div>
       <p className="xsmall muted">New to ACHIEVER? You will still add your legal details and verify your phone — a social account alone does not verify your identity.</p>
       <div className="divider-text">or</div>

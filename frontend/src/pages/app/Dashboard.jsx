@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
+import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
 import { daysUntil, formatDate, naira } from '../../utils/format.js';
 import { useReveal } from '../../hooks/useMotion.js';
 
@@ -25,20 +26,14 @@ export default function Dashboard() {
   const { user, has } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [paying, setPaying] = useState(null);
+  const { review, activeId: paying } = usePaymentReview();
   const dash = useAsync(() => api.get('/users/me/dashboard'), []);
   const cardsRef = useReveal({ children: true, deps: [Boolean(dash.data)] });
 
-  const pay = async (contributionId) => {
-    setPaying(contributionId);
-    try {
-      const { data } = await api.post(`/osusu/contributions/${contributionId}/pay`);
-      window.location.assign(data.authorizationUrl);
-    } catch (err) {
-      toast.error(err);
-      setPaying(null);
-    }
-  };
+  const pay = (c) => review(
+    { id: c.id, recipient: `${c.groupName || 'Your Osusu group'} (group pool)`, purpose: `Osusu contribution${c.cycleNumber ? `, cycle ${c.cycleNumber}` : ''}`, amount: c.amount },
+    (idempotencyKey) => api.post(`/osusu/contributions/${c.id}/pay`, undefined, { idempotencyKey }),
+  );
 
   const d = dash.data;
   const pendingOperator = d?.onboarding?.operators?.filter((o) => !o.active) || [];
@@ -85,7 +80,7 @@ export default function Dashboard() {
                     </span>
                   </span>
                 </div>
-                <Button variant="gold" onClick={() => pay(d.member.nextDue.contributionId)} loading={paying === d.member.nextDue.contributionId} loadingText="Opening secure checkout...">
+                <Button variant="gold" onClick={() => pay({ ...d.member.nextDue, id: d.member.nextDue.contributionId })} loading={paying === d.member.nextDue.contributionId} loadingText="Opening secure checkout...">
                   Pay contribution
                 </Button>
               </div>
@@ -171,7 +166,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <span className="money">{naira(c.amount)}</span>
-                        <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'primary'} onClick={() => pay(c.id)} loading={paying === c.id}>
+                        <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'primary'} onClick={() => pay(c)} loading={paying === c.id}>
                           Pay
                         </Button>
                       </li>

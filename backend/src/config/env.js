@@ -48,6 +48,9 @@ const schema = z.object({
   // its browser session uses separate cookies. ADMIN_API_PUBLIC_URL: where the admin
   // app's browser reaches the API (defaults to ADMIN_CLIENT_URL, i.e. /api forwarded).
   ADMIN_CLIENT_URL: optional(z.string().url()),
+  // Android app (Capacitor): its WebView origin (androidScheme https + hostname) and deep-link scheme.
+  ANDROID_APP_ORIGIN: z.string().url().default('https://localhost'),
+  ANDROID_APP_SCHEME: z.string().regex(/^[a-z][a-z0-9.+-]{2,60}$/).default('com.achiever.app'),
   ADMIN_API_PUBLIC_URL: optional(z.string().url()),
   // Keys admin session tokens and encrypts authenticator-app secrets. Dedicated values are
   // strongly recommended; if unset they are derived from SESSION_SECRET (logged at startup).
@@ -137,7 +140,8 @@ export const env = Object.freeze({
   adminSecretsDerived: !parsed.data.ADMIN_SESSION_SECRET || !parsed.data.ADMIN_MFA_ENCRYPTION_KEY,
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
-  corsOrigins: [parsed.data.CLIENT_URL, ...(adminClientUrl ? [adminClientUrl] : []), ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
+  androidAppOrigin: parsed.data.ANDROID_APP_ORIGIN.replace(/\/$/, ''),
+  corsOrigins: [parsed.data.CLIENT_URL, ...(adminClientUrl ? [adminClientUrl] : []), parsed.data.ANDROID_APP_ORIGIN.replace(/\/$/, ''), ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
   features: {
     // Real Paystack secret keys look like sk_test_... / sk_live_...; anything else is a placeholder.
     payments: /^sk_(test|live)_[A-Za-z0-9]+$/.test(parsed.data.PAYSTACK_SECRET_KEY.trim()),

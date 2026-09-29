@@ -1,5 +1,5 @@
 import {
-  Bell, CalendarDays, FileText, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Settings, UsersRound, Wallet, Zap,
+  BookOpen, Bell, CalendarDays, FileText, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Settings, UsersRound, Wallet, Zap,
 } from 'lucide-react';
 
 /** Navigation adapts to the roles and permissions the SERVER reports for the user. */
@@ -18,7 +18,8 @@ export function buildNavigation(has) {
     { to: '/app/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
     osusu && { to: '/app/meetings', label: 'Meetings', icon: CalendarDays },
     { to: '/app/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
-    { to: '/app/support', label: 'Help & disputes', icon: LifeBuoy },
+    { to: '/app/help', label: 'Help Center', icon: BookOpen },
+    { to: '/app/support', label: 'Disputes & support', icon: LifeBuoy },
     { to: '/app/settings', label: 'Settings', short: 'Settings', icon: Settings },
   ].filter(Boolean);
 

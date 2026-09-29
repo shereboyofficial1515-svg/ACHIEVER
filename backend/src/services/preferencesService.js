@@ -3,8 +3,9 @@ import * as auditService from './auditService.js';
 
 /**
  * Per-user settings. Every option here is wired to real behaviour:
- *  - accessibility: applied by the web app to the whole UI (font size, motion,
- *    contrast, touch targets, link underlines, focus rings)
+ *  - accessibility: applied by the web and Android app to the whole UI (theme:
+ *    light/dark/system, font size, motion, contrast, touch targets, link
+ *    underlines, focus rings)
  *  - messages: message sound, call ringtone, message previews in alerts,
  *    automatic image loading (client); read receipts (server, reciprocal)
  *  - privacy: online status visibility (server)
@@ -13,7 +14,7 @@ import * as auditService from './auditService.js';
  */
 export const DEFAULTS = Object.freeze({
   accessibility: {
-    fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false,
+    theme: 'system', fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false,
   },
   messages: { messageSound: true, callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true },
   privacy: { showOnlineStatus: true },

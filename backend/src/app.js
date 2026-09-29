@@ -56,9 +56,9 @@ export function createApp() {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id', 'Authorization', 'Idempotency-Key'],
       // Readable by the web app when it calls the API on another origin (file names, error tracing).
-      exposedHeaders: ['X-Request-Id', 'Content-Disposition', 'Retry-After'],
+      exposedHeaders: ['X-Request-Id', 'Content-Disposition', 'Retry-After', 'Idempotent-Replayed'],
       maxAge: 600,
     }),
   );

@@ -5,12 +5,19 @@ import { hmac, safeEqual } from './crypto.js';
 // SameSite=Lax when the browser reaches the API on the web app's own site (the
 // recommended set-up); SameSite=None when it calls a different site directly,
 // which browsers only accept together with Secure.
-const base = () => ({
-  httpOnly: true,
-  secure: env.isProduction || env.cookieSameSite === 'none',
-  sameSite: env.cookieSameSite,
-  path: '/',
-});
+export function isAndroidApp(req) {
+  return Boolean(req) && req.get?.('origin') === env.androidAppOrigin;
+}
+
+const base = (res) => {
+  if (isAndroidApp(res?.req)) return { httpOnly: true, secure: true, sameSite: 'none', path: '/' };
+  return {
+    httpOnly: true,
+    secure: env.isProduction || env.cookieSameSite === 'none',
+    sameSite: env.cookieSameSite,
+    path: '/',
+  };
+};
 
 const REFRESH_MAX_MS = 30 * 24 * 3600 * 1000;
 
@@ -59,32 +66,32 @@ export function sessionMaxAgeMs() {
 export function setSessionCookies(res, session, startedAtMs = Date.now(), sessionId = null) {
   const remaining = Math.max(0, startedAtMs + sessionMaxAgeMs() - Date.now());
   const accessMs = Math.max(60_000, session.expires_at * 1000 - Date.now());
-  res.cookie(COOKIES.access, session.access_token, { ...base(), maxAge: Math.min(accessMs, remaining) });
+  res.cookie(COOKIES.access, session.access_token, { ...base(res), maxAge: Math.min(accessMs, remaining) });
   res.cookie(COOKIES.refresh, session.refresh_token, {
-    ...base(),
+    ...base(res),
     path: '/api/auth',
     maxAge: Math.min(REFRESH_MAX_MS, remaining),
   });
-  res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(), maxAge: remaining });
+  res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(res), maxAge: remaining });
 }
 
 /** Re-issue only the signed session marker (e.g. to bind a newly created server-side session). */
 export function setSessionMarker(res, startedAtMs, sessionId) {
   const remaining = Math.max(0, startedAtMs + sessionMaxAgeMs() - Date.now());
-  res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(), maxAge: remaining });
+  res.cookie(COOKIES.session, signSessionStart(startedAtMs, sessionId), { ...base(res), maxAge: remaining });
 }
 
 export function clearSessionCookies(res) {
-  res.clearCookie(COOKIES.access, base());
-  res.clearCookie(COOKIES.refresh, { ...base(), path: '/api/auth' });
-  res.clearCookie(COOKIES.session, base());
+  res.clearCookie(COOKIES.access, base(res));
+  res.clearCookie(COOKIES.refresh, { ...base(res), path: '/api/auth' });
+  res.clearCookie(COOKIES.session, base(res));
 }
 
 /** Long-lived random device identifier (stored server-side only as a keyed hash). */
 export function setDeviceCookie(res, token) {
-  res.cookie(COOKIES.device, token, { ...base(), maxAge: 365 * 24 * 3600 * 1000 });
+  res.cookie(COOKIES.device, token, { ...base(res), maxAge: 365 * 24 * 3600 * 1000 });
 }
 
-export function csrfCookieOptions() {
-  return { ...base(), maxAge: 24 * 3600 * 1000 };
+export function csrfCookieOptions(res) {
+  return { ...base(res), maxAge: 24 * 3600 * 1000 };
 }

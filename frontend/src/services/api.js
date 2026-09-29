@@ -104,10 +104,12 @@ function buildQuery(params) {
   return s ? `?${s}` : '';
 }
 
-async function request(method, path, { body, params, raw = false, retry = true, signal } = {}) {
+async function request(method, path, { body, params, raw = false, retry = true, signal, idempotencyKey } = {}) {
   const headers = {};
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   if (method !== 'GET') headers['X-CSRF-Token'] = await ensureCsrf();
+  // Money actions: the same key on a retry makes the server return the first result instead of acting twice.
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
   let res;
@@ -131,7 +133,7 @@ async function request(method, path, { body, params, raw = false, retry = true, 
     // Non-JSON errors come from proxies/load balancers, not the API itself.
     const error = fromResponse(res.status, payload);
     if (retry && error.code === 'STEP_UP_REQUIRED' && onStepUpRequired) {
-      if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, signal });
+      if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, signal, idempotencyKey });
     }
     // Maintenance mode (switched on in the admin platform): show the maintenance page.
     if (error.code === 'MAINTENANCE_MODE' && typeof window !== 'undefined' && window.location.pathname !== '/maintenance') {
@@ -139,13 +141,13 @@ async function request(method, path, { body, params, raw = false, retry = true, 
     }
     if (retry && error.code === 'CSRF_INVALID') {
       await ensureCsrf(true);
-      return request(method, path, { body, params, raw, retry: false, signal });
+      return request(method, path, { body, params, raw, retry: false, signal, idempotencyKey });
     }
     // Access cookies expire with the token (~1h); the refresh cookie lasts much
     // longer. Refresh for every call — including /auth/me on page load — except
     // the credential endpoints themselves.
     if (retry && res.status === 401 && ['TOKEN_EXPIRED', 'UNAUTHENTICATED'].includes(error.code) && !NO_REFRESH.some((p) => path.startsWith(p))) {
-      if (await refreshSession()) return request(method, path, { body, params, raw, retry: false, signal });
+      if (await refreshSession()) return request(method, path, { body, params, raw, retry: false, signal, idempotencyKey });
       onSessionEnded();
     } else if (res.status === 401 && ['SESSION_EXPIRED', 'SESSION_REVOKED'].includes(error.code)) {
       onSessionEnded();
@@ -184,3 +186,8 @@ export const api = {
   eventsUrl: () => `${BASE}/api/events/stream`,
   primeCsrf: () => ensureCsrf(),
 };
+
+/** A fresh key for one money action (reuse it for retries of that same action). */
+export function newIdempotencyKey() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

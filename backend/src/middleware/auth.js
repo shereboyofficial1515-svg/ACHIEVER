@@ -1,4 +1,5 @@
 import { COOKIES } from '../config/constants.js';
+import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/http.js';
 import { readSession } from '../utils/cookies.js';
@@ -27,6 +28,8 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     await sessionService.validate(marker.sessionId, user.id);
     user.sessionId = marker.sessionId;
   }
+  // The Android app returns from Paystack to itself; browsers return to the website.
+  user.clientPlatform = req.get('origin') === env.androidAppOrigin ? 'android' : 'web';
   req.user = user;
   next();
 });

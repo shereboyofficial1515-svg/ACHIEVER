@@ -5,6 +5,9 @@ import BrandLogo from '../../components/brand/BrandLogo.jsx';
 import PublicFooter from './PublicFooter.jsx';
 import { useReveal } from '../../hooks/useMotion.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { image } from '../../content/imageAssets.js';
+
+const HERO = image('heroMarket');
 
 const FEATURES = [
   { icon: UsersRound, title: 'Osusu rotation, tracked', text: 'Fixed contributions, a clear payout order, and a live view of who has paid each cycle.' },
@@ -23,9 +26,17 @@ export default function Landing() {
   return (
     <>
       <div className="hero">
+        {/* Real photograph + brand gradient overlay (CSS) + text. The photo is decorative:
+            the headline carries the message. Phones get a portrait crop. */}
+        <picture className="hero-media">
+          <source media="(max-width: 700px)" srcSet={HERO.mobileSrcSet} sizes="100vw" />
+          <img src={HERO.src} srcSet={HERO.srcSet} sizes="100vw" alt="" width="1920" height="1280"
+            fetchpriority="high" decoding="async" style={{ objectPosition: HERO.focal }} />
+        </picture>
         <header className="public-header">
           <BrandLogo variant="stacked" width={116} plate />
           <nav className="row public-nav" aria-label="Site">
+            <Link to="/help">Help Center</Link>
             <a href="/documentation.html">Documentation</a>
             <a href="/security.html">Security</a>
             <a href="/support.html">Support</a>
@@ -50,10 +61,10 @@ export default function Landing() {
         </header>
         <div className="inner" ref={heroRef}>
           <div>
-            <h1>Ajo and Osusu savings, with records everyone can trust.</h1>
+            <h1>Save with your Ajo or Osusu group. Every naira on record.</h1>
             <p className="lead">
-              ACHIEVER helps Nigerian savings groups and collectors keep accurate, verified records of every contribution, payout and
-              return — and keeps members connected.
+              ACHIEVER runs rotational Osusu groups and collector savings for Nigerians: contributions are paid through Paystack and
+              verified, payouts follow a fixed order, and every member sees the same record.
             </p>
             <div className="ctas">
               <Button to={signedIn ? '/app' : '/register'} variant="gold">
@@ -83,6 +94,10 @@ export default function Landing() {
             </div>
           </div>
         </div>
+        <p className="hero-credit">
+          Photo by <a href={HERO.credit.url} rel="noopener noreferrer" target="_blank">{HERO.credit.name}</a> on{' '}
+          <a href={HERO.credit.sourceUrl} rel="noopener noreferrer" target="_blank">Unsplash</a>
+        </p>
       </div>
 
       <section className="section">

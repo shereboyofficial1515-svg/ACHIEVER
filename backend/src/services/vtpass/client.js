@@ -18,17 +18,24 @@ export function isConfigured() {
   return env.BILL_PROVIDER === 'vtpass' && Boolean(env.VTPASS_API_KEY && env.VTPASS_PUBLIC_KEY && env.VTPASS_SECRET_KEY);
 }
 
-export function isSandbox() {
-  return /(^|\.)sandbox\.vtpass\.com$/i.test(new URL(env.VTPASS_BASE_URL).hostname);
+const hostIsSandbox = () => /(^|\.)sandbox\.vtpass\.com$/i.test(new URL(env.vtpassBaseUrl).hostname);
+
+/** 'sandbox' | 'production' — decided only by the backend environment (VTPASS_ENV). */
+export function environment() {
+  return env.vtpassEnv;
 }
 
-/** Refuse to run with a mismatched environment (e.g. sandbox flag but live URL). */
+export function isSandbox() {
+  return env.vtpassEnv === 'sandbox';
+}
+
+/** Refuse to run when VTPASS_ENV and the base URL disagree (no accidental live money in "sandbox"). */
 export function assertEnvironment() {
-  if (env.VTPASS_SANDBOX && !isSandbox()) {
-    throw new Error('VTPASS_SANDBOX=true but VTPASS_BASE_URL is not the VTpass sandbox. Refusing to start bill payments.');
+  if (isSandbox() && !hostIsSandbox()) {
+    throw new Error('VTPASS_ENV=sandbox but VTPASS_BASE_URL is not the VTpass sandbox. Refusing to start bill payments.');
   }
-  if (!env.VTPASS_SANDBOX && isSandbox() && env.isProduction) {
-    throw new Error('VTPASS_SANDBOX=false but VTPASS_BASE_URL points at the sandbox.');
+  if (!isSandbox() && hostIsSandbox()) {
+    throw new Error('VTPASS_ENV=production but VTPASS_BASE_URL points at the VTpass sandbox.');
   }
 }
 
@@ -47,7 +54,7 @@ export async function call(method, path, body, { kind = 'catalog', fetchImpl = f
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS[method] ?? 30_000);
   const started = Date.now();
   try {
-    const res = await fetchImpl(`${env.VTPASS_BASE_URL.replace(/\/$/, '')}${path}`, {
+    const res = await fetchImpl(`${env.vtpassBaseUrl}${path}`, {
       method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal,
     });
     const json = await res.json().catch(() => null);

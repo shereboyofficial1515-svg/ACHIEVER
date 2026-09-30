@@ -40,7 +40,7 @@ const LIST_STATUSES = {
   CANCELLED: ['cancelled'],
 };
 
-export async function list({ userId, status, category, search, page, pageSize, withUser, fromDate, toDate, requestId, providerTransactionId }) {
+export async function list({ userId, status, category, serviceId, search, page, pageSize, withUser, fromDate, toDate, requestId, providerTransactionId }) {
   const { from, to } = toRange({ page, pageSize });
   let q = db.from('bill_payments').select(withUser ? `${COLUMNS}, user:profiles(full_name, email)` : COLUMNS, { count: 'exact' })
     .neq('status', 'awaiting_authorization')
@@ -48,6 +48,7 @@ export async function list({ userId, status, category, search, page, pageSize, w
   if (userId) q = q.eq('user_id', userId);
   if (status) q = LIST_STATUSES[status] ? q.in('status', LIST_STATUSES[status]) : q.eq('status', status);
   if (category) q = q.eq('category', category);
+  if (serviceId) q = q.eq('service_id', serviceId);
   if (fromDate) q = q.gte('created_at', fromDate);
   if (toDate) q = q.lte('created_at', toDate);
   if (requestId) q = q.eq('provider_request_id', requestId);
@@ -139,8 +140,12 @@ export async function markServicesUnavailable(category, keepIds) {
   return run(q.select('service_id'));
 }
 
-export async function setServiceEnabled(serviceId, enabled, reason) {
-  return one(db.from('bill_services').update({ enabled, disabled_reason: enabled ? null : reason }).eq('service_id', serviceId).select('*').maybeSingle());
+export async function updateService(serviceId, patch) {
+  return one(db.from('bill_services').update({ ...patch, changed_at: new Date().toISOString() }).eq('service_id', serviceId).select('*').maybeSingle());
+}
+
+export async function serviceStats() {
+  return rpc('bill_service_stats', {});
 }
 
 export async function listProducts(serviceId) {

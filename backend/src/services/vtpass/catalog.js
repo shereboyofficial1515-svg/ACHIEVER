@@ -140,8 +140,11 @@ export async function products(serviceId, { force = false } = {}) {
     if (cached.length) return cached;
     throw AppError.unavailable('Could not load plans right now. Please try again shortly.', 'BILL_PROVIDER_UNAVAILABLE');
   }
+  // VTpass lists can repeat a variation code (seen for MTN, Glo and 9mobile data): keep the first.
+  const seen = new Set();
   const rows = list
     .filter((v) => v.variation_code && Number.isFinite(Number(v.variation_amount)))
+    .filter((v) => !seen.has(String(v.variation_code)) && seen.add(String(v.variation_code)))
     .map((v) => ({
       service_id: serviceId,
       variation_code: String(v.variation_code).slice(0, 120),
@@ -151,8 +154,14 @@ export async function products(serviceId, { force = false } = {}) {
       available: true,
       refreshed_at: new Date().toISOString(),
     }));
-  await billRepo.replaceProducts(serviceId, rows);
-  return billRepo.listProducts(serviceId);
+  try {
+    await billRepo.replaceProducts(serviceId, rows);
+    return await billRepo.listProducts(serviceId);
+  } catch (err) {
+    // The cache is an optimisation: members still get the current plans if it cannot be written.
+    logger.warn({ serviceId, err: err.message }, 'plan cache not updated');
+    return rows.sort((a, b) => a.amount - b.amount);
+  }
 }
 
 /** "MTN N1000 1.5GB - 30 days" -> "30 days" (best effort; VTpass has no separate validity field). */

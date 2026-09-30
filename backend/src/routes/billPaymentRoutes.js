@@ -14,6 +14,7 @@ const r = Router();
 
 // Catalogue (normalised ACHIEVER data, not raw VTpass responses)
 r.get('/overview', b.overview);
+r.get('/status', b.status);
 r.get('/services', validate({ query: s.categoryQuery }), b.services);
 r.get('/airtime/networks', b.servicesFor('airtime'));
 r.get('/data/networks', b.servicesFor('data'));

@@ -86,11 +86,14 @@ const schema = z.object({
   LIVEKIT_URL: z.string().optional().default(''),
 
   BILL_PROVIDER: z.enum(['disabled', 'vtpass']).default('disabled'),
-  VTPASS_BASE_URL: z.string().url().default('https://sandbox.vtpass.com/api'),
+  // sandbox | production. Only this backend variable decides; clients can never change it.
+  VTPASS_ENV: z.enum(['sandbox', 'production']).optional(),
+  // Optional override; defaults to the documented URL for VTPASS_ENV.
+  VTPASS_BASE_URL: z.string().url().optional(),
   VTPASS_API_KEY: z.string().optional().default(''),
   VTPASS_PUBLIC_KEY: z.string().optional().default(''),
   VTPASS_SECRET_KEY: z.string().optional().default(''),
-  // Guard rail: when true the base URL must be VTpass's sandbox (no real money can move).
+  // Legacy switch (before VTPASS_ENV): true = sandbox. Ignored when VTPASS_ENV is set.
   VTPASS_SANDBOX: bool(true),
   // Secret path segment for the VTpass callback URL: /api/webhooks/vtpass/<token>.
   VTPASS_WEBHOOK_TOKEN: z.string().optional().default(''),
@@ -138,6 +141,8 @@ const derive = (label) => crypto.createHmac('sha256', parsed.data.SESSION_SECRET
 // auth cookies must be SameSite=None; Secure or the browser will not send them.
 const crossSite = siteOf(apiPublicUrl) !== siteOf(parsed.data.CLIENT_URL);
 
+const vtpassEnv = parsed.data.VTPASS_ENV || (parsed.data.VTPASS_SANDBOX ? 'sandbox' : 'production');
+
 export const env = Object.freeze({
   ...parsed.data,
   apiPublicUrl,
@@ -149,6 +154,8 @@ export const env = Object.freeze({
   adminSessionSecret: parsed.data.ADMIN_SESSION_SECRET || derive('admin-session'),
   adminMfaKey: parsed.data.ADMIN_MFA_ENCRYPTION_KEY || derive('admin-mfa'),
   dataEncryptionKey: parsed.data.DATA_ENCRYPTION_KEY || derive('data-encryption'),
+  vtpassEnv: vtpassEnv,
+  vtpassBaseUrl: (parsed.data.VTPASS_BASE_URL || (vtpassEnv === 'production' ? 'https://vtpass.com/api' : 'https://sandbox.vtpass.com/api')).replace(/\/$/, ''),
   adminSecretsDerived: !parsed.data.ADMIN_SESSION_SECRET || !parsed.data.ADMIN_MFA_ENCRYPTION_KEY,
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',

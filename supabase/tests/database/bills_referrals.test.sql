@@ -4,7 +4,7 @@
 -- =====================================================================
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(69);
 
 -- ---------------------------------------------------------------------
 -- Fixtures: referrer R, admins A1/A2, seven referred users
@@ -186,6 +186,16 @@ select is((select string_agg(to_status, '>' order by id) from bill_transaction_e
           'awaiting_authorization>awaiting_payment>paid>processing>delivered>reversed', 'full status history is kept');
 select throws_like($$ delete from bill_payments where id = '22000000-0000-0000-0000-000000000001' $$, '%BILL_IMMUTABLE%', 'bills cannot be deleted');
 select throws_like($$ delete from bill_transaction_events $$, '%APPEND_ONLY%', 'bill status history is append-only');
+
+-- Provider controls (migration 013)
+insert into bill_services (service_id, category, name) values ('mtn', 'airtime', 'MTN Airtime VTU') on conflict do nothing;
+update bill_services set maintenance = true, maintenance_message = 'Upgrading' where service_id = 'mtn';
+select is((select maintenance_message from bill_services where service_id = 'mtn'), 'Upgrading', 'a provider can be put into maintenance with a message');
+select is((select last_success_at is not null from bill_service_stats() where service_id = 'mtn'), true, 'provider stats show the last successful purchase');
+select is((select last_response_code from bill_service_stats() where service_id = 'mtn'), null::text, 'no provider response recorded yet for this test bill');
+set local role authenticated;
+select throws_like($$ select * from bill_service_stats() $$, '%permission denied%', 'members cannot read provider statistics');
+reset role;
 
 select * from finish();
 rollback;

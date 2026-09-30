@@ -11,7 +11,8 @@ import * as refundService from './refundService.js';
 import * as settingsService from './settingsService.js';
 import * as transactionAuth from './transactionAuthService.js';
 import { CATEGORIES, CATEGORY_LABELS, serviceRules, validityOf } from './vtpass/catalog.js';
-import { isConfigured } from './vtpass/client.js';
+import { environment, isConfigured } from './vtpass/client.js';
+import { describeProvider } from './vtpass/providers.js';
 import { AppError } from '../utils/AppError.js';
 import { newPaymentReference } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
@@ -87,16 +88,26 @@ export async function overview() {
   }
   return {
     configured: Boolean(provider && isConfigured()),
-    sandbox: Boolean(provider?.sandbox),
+    environment: provider && isConfigured() ? environment() : null,
+    testMode: Boolean(provider && isConfigured() && environment() === 'sandbox'),
+    sandbox: Boolean(provider && isConfigured() && environment() === 'sandbox'),
     status: providerHealth.status('vtpass', Boolean(provider && isConfigured())),
     categories,
   };
 }
 
+/** ACHIEVER provider model (the apps map providerCode/logoUrl to branding; never raw VTpass data). */
 function formatService(s) {
   const rules = serviceRules(s.category, s.service_id);
+  const p = describeProvider(s.service_id, s.name);
   return {
-    serviceId: s.service_id, category: s.category, name: s.name, imageUrl: s.image_url,
+    id: s.service_id, serviceId: s.service_id, category: s.category, categoryLabel: CATEGORY_LABELS[s.category],
+    providerCode: p.providerCode, providerName: p.providerName, shortName: p.shortName, description: p.description,
+    name: p.providerName, logoKey: p.providerCode,
+    logoUrl: s.image_url ? `/api/bills-assets/logos/${encodeURIComponent(s.service_id)}` : null,
+    serviceType: rules.plans ? 'plans' : rules.verify ? 'account' : 'amount',
+    enabled: Boolean(s.enabled), supported: Boolean(s.available),
+    maintenance: Boolean(s.maintenance), maintenanceMessage: s.maintenance ? (s.maintenance_message || 'This provider is under maintenance. Please try again later.') : null,
     minAmount: s.min_amount != null ? Number(s.min_amount) : null, maxAmount: s.max_amount != null ? Number(s.max_amount) : null,
     needsVerification: Boolean(rules.verify), hasPlans: Boolean(rules.plans), meterType: Boolean(rules.meterType),
     quantity: Boolean(rules.quantity), returnsPins: Boolean(rules.pins), verifyLabel: rules.verifyLabel || null,
@@ -118,14 +129,43 @@ async function assertCategoryOpen(category) {
 }
 
 export async function listServices(category) {
+  if (!category) return catalogByCategory();
   const { services } = await assertCategoryOpen(category);
   return services.filter((s) => s.category === category && s.available && s.enabled).map(formatService);
+}
+
+/** GET /api/bills/services (no category) — enabled providers grouped by category; unavailable categories flagged. */
+export async function catalogByCategory() {
+  const cfg = await billSettings();
+  const provider = getBillProvider('airtime');
+  const all = provider && isConfigured() ? await provider.catalog.services().catch(() => []) : [];
+  const out = [];
+  for (const key of CATEGORIES) {
+    const block = await categoryBlock(key, cfg, all);
+    out.push({
+      category: key, label: CATEGORY_LABELS[key], available: !block, reason: block,
+      providers: block ? [] : all.filter((s) => s.category === key && s.available && s.enabled).map(formatService),
+    });
+  }
+  return out;
+}
+
+/** Safe configuration status for the apps: environment only, never credentials. */
+export async function status() {
+  const configured = isConfigured();
+  return {
+    environment: configured ? environment() : null,
+    testMode: configured ? environment() === 'sandbox' : false,
+    configured,
+    status: providerHealth.status('vtpass', configured),
+  };
 }
 
 async function openService(category, serviceId) {
   const ctx = await assertCategoryOpen(category);
   const service = ctx.services.find((s) => s.service_id === serviceId && s.category === category);
   if (!service || !service.available || !service.enabled) throw AppError.unavailable('This provider is currently unavailable.', 'BILL_SERVICE_UNAVAILABLE');
+  if (service.maintenance) throw AppError.unavailable(service.maintenance_message || 'This provider is under maintenance. Please try again later.', 'BILL_PROVIDER_MAINTENANCE');
   return { ...ctx, service, rules: serviceRules(category, serviceId) };
 }
 
@@ -594,11 +634,11 @@ export async function adminDetail(id) {
 
 export async function providerStatus() {
   const configured = isConfigured();
-  const provider = getBillProvider('airtime');
   return {
     ...(await providerHealth.snapshot('vtpass', configured)),
     configured,
-    sandbox: Boolean(provider?.sandbox),
+    environment: environment(),
+    sandbox: environment() === 'sandbox',
     webhookConfigured: Boolean(env.VTPASS_WEBHOOK_TOKEN),
   };
 }
@@ -606,7 +646,19 @@ export async function providerStatus() {
 export async function adminServices() {
   const provider = getBillProvider('airtime');
   const rows = provider && isConfigured() ? await provider.catalog.services().catch(() => []) : await billRepo.listServices();
-  return rows.map((s) => ({ ...formatService(s), available: s.available, enabled: s.enabled, disabledReason: s.disabled_reason, refreshedAt: s.refreshed_at }));
+  const stats = new Map(((await billRepo.serviceStats().catch(() => [])) || []).map((r) => [r.service_id, r]));
+  const health = providerHealth.status('vtpass', isConfigured());
+  return rows.map((s) => {
+    const st = stats.get(s.service_id) || {};
+    return {
+      ...formatService(s), available: s.available, enabled: s.enabled, disabledReason: s.disabled_reason, refreshedAt: s.refreshed_at,
+      environment: environment(), health: !s.enabled ? 'disabled' : s.maintenance ? 'maintenance' : !s.available ? 'unavailable' : health,
+      lastSuccessAt: st.last_success_at || null, lastFailureAt: st.last_failure_at || null,
+      successes24h: Number(st.successes_24h || 0), failures24h: Number(st.failures_24h || 0), pendingNow: Number(st.pending_now || 0),
+      lastResponse: st.last_response_at ? { code: st.last_response_code, status: st.last_response_status, at: st.last_response_at } : null,
+      changedAt: s.changed_at || null,
+    };
+  });
 }
 
 export async function refreshCatalog(actor) {
@@ -617,10 +669,21 @@ export async function refreshCatalog(actor) {
   return r;
 }
 
-export async function setServiceEnabled(actor, serviceId, enabled, reason, req) {
-  const row = await billRepo.setServiceEnabled(serviceId, enabled, reason);
-  if (!row) throw AppError.notFound('Service not found');
-  await auditService.record({ actorId: actor.id, action: enabled ? 'admin.bills.service_enabled' : 'admin.bills.service_disabled', resourceType: 'bill_service', resourceId: serviceId, reason, req });
+/** Admin: switch a provider on/off or into maintenance. Reason required; audited with before/after. */
+export async function setServiceControl(actor, serviceId, { enabled, maintenance, maintenanceMessage, reason }, req) {
+  const patch = {};
+  if (enabled !== undefined) Object.assign(patch, { enabled, disabled_reason: enabled ? null : reason });
+  if (maintenance !== undefined) Object.assign(patch, { maintenance, maintenance_message: maintenance ? (maintenanceMessage || null) : null });
+  if (!Object.keys(patch).length) throw AppError.badRequest('Nothing to change');
+  const before = await billRepo.findService(serviceId);
+  if (!before) throw AppError.notFound('Service not found');
+  const row = await billRepo.updateService(serviceId, patch);
+  const action = maintenance !== undefined ? (maintenance ? 'admin.bills.provider_maintenance_on' : 'admin.bills.provider_maintenance_off')
+    : enabled ? 'admin.bills.service_enabled' : 'admin.bills.service_disabled';
+  await auditService.record({
+    actorId: actor.id, action, resourceType: 'bill_service', resourceId: serviceId, reason, req,
+    previousState: { enabled: before.enabled, maintenance: before.maintenance }, newState: { enabled: row.enabled, maintenance: row.maintenance },
+  });
   return formatService(row);
 }
 

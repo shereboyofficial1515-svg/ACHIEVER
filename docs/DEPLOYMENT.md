@@ -137,8 +137,8 @@ deploying this API version: payments send an `Idempotency-Key` that is stored th
 
 ## 7c. Bills, referrals, biometrics (migration 011)
 
-- Apply `supabase/migrations/20260930000011_bills_referrals_transaction_security.sql` **before** deploying this API version.
-- Render env: `BILL_PROVIDER`, `VTPASS_*`, `VTPASS_WEBHOOK_TOKEN`, `DATA_ENCRYPTION_KEY`, and optionally `FCM_*`. Values are listed in `backend/.env.example`; see [BILLS_VTPASS.md](BILLS_VTPASS.md).
+- Apply migrations `20260930000011_…`, `20260930000012_…` (referral codes on Supabase) and `20260930000013_…` (bill provider controls) **before** deploying this API version.
+- Render env: `BILL_PROVIDER`, `VTPASS_ENV` (sandbox until go-live), `VTPASS_*`, `VTPASS_WEBHOOK_TOKEN`, `DATA_ENCRYPTION_KEY`, and optionally `FCM_*`. Values are listed in `backend/.env.example`; see [BILLS_VTPASS.md](BILLS_VTPASS.md).
 
 ## 8. Admin platform (separate Vercel project)
 

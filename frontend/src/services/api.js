@@ -191,3 +191,9 @@ export const api = {
 export function newIdempotencyKey() {
   return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+/** Absolute URL for an image the API serves (e.g. provider logos); works on the website and in the Android app. */
+export function apiAssetUrl(path) {
+  if (!path) return null;
+  return path.startsWith('/api/') ? `${BASE}${path}` : null;
+}

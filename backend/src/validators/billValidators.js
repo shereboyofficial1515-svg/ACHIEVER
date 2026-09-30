@@ -8,7 +8,7 @@ const category = z.enum(['airtime', 'data', 'electricity', 'tv', 'education', 'b
 const kobo = z.coerce.number().int().min(5000).max(50_000_000);
 const accountNumber = z.string().trim().regex(/^[A-Za-z0-9-]{4,30}$/, 'Enter a valid number');
 
-export const categoryQuery = z.object({ category });
+export const categoryQuery = z.object({ category: category.optional() });
 export const serviceParams = z.object({ serviceId });
 export const categoryServiceParams = z.object({ category, serviceId });
 
@@ -60,15 +60,18 @@ export const history = z.object({
 export const adminList = history.extend({
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   userId: z.string().uuid().optional(),
+  serviceId: serviceId.optional(),
   requestId: z.string().trim().max(80).optional(),
   providerTransactionId: z.string().trim().max(80).optional(),
   fromDate: z.string().datetime({ offset: true }).optional(),
   toDate: z.string().datetime({ offset: true }).optional(),
 });
 export const serviceToggle = z.object({
-  enabled: z.boolean(),
+  enabled: z.boolean().optional(),
+  maintenance: z.boolean().optional(),
+  maintenanceMessage: z.string().trim().max(200).optional(),
   reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(500),
-});
+}).refine((v) => v.enabled !== undefined || v.maintenance !== undefined, { message: 'Nothing to change', path: ['enabled'] });
 export const reconciliationList = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),

@@ -14,6 +14,7 @@ vi.mock('../../src/services/vtpass/client.js', () => ({
   PROVIDER: 'vtpass',
   isConfigured: () => state.configured,
   isSandbox: () => true,
+  environment: () => 'sandbox',
   assertEnvironment: () => {},
   call: vi.fn(async (method, path, body) => {
     state.calls.push({ method, path, body });
@@ -35,7 +36,8 @@ vi.mock('../../src/services/vtpass/client.js', () => ({
     if (path.startsWith('/service-variations')) {
       const id = decodeURIComponent(path.split('=')[1]);
       const v = {
-        'mtn-data': [{ variation_code: 'mtn-1gb', name: 'MTN N1000 1.5GB - 30 days', variation_amount: '1000.00', fixedPrice: 'Yes' }],
+        // VTpass really repeats some codes; the duplicate must be ignored, not break the list.
+        'mtn-data': [{ variation_code: 'mtn-1gb', name: 'MTN N1000 1.5GB - 30 days', variation_amount: '1000.00', fixedPrice: 'Yes' }, { variation_code: 'mtn-1gb', name: 'duplicate', variation_amount: '1.00', fixedPrice: 'Yes' }],
         dstv: [{ variation_code: 'dstv-padi', name: 'DStv Padi N2,950', variation_amount: '2950.00', fixedPrice: 'Yes' }],
         waec: [{ variation_code: 'waecdirect', name: 'WASSCE', variation_amount: '900', fixedPrice: 'Yes' }],
       }[id] || [];
@@ -107,11 +109,17 @@ vi.mock('../../src/repositories/billRepository.js', () => ({
   cancelStaleAwaiting: vi.fn(async () => []),
   cancelExpiredQuotes: vi.fn(async () => []),
   list: vi.fn(async () => ({ rows: [], total: 0 })),
+  findService: vi.fn(async (id) => state.services.get(id) || null),
+  updateService: vi.fn(async (id, patch) => Object.assign(state.services.get(id), patch)),
+  serviceStats: vi.fn(async () => []),
   listServices: vi.fn(async (category) => [...state.services.values()].filter((s) => !category || s.category === category)),
   upsertServices: vi.fn(async (rows) => { for (const r of rows) state.services.set(r.service_id, { enabled: true, ...state.services.get(r.service_id), ...r }); return rows; }),
   markServicesUnavailable: vi.fn(async (category, keep) => { for (const s of state.services.values()) if (s.category === category && !keep.includes(s.service_id)) s.available = false; return []; }),
   listProducts: vi.fn(async (id) => state.products.get(id) || []),
-  replaceProducts: vi.fn(async (id, rows) => { state.products.set(id, rows); }),
+  replaceProducts: vi.fn(async (id, rows) => {
+    if (new Set(rows.map((r) => r.variation_code)).size !== rows.length) throw new Error('ON CONFLICT DO UPDATE command cannot affect row a second time');
+    state.products.set(id, rows);
+  }),
 }));
 
 const txState = { challenges: new Map(), credentials: new Map(), keys: new Map(), events: [] };
@@ -360,5 +368,32 @@ describe('VTpass webhook', () => {
     expect(await billService.handleWebhook({ type: 'transaction-update', data: { requestId: '202601010000nope' } })).toEqual({ handled: false });
     expect(await billService.handleWebhook({ type: 'variations-update' })).toEqual({ handled: false });
     expect(call).not.toHaveBeenCalledWith('POST', '/pay', expect.anything(), expect.anything());
+  });
+});
+
+describe('provider model, status and maintenance', () => {
+  it('providers come normalised with a providerCode and an ACHIEVER logo URL (never a VTpass URL)', async () => {
+    await billService.overview();
+    state.services.get('ikeja-electric').image_url = 'https://sandbox.vtpass.com/resources/products/200X200/Ikeja.jpg';
+    const list = await billService.listServices('electricity');
+    expect(list[0]).toMatchObject({ providerCode: 'ikedc', providerName: 'Ikeja Electric', shortName: 'IKEDC', category: 'electricity', enabled: true, supported: true });
+    expect(list[0].logoUrl).toBe('/api/bills-assets/logos/ikeja-electric');
+    const grouped = await billService.listServices();
+    expect(grouped.find((g) => g.category === 'airtime').providers.map((x) => x.providerCode)).toEqual(['mtn']);
+    expect(grouped.find((g) => g.category === 'betting')).toMatchObject({ available: false, reason: 'NOT_OFFERED', providers: [] });
+  });
+
+  it('status reports the backend environment only (sandbox = test mode), never credentials', async () => {
+    const s = await billService.status();
+    expect(s).toEqual({ environment: 'sandbox', testMode: true, configured: true, status: 'operational' });
+    expect(JSON.stringify(s)).not.toMatch(/key|secret|PK_|SK_/i);
+  });
+
+  it('a provider in maintenance cannot be bought and the member sees the message', async () => {
+    await billService.overview();
+    await billService.setServiceControl({ id: 'admin-1' }, 'mtn', { maintenance: true, maintenanceMessage: 'MTN is being upgraded', reason: 'Provider outage notice' }, {});
+    await expect(billService.quote(user, { category: 'airtime', serviceId: 'mtn', phone: '+2348011111111', amount: 100000 }))
+      .rejects.toMatchObject({ code: 'BILL_PROVIDER_MAINTENANCE', message: 'MTN is being upgraded' });
+    await billService.setServiceControl({ id: 'admin-1' }, 'mtn', { maintenance: false, reason: 'Provider back online' }, {});
   });
 });

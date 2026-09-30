@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import * as referralService from './referralService.js';
 import { REGISTRATION_ROLE_MAP } from '../config/constants.js';
 import { supabaseAdmin, createPkceClient } from '../integrations/supabase/client.js';
 import * as userRepo from '../repositories/userRepository.js';
@@ -221,6 +222,9 @@ export async function completeProfile(identity, input, req) {
   if (!lga || lga.state_code !== input.stateCode) throw AppError.unprocessable('The selected LGA does not belong to the selected state', 'INVALID_LGA');
   if (await userRepo.findByPhone(input.phone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
   if (await userRepo.findByEmail(identity.email)) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
+  if (input.referralCode && !(await referralService.validateCode(input.referralCode)).valid) {
+    throw AppError.badRequest('That referral code is not valid. Check it or leave the field empty.', 'INVALID_REFERRAL_CODE');
+  }
   const fullName = [input.firstName, input.middleName, input.lastName].filter(Boolean).join(' ');
   await userRepo.createProfileWithRoles({
     p_user_id: identity.id, p_full_name: fullName, p_email: identity.email.toLowerCase(), p_phone: input.phone,
@@ -235,6 +239,7 @@ export async function completeProfile(identity, input, req) {
     ...(identity.emailVerified ? { email_verified_at: new Date().toISOString(), account_status: 'active' } : {}),
   });
   await complianceRepo.recomputeKyc(identity.id);
+  if (input.referralCode) await referralService.attachAfterRegistration(identity.id, input.referralCode, req);
   await auditService.record({ actorId: identity.id, action: `auth.register.oauth_${identity.provider}`, resourceType: 'profile', resourceId: identity.id, req });
   if (identity.emailVerified) emailService.sendWelcomeEmail(identity.email, input.firstName).catch(() => {});
   return { userId: identity.id, emailVerificationRequired: !identity.emailVerified };

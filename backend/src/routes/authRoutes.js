@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as c from '../controllers/authController.js';
+import * as t from '../controllers/transactionSecurityController.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireStepUp } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -11,6 +12,12 @@ import { idParam } from '../validators/common.js';
 const r = Router();
 
 r.get('/csrf', c.csrf);
+// Referral code check on the registration form (before the account exists)
+r.get('/referral/validate', authLimiter, validate({ query: s.referralCodeQuery }), t.referralValidate);
+r.get('/referral/terms', t.referralTerms);
+// Android biometric sign-in (device key signature; no password stored on the phone)
+r.post('/biometric/challenge', authLimiter, validate({ body: s.biometricChallenge }), t.biometricChallenge);
+r.post('/biometric/login', authLimiter, validate({ body: s.biometricLogin }), t.biometricLogin);
 r.post('/register', authLimiter, validate({ body: s.register }), c.register);
 r.post('/login', authLimiter, validate({ body: s.login }), c.login);
 r.post('/refresh', refreshLimiter, c.refresh);

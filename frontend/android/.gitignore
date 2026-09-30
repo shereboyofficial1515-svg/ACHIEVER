@@ -104,3 +104,7 @@ app/src/main/res/xml/config.xml
 keystore.properties
 *.jks
 *.keystore
+
+# Firebase config for push (contains project keys; provide per environment, never commit)
+google-services.json
+app/google-services.json

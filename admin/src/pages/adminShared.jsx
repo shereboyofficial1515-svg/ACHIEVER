@@ -8,12 +8,12 @@ import { api } from '../services/api.js';
  * Server-side filtered, paginated admin table. `filters` describe the inputs;
  * values are sent as query parameters so large datasets never load in full.
  */
-export function AdminTable({ endpoint, columns, filters = [], onRowClick, emptyTitle = 'No records', reloadKey, pageSize = 25 }) {
+export function AdminTable({ endpoint, columns, filters = [], onRowClick, emptyTitle = 'No records', reloadKey, pageSize = 25, extraParams = {} }) {
   const [values, setValues] = useState(() => Object.fromEntries(filters.map((f) => [f.name, f.initial ?? ''])));
   const [page, setPage] = useState(1);
   const search = useDebounce(values.search);
-  const params = { ...values, search, page, pageSize };
-  const list = useAsync(() => api.get(endpoint, params), [endpoint, JSON.stringify({ ...values, search: undefined }), search, page, reloadKey]);
+  const params = { ...extraParams, ...values, search, page, pageSize };
+  const list = useAsync(() => api.get(endpoint, params), [endpoint, JSON.stringify({ ...extraParams, ...values, search: undefined }), search, page, reloadKey]);
 
   const set = (name) => (e) => {
     setValues({ ...values, [name]: e.target.value });

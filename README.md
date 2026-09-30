@@ -47,6 +47,9 @@ supabase test db            # pgTAP: 46 financial-rule assertions + 14 RLS asser
 ## Documentation
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design, database, financial engine, auth, RLS, payments, payouts, notifications, realtime, calls, flows
 * [docs/API.md](docs/API.md) — endpoint specification
+* [docs/BILLS_VTPASS.md](docs/BILLS_VTPASS.md) — Bills & Services: VTpass architecture, sandbox/production setup, webhook, transaction lifecycle, supported services
+* [docs/REFERRALS.md](docs/REFERRALS.md) — referral programme: qualification rules, anti-fraud flags, reward lifecycle, admin controls
+* [docs/TRANSACTION_SECURITY.md](docs/TRANSACTION_SECURITY.md) — transaction PIN, payment approval, Android biometrics, push notifications, permissions
 * [docs/ANDROID.md](docs/ANDROID.md) — Android app (Capacitor): build, signing, how it talks to the API, test checklist
 * [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — colours, light/dark/system themes, imagery and credits, critical-action confirmations
 * [docs/ADMIN_PLATFORM.md](docs/ADMIN_PLATFORM.md) — separate Site Administration app: admin sign-in with authenticator app, roles/permissions, audit, SMS switch and fallback, settings, account states

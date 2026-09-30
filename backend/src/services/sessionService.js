@@ -179,6 +179,9 @@ export async function end(sessionId, reason) {
 export async function revokeAll(userId, reason) {
   const rows = await securityRepo.revokeSessions(userId, { reason });
   forget(rows.map((r) => r.id));
+  // Biometric device keys could sign a new session: they end with the sessions.
+  const { revokeAllForUser } = await import('./deviceKeyService.js');
+  await revokeAllForUser(userId, `sessions_revoked:${reason}`.slice(0, 200));
   return rows.length;
 }
 

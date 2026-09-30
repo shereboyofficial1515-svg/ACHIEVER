@@ -14,6 +14,7 @@ const group = { params: s.groupParam };
 // Groups
 r.get('/groups', validate({ query: s.listGroups }), c.listGroups);
 r.post('/groups', requireActiveOperator(ROLES.OSUSU_ADMIN), validate({ body: s.createGroup }), c.createGroup);
+r.get('/groups/terms', validate({ query: s.groupCodeQuery }), c.groupTerms);
 r.post('/groups/join', validate({ body: s.joinGroup }), c.joinGroup);
 r.get('/groups/:groupId', validate(group), c.getGroup);
 r.patch('/groups/:groupId', validate({ ...group, body: s.updateGroup }), c.updateGroup);

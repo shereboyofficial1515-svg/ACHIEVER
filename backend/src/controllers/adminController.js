@@ -1,7 +1,6 @@
 import * as adminService from '../services/adminService.js';
 import * as onboardingService from '../services/onboardingService.js';
 import * as payoutService from '../services/payoutService.js';
-import * as billService from '../services/billService.js';
 import * as supportService from '../services/supportService.js';
 import * as settingsService from '../services/settingsService.js';
 import * as auditService from '../services/auditService.js';
@@ -33,7 +32,6 @@ export const setCollectorStatus = asyncHandler(async (req, res) => {
 
 export const listTransactions = asyncHandler(async (req, res) => paged(res, await adminService.listTransactions(v(req).query)));
 export const listPaymentAttempts = asyncHandler(async (req, res) => paged(res, await adminService.listPaymentAttempts(v(req).query)));
-export const listBills = asyncHandler(async (req, res) => paged(res, await billService.listAll(v(req).query)));
 
 export const payoutQueue = asyncHandler(async (_req, res) => ok(res, await payoutService.queue()));
 export const confirmPayout = asyncHandler(async (req, res) => {

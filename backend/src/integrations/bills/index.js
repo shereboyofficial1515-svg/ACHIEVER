@@ -1,33 +1,39 @@
 import { env } from '../../config/env.js';
-import { disabledProvider } from './disabledProvider.js';
-import { createVtpassProvider } from './vtpassProvider.js';
+import { vtpassProvider } from '../../services/vtpass/index.js';
+import { assertEnvironment } from '../../services/vtpass/client.js';
 
 /**
- * Bill-payment provider abstraction.
+ * Bill-payment provider registry.
  *
- * Paystack collects the customer's money; a separate licensed VTU/biller
- * aggregator delivers airtime, data and electricity. Every provider must
- * implement:
+ * Paystack collects the customer's money; a licensed biller aggregator
+ * (VTpass today) delivers the service. A provider implements:
  *
- *   name: string
- *   catalog(): { airtime: Service[], data: Service[], electricity: Service[] }
- *   listVariations(serviceId): Promise<{ code, name, amount (kobo), fixedPrice }[]>
- *   verifyCustomer({ serviceId, customerId, meterType }): Promise<{ name, address? }>
- *   purchase({ requestId, category, serviceId, variationCode, customerId, amount (kobo), phone })
- *     : Promise<PurchaseResult>
- *   requery(requestId): Promise<PurchaseResult>
+ *   name, enabled, sandbox
+ *   catalog: { services(category), products(serviceId), refreshServices(), offeredCategories(), serviceRules() }
+ *   verifyCustomer({ serviceId, customerId, meterType }) -> { name, maskedName, details }
+ *   purchase(bill)      -> { outcome: delivered|failed|reversed|processing, code, providerReference,
+ *                             providerTransactionId, token?, pins?, units?, error?, payload (redacted) }
+ *   requery(requestId)  -> same shape
  *
- *   PurchaseResult = { outcome: 'delivered'|'processing'|'failed', providerReference?,
- *                      token?, units?, error?, retryable? }
- *
- * `requestId` is our idempotency key: re-sending the same id must never
- * double-deliver. Swap providers by adding an adapter and setting BILL_PROVIDER.
+ * Categories can be routed to different providers. Betting and recharge-card
+ * PINs are routed to VTpass only when VTpass lists them for this account;
+ * otherwise they are reported as unavailable (never simulated). To add a second
+ * provider (e.g. an approved betting aggregator), implement the interface above
+ * and map the category to it in ROUTES.
  */
-let provider;
+const ROUTES = {
+  airtime: 'vtpass', data: 'vtpass', electricity: 'vtpass', tv: 'vtpass', education: 'vtpass', betting: 'vtpass', recharge_pin: 'vtpass',
+};
+const PROVIDERS = { vtpass: vtpassProvider };
 
-export function getBillProvider() {
-  if (!provider) {
-    provider = env.BILL_PROVIDER === 'vtpass' ? createVtpassProvider() : disabledProvider;
+let checked = false;
+
+export function getBillProvider(category = 'airtime') {
+  const name = env.BILL_PROVIDER === 'disabled' ? null : ROUTES[category];
+  const provider = name ? PROVIDERS[name] : null;
+  if (provider && !checked) {
+    checked = true;
+    assertEnvironment();
   }
-  return provider;
+  return provider || null;
 }

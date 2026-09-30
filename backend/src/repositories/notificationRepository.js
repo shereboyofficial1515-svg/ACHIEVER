@@ -40,8 +40,8 @@ export async function markAllRead(userId) {
 export async function listOutbox(limit = 50) {
   return run(
     db.from('notifications')
-      .select('id, user_id, type, category, title, body, data, email_status, sms_status, email_attempts, sms_attempts, created_at')
-      .or('email_status.eq.pending,sms_status.eq.pending')
+      .select('id, user_id, type, category, title, body, data, email_status, sms_status, push_status, email_attempts, sms_attempts, push_attempts, created_at')
+      .or('email_status.eq.pending,sms_status.eq.pending,push_status.eq.pending')
       .order('created_at')
       .limit(limit),
   );

@@ -135,6 +135,11 @@ See [ANDROID.md](ANDROID.md). The app calls the Render API directly from `https:
 (allowed by `ANDROID_APP_ORIGIN`). Apply migration `20260929000010_idempotency.sql` before
 deploying this API version: payments send an `Idempotency-Key` that is stored there.
 
+## 7c. Bills, referrals, biometrics (migration 011)
+
+- Apply `supabase/migrations/20260930000011_bills_referrals_transaction_security.sql` **before** deploying this API version.
+- Render env: `BILL_PROVIDER`, `VTPASS_*`, `VTPASS_WEBHOOK_TOKEN`, `DATA_ENCRYPTION_KEY`, and optionally `FCM_*`. Values are listed in `backend/.env.example`; see [BILLS_VTPASS.md](BILLS_VTPASS.md).
+
 ## 8. Admin platform (separate Vercel project)
 
 See [ADMIN_PLATFORM.md](ADMIN_PLATFORM.md). In short:

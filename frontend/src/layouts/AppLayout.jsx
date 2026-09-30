@@ -14,6 +14,8 @@ import { api } from '../services/api.js';
 import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
 import { pushOverlay } from '../platform/overlays.js';
 import NetworkBanner from '../components/NetworkBanner.jsx';
+import AppLock from '../components/AppLock.jsx';
+import { usePushRefresh } from '../components/domain/SecuritySettings.jsx';
 
 function Brand({ compact }) {
   return compact
@@ -76,12 +78,25 @@ export default function AppLayout() {
     navigate('/login', { replace: true });
   };
 
+  // Android: keep the push token current; a tapped notification opens its screen.
+  usePushRefresh();
+  useEffect(() => {
+    const go = (e) => { if (e.detail?.to?.startsWith('/app/')) navigate(e.detail.to); };
+    window.addEventListener('achiever:navigate', go);
+    return () => window.removeEventListener('achiever:navigate', go);
+  }, [navigate]);
+  const lockSignOut = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
   // The Android back button closes the menu drawer first.
   useEffect(() => (drawer ? pushOverlay(() => setDrawer(false)) : undefined), [drawer]);
 
   return (
     <div className="app-shell">
       <NetworkBanner />
+      <AppLock onSignOut={lockSignOut} />
       <aside className="sidebar" aria-label="Main navigation">
         <div className="brand">
           <Brand />

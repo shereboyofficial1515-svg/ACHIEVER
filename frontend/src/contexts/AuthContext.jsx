@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, setSessionEndedHandler } from '../services/api.js';
+import { disablePushForSignOut } from '../services/pushDevice.js';
+import { biometricEnrolment, signWithBiometrics } from '../platform/index.js';
 
 const AuthContext = createContext(null);
 
@@ -57,6 +59,21 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  /**
+   * Android biometric sign-in: the server sends a one-time challenge, the phone's
+   * secure key signs it after a fingerprint/face check, the server verifies it.
+   */
+  const loginWithBiometrics = useCallback(async () => {
+    const enrolment = biometricEnrolment();
+    if (!enrolment?.keyId) throw Object.assign(new Error('Biometric sign-in is not set up on this phone'), { code: 'BIOMETRIC_NOT_ENROLLED' });
+    const { data: ch } = await api.post('/auth/biometric/challenge', { keyId: enrolment.keyId });
+    const signature = await signWithBiometrics(ch.signPayload, { title: 'Sign in to ACHIEVER', subtitle: 'Use your fingerprint, face or screen lock', cancelText: 'Use password' });
+    const { data } = await api.post('/auth/biometric/login', { keyId: enrolment.keyId, challengeId: ch.challengeId, signature });
+    setUser(data);
+    setStatus('authenticated');
+    return data;
+  }, []);
+
   const register = useCallback(
     async (payload) => {
       const res = await api.post('/auth/register', payload);
@@ -68,6 +85,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
+      await disablePushForSignOut();
       await api.post('/auth/logout');
     } finally {
       setUser(null);
@@ -91,12 +109,13 @@ export function AuthProvider({ children }) {
       isOrganiser: has('OSUSU_ADMIN'),
       isCollector: has('COLLECTOR'),
       login,
+      loginWithBiometrics,
       register,
       logout,
       refresh: loadMe,
       setUser,
     };
-  }, [user, status, login, register, logout, loadMe]);
+  }, [user, status, login, loginWithBiometrics, register, logout, loadMe]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

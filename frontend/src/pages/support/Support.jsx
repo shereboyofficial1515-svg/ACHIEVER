@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LifeBuoy, Plus } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, DataTable, EmptyState, Input, Modal, MoneyInput, PageHeader, Pagination, Select, StatusBadge, Textarea, fieldErrors } from '../../components/ui/index.js';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -25,9 +25,12 @@ export const TICKET_CATEGORIES = [
   { value: 'other', label: 'Something else' },
 ];
 
-function NewTicket({ onClose, onCreated }) {
+function NewTicket({ onClose, onCreated, preset = {} }) {
   const toast = useToast();
-  const [form, setForm] = useState({ category: 'incorrect_payment', subject: '', description: '', amount: '', relatedTransactionId: '', relatedGroupId: '', relatedPlanId: '' });
+  const [form, setForm] = useState({
+    category: TICKET_CATEGORIES.some((c) => c.value === preset.category) ? preset.category : 'incorrect_payment',
+    subject: preset.reference ? `Problem with ${preset.reference}` : '', description: '', amount: '', relatedTransactionId: '', relatedGroupId: '', relatedPlanId: '',
+  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const txs = useAsync(() => api.get('/payments/transactions', { pageSize: 30 }), []);
@@ -83,7 +86,10 @@ function NewTicket({ onClose, onCreated }) {
 
 export default function Support() {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const [params] = useSearchParams();
+  // "Report a problem" from a receipt opens the form with the case type and reference filled in.
+  const [open, setOpen] = useState(params.get('new') === '1');
+  const preset = { category: params.get('category') || undefined, reference: (params.get('reference') || '').slice(0, 60) || undefined };
   const [page, setPage] = useState(1);
   const tickets = useAsync(() => api.get('/support/tickets', { page, pageSize: 20 }), [page]);
   return (
@@ -106,7 +112,7 @@ export default function Support() {
           <Pagination meta={tickets.meta} onPage={setPage} />
         </AsyncContent>
       </Card>
-      {open && <NewTicket onClose={() => setOpen(false)} onCreated={(id) => navigate(`/app/support/${id}`)} />}
+      {open && <NewTicket preset={preset} onClose={() => setOpen(false)} onCreated={(id) => navigate(`/app/support/${id}`)} />}
     </div>
   );
 }

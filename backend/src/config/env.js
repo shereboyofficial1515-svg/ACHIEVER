@@ -90,6 +90,17 @@ const schema = z.object({
   VTPASS_API_KEY: z.string().optional().default(''),
   VTPASS_PUBLIC_KEY: z.string().optional().default(''),
   VTPASS_SECRET_KEY: z.string().optional().default(''),
+  // Guard rail: when true the base URL must be VTpass's sandbox (no real money can move).
+  VTPASS_SANDBOX: bool(true),
+  // Secret path segment for the VTpass callback URL: /api/webhooks/vtpass/<token>.
+  VTPASS_WEBHOOK_TOKEN: z.string().optional().default(''),
+  // Key for sealing electricity tokens / exam PINs and push tokens at rest (derived from SESSION_SECRET if unset).
+  DATA_ENCRYPTION_KEY: z.string().optional().default(''),
+
+  // Firebase Cloud Messaging (HTTP v1) service account for Android push notifications.
+  FCM_PROJECT_ID: z.string().optional().default(''),
+  FCM_CLIENT_EMAIL: z.string().optional().default(''),
+  FCM_PRIVATE_KEY: z.string().optional().default(''),
 
   IDENTITY_PROVIDER: z.enum(['manual']).default('manual'),
 
@@ -137,6 +148,7 @@ export const env = Object.freeze({
   adminCookieSameSite: adminCrossSite ? 'none' : 'strict',
   adminSessionSecret: parsed.data.ADMIN_SESSION_SECRET || derive('admin-session'),
   adminMfaKey: parsed.data.ADMIN_MFA_ENCRYPTION_KEY || derive('admin-mfa'),
+  dataEncryptionKey: parsed.data.DATA_ENCRYPTION_KEY || derive('data-encryption'),
   adminSecretsDerived: !parsed.data.ADMIN_SESSION_SECRET || !parsed.data.ADMIN_MFA_ENCRYPTION_KEY,
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
@@ -150,5 +162,6 @@ export const env = Object.freeze({
     calls: Boolean(parsed.data.LIVEKIT_API_KEY && parsed.data.LIVEKIT_API_SECRET && parsed.data.LIVEKIT_URL),
     transfers: parsed.data.PAYSTACK_TRANSFERS_ENABLED,
     bills: parsed.data.BILL_PROVIDER !== 'disabled',
+    push: Boolean(parsed.data.FCM_PROJECT_ID && parsed.data.FCM_CLIENT_EMAIL && parsed.data.FCM_PRIVATE_KEY),
   },
 });

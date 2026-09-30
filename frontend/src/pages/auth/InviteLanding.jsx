@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HandCoins, UsersRound } from 'lucide-react';
-import { Alert, Button, ErrorState, KeyValue, Loader } from '../../components/ui/index.js';
+import { Alert, Button, Checkbox, ErrorState, KeyValue, Loader } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
@@ -14,6 +14,7 @@ export default function InviteLanding() {
   const navigate = useNavigate();
   const toast = useToast();
   const [pending, setPending] = useState(null);
+  const [accepted, setAccepted] = useState(false);
   const signedIn = status === 'authenticated' && user?.emailVerified;
   const invite = useAsync(() => (signedIn ? api.get(`/invites/${token}`) : Promise.resolve(null)), [token, signedIn]);
 
@@ -40,7 +41,7 @@ export default function InviteLanding() {
   const act = async (action) => {
     setPending(action);
     try {
-      const { data: result } = await api.post(`/invites/${token}/${action}`);
+      const { data: result } = await api.post(`/invites/${token}/${action}`, action === 'accept' ? { acceptTerms: accepted } : {});
       if (action === 'accept') {
         toast.success(result.status === 'pending_approval' ? 'Request sent to the organiser' : 'Invitation accepted');
         navigate(result.kind === 'osusu_group' ? `/app/osusu/${result.groupId}` : `/app/collector/plans/${result.planId}`, { replace: true });
@@ -75,6 +76,12 @@ export default function InviteLanding() {
             By joining you agree to contribute every cycle until every member has received their payout — including after you receive
             yours.
           </Alert>
+          <p className="xsmall muted">
+            Failure to meet agreed contribution obligations may result in applicable contractual/default charges and recovery action in accordance with the applicable
+            terms and Nigerian law. Where lawful and necessary, information and documents provided during verification may be used as evidence in a dispute or legal recovery process.
+          </p>
+          <Checkbox checked={accepted} onChange={(e) => setAccepted(e.target.checked)}
+            label={<>I have read the group terms and the <a href="/terms.html" target="_blank" rel="noreferrer">Terms of Service</a>, and I agree to contribute as stated.</>} />
         </>
       ) : (
         <>
@@ -99,7 +106,7 @@ export default function InviteLanding() {
         <Button variant="secondary" onClick={() => act('decline')} loading={pending === 'decline'} disabled={Boolean(pending)}>
           Decline
         </Button>
-        <Button className="grow" onClick={() => act('accept')} loading={pending === 'accept'} disabled={Boolean(pending)}>
+        <Button className="grow" onClick={() => act('accept')} loading={pending === 'accept'} disabled={Boolean(pending) || (data.kind === 'osusu_group' && !accepted)}>
           Accept invitation
         </Button>
       </div>

@@ -155,3 +155,63 @@ html[data-theme='dark'] .flow-num { background: var(--color-green-primary); colo
   .flow:not(.flow-compact) .flow-label { font-size: var(--fs-sm); }
 }
 .flow-text { display: flex; flex-direction: column; gap: 2px; }
+
+/* Bills & Services ------------------------------------------------------------------------ */
+.bill-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 720px) { .bill-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.bill-tile {
+  display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-4); min-height: 118px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  color: var(--color-text-primary); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.bill-tile:hover { text-decoration: none; border-color: var(--color-green-primary); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.bill-tile:focus-visible { outline: 3px solid var(--color-focus, var(--color-sky-primary)); outline-offset: 2px; }
+.bill-tile.is-disabled { opacity: .6; cursor: not-allowed; background: var(--color-surface-sunken); }
+.bill-tile-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--color-green-light); color: var(--color-green-dark); }
+.bill-tile.is-disabled .bill-tile-icon { background: var(--color-surface); color: var(--color-text-muted); }
+.bill-tile-text { display: flex; flex-direction: column; gap: 2px; }
+.provider-grid { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+.provider-chip {
+  display: flex; align-items: center; gap: var(--s-2); padding: 10px 12px; min-height: var(--touch, 44px); text-align: left;
+  background: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius); cursor: pointer;
+}
+.provider-chip.is-selected { border-color: var(--color-green-primary); box-shadow: inset 0 0 0 1px var(--color-green-primary); background: var(--color-green-light); }
+.provider-mark { flex-shrink: 0; display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--gradient-brand); color: #fff; }
+.review-card .kv dd, .review-card dd { font-weight: 600; }
+.approval { border-top: 1px solid var(--color-border); padding-top: var(--s-4); }
+.approval-head { display: flex; gap: var(--s-3); align-items: flex-start; color: var(--color-text-primary); }
+.approval-head svg { color: var(--color-green-primary); flex-shrink: 0; margin-top: 2px; }
+.receipt-brand { text-align: center; font-weight: 800; letter-spacing: .12em; color: var(--color-green-dark); }
+.token-row { display: flex; gap: var(--s-3); align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+.status-timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--color-border); display: flex; flex-direction: column; gap: 8px; }
+.status-timeline li { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
+
+/* Refer & Earn ----------------------------------------------------------------------------- */
+.referral-hero { background: var(--gradient-sky-green, var(--gradient-brand)); color: #fff; border: 0; }
+.referral-hero .muted, .referral-hero .xsmall.muted { color: rgba(255, 255, 255, .88); }
+.referral-hero a { color: #fff; text-decoration: underline; }
+.referral-hero .progress { background: rgba(255, 255, 255, .3); }
+.referral-hero .progress > span { background: #fff; }
+.referral-code { font-size: clamp(26px, 6vw, 36px); font-weight: 800; letter-spacing: .08em; margin: 0; }
+.referral-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.referral-item { padding: var(--s-3) 0; border-bottom: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 4px; }
+.referral-item:last-child { border-bottom: 0; }
+.referral-ok { display: inline-flex; gap: 6px; align-items: center; color: var(--color-success-text); }
+
+/* Osusu terms ------------------------------------------------------------------------------ */
+.osusu-terms { padding: var(--s-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface-sunken); }
+.terms-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); }
+
+/* Android app lock ------------------------------------------------------------------------- */
+.app-lock {
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3);
+  padding: calc(var(--s-6) + env(safe-area-inset-top)) var(--s-6) var(--s-6); text-align: center;
+  background: var(--color-background); color: var(--color-text-primary);
+}
+.app-lock svg { color: var(--color-green-primary); }
+
+/* Long-form policy pages rendered in the app (e.g. Referral Programme Terms) */
+.legal-doc h1 { font-size: clamp(24px, 5vw, 32px); margin: var(--s-6) 0 var(--s-2); }
+.legal-doc h2 { font-size: 18px; margin: var(--s-6) 0 var(--s-2); }
+.legal-doc p, .legal-doc li { color: var(--color-text-secondary); line-height: 1.6; }
+.legal-doc ol, .legal-doc ul { padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }

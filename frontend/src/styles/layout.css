@@ -134,3 +134,20 @@
 .public-header { display: flex; align-items: center; justify-content: space-between; padding: var(--s-4); max-width: 1180px; margin: 0 auto; }
 .public-footer { border-top: 1px solid var(--color-border); padding: var(--s-8) var(--s-4); font-size: var(--fs-sm); color: var(--color-text-muted); }
 .public-footer .inner { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: var(--s-4); justify-content: space-between; }
+
+/* Safe areas (Android edge-to-edge, notched phones) ------------------------------
+   The app draws behind the status bar, so anything touching the top of the screen
+   is pushed below it. env() is 0 in ordinary browsers, so the website is unchanged. */
+.topbar { height: calc(var(--topbar-h) + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+.app-shell:has(> .net-banner) .topbar { height: var(--topbar-h); padding-top: 0; }
+.net-banner { padding-top: calc(8px + env(safe-area-inset-top)); }
+.sidebar, .drawer { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.public-header { padding-top: calc(var(--s-4) + env(safe-area-inset-top)); }
+@media (max-width: 959px) {
+  .auth-main { padding-top: calc(var(--s-5) + env(safe-area-inset-top)); }
+}
+.toasts, .incoming-call { top: calc(12px + env(safe-area-inset-top)); }
+.modal { max-height: calc(92vh - env(safe-area-inset-top)); }
+@media (min-width: 900px) {
+  .settings-layout .settings-nav { top: calc(var(--topbar-h) + 16px + env(safe-area-inset-top)); }
+}

@@ -103,16 +103,17 @@ cd frontend/android
 | Back button | Closes the top dialog, then the menu drawer, then goes back a screen. On a root screen it minimises the app (never signs out, never confirms anything). |
 | Status bar | Follows the theme (dark icons on light, light icons on dark). |
 | Theme | Light / Dark / System, from Settings → Appearance (shared with the web and saved to the account). |
-| Permissions | Camera and microphone are asked for only when a call or photo needs them. No storage permission is requested. |
+| Permissions | Camera and microphone are asked for only when a call or photo needs them; notifications only when the user turns push on; biometrics need no prompt. No contacts, SMS, location or storage permission. |
 | External links | Terms, privacy and other sites open in the system browser. |
 | Share | Native share sheet (Help articles, references). |
 | Offline | Banner: "You appear to be offline…". Figures are marked possibly out of date. Nothing (especially money) is retried automatically. |
 
-## Push notifications (prepared, not active)
+## Biometrics, app lock and push
 
-- `registerPushNotifications()` in `platform/index.js` is the integration point.
-- Activating push needs a Firebase project (`google-services.json` in `android/app/`), the `@capacitor/push-notifications` plugin, a device-token table and a server sender.
-- Until then, in-app, email and SMS notices continue as today. Browser behaviour is unaffected.
+See [TRANSACTION_SECURITY.md](TRANSACTION_SECURITY.md).
+- **Biometrics:** the in-app plugin `AchieverSecurityPlugin.java` (Keystore EC key, `androidx.biometric`) handles biometric sign-in and payment approval, plus screenshot protection.
+- **App lock:** after 5 minutes in the background.
+- **Push:** `@capacitor/push-notifications`. Put the environment's `google-services.json` in `android/app/` (git-ignored) and run `npm run android:build`; the build prints whether push is ON.
 
 ## Monitoring (prepared)
 

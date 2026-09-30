@@ -19,3 +19,6 @@ export function clientIp(req) {
 export function requestMeta(req) {
   return { ip: clientIp(req), userAgent: req.get('user-agent')?.slice(0, 300) || null };
 }
+
+/** List response: items in data, pagination in meta. */
+export const paged = (res, { items, meta }) => ok(res, items, 'OK', 200, meta);

@@ -27,6 +27,8 @@ export const register = z
     password,
     acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms to continue' }) }),
     acceptPrivacy: z.literal(true, { errorMap: () => ({ message: 'You must accept the privacy notice to continue' }) }),
+    // Optional; validated and attached by the server (the client never names a referrer).
+    referralCode: z.string().trim().toUpperCase().regex(/^ACH-[23456789A-HJ-NP-Z]{6}$/, 'Enter a valid referral code (e.g. ACH-8F4K2Q)').optional().or(z.literal('')),
   })
   .refine((v) => !(['organizer', 'collector'].includes(v.role)) || (v.address && v.address.length >= 5), {
     message: 'Operators must provide a residential address', path: ['address'],
@@ -51,6 +53,12 @@ export const changePassword = z.object({
   code: otpCode,
 });
 export const createChallenge = z.object({
-  action: z.enum(['password_change', 'email_change', 'phone_change', 'account_deletion']),
+  action: z.enum(['password_change', 'email_change', 'phone_change', 'account_deletion', 'transaction_pin_change']),
   password: z.string().min(1).max(128),
 });
+
+// Biometric sign-in (Android device key)
+const b64 = z.string().trim().regex(/^[A-Za-z0-9+/=_-]{16,2000}$/);
+export const biometricChallenge = z.object({ keyId: z.string().uuid() });
+export const biometricLogin = z.object({ keyId: z.string().uuid(), challengeId: z.string().uuid(), signature: b64 });
+export const referralCodeQuery = z.object({ code: z.string().trim().max(20) });

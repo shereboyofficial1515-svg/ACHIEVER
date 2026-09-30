@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:queries": "node scripts/checkQueries.js",
-    "admin:create": "node scripts/createAdmin.js"
+    "admin:create": "node scripts/createAdmin.js",
+    "vtpass:sandbox-check": "node scripts/vtpassSandboxCheck.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -27,11 +27,12 @@ describe('Android app (Capacitor) support', () => {
   });
 
   it('sign-in handoff code is encrypted, tamper-proof and short-lived', () => {
-    const url = new URL(oauth.handoffUrl({ kind: 'signin', provider: 'google', next: '/app', user: { id: 'u1' }, session: { access_token: 'AT', refresh_token: 'RT', expires_at: 1 } }));
+    const url = new URL(oauth.handoffUrl({ kind: 'signin', provider: 'google', next: '/app', user: { id: 'u1' }, session: { access_token: 'ACCESS_TOKEN_VALUE', refresh_token: 'REFRESH_TOKEN_VALUE', expires_at: 1 } }));
     expect(url.protocol).toBe(`${env.ANDROID_APP_SCHEME}:`);
     const code = url.searchParams.get('code');
-    expect(code).not.toContain('AT'); // tokens are not readable in the link
-    expect(oauth.readHandoff(code)).toMatchObject({ k: 'signin', u: 'u1', a: 'AT', r: 'RT' });
+    expect(code).not.toContain('ACCESS_TOKEN_VALUE'); // tokens are not readable in the link
+    expect(code).not.toContain('REFRESH_TOKEN_VALUE');
+    expect(oauth.readHandoff(code)).toMatchObject({ k: 'signin', u: 'u1', a: 'ACCESS_TOKEN_VALUE', r: 'REFRESH_TOKEN_VALUE' });
     expect(oauth.readHandoff(`${code.slice(0, -2)}xx`)).toBeNull();
     const realNow = Date.now;
     Date.now = () => realNow() + 3 * 60_000;

@@ -29,7 +29,8 @@ export default function Bills() {
         {overview.data && !overview.data.configured && (
           <Alert tone="info" icon={Info}>Bill payment is temporarily unavailable. Please try again shortly. You have not been charged.</Alert>
         )}
-        {overview.data?.sandbox && (
+        {/* Shown only when the BACKEND reports its VTpass environment is sandbox; the app cannot switch modes. */}
+        {overview.data?.testMode && (
           <Alert tone="warning">Test mode: purchases use the provider’s sandbox. No real airtime, data or tokens are delivered.</Alert>
         )}
         <div className="bill-grid">

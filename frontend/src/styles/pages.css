@@ -170,13 +170,6 @@ html[data-theme='dark'] .flow-num { background: var(--color-green-primary); colo
 .bill-tile-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--color-green-light); color: var(--color-green-dark); }
 .bill-tile.is-disabled .bill-tile-icon { background: var(--color-surface); color: var(--color-text-muted); }
 .bill-tile-text { display: flex; flex-direction: column; gap: 2px; }
-.provider-grid { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
-.provider-chip {
-  display: flex; align-items: center; gap: var(--s-2); padding: 10px 12px; min-height: var(--touch, 44px); text-align: left;
-  background: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius); cursor: pointer;
-}
-.provider-chip.is-selected { border-color: var(--color-green-primary); box-shadow: inset 0 0 0 1px var(--color-green-primary); background: var(--color-green-light); }
-.provider-mark { flex-shrink: 0; display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--gradient-brand); color: #fff; }
 .review-card .kv dd, .review-card dd { font-weight: 600; }
 .approval { border-top: 1px solid var(--color-border); padding-top: var(--s-4); }
 .approval-head { display: flex; gap: var(--s-3); align-items: flex-start; color: var(--color-text-primary); }
@@ -215,3 +208,43 @@ html[data-theme='dark'] .flow-num { background: var(--color-green-primary); colo
 .legal-doc h2 { font-size: 18px; margin: var(--s-6) 0 var(--s-2); }
 .legal-doc p, .legal-doc li { color: var(--color-text-secondary); line-height: 1.6; }
 .legal-doc ol, .legal-doc ul { padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Provider branding (Bills & Services) ------------------------------------------------------- */
+.provider-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .provider-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .provider-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 330px) { .provider-grid { grid-template-columns: 1fr; } }
+.provider-card {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); min-height: 118px; padding: 12px; text-align: left;
+  background: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .12s;
+}
+.provider-card:hover:not(:disabled) { border-color: var(--color-green-primary); box-shadow: var(--shadow-md, var(--shadow-sm)); }
+.provider-card:active:not(:disabled) { transform: scale(.985); }
+.provider-card:focus-visible { outline: 3px solid var(--color-sky-primary); outline-offset: 2px; }
+.provider-card.is-selected { border-color: var(--color-green-primary); box-shadow: inset 0 0 0 1px var(--color-green-primary), var(--shadow-sm); background: var(--color-green-light); }
+.provider-card.is-disabled { opacity: .55; cursor: not-allowed; }
+.provider-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.provider-card-text strong { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; hyphens: auto; }
+.provider-card-check { position: absolute; top: 8px; right: 8px; color: var(--color-green-primary); }
+.provider-card.is-skeleton { cursor: default; box-shadow: none; }
+.provider-card.is-skeleton .skeleton-block { display: block; width: 100%; height: 44px; border-radius: var(--radius); background: linear-gradient(90deg, var(--color-surface-sunken), var(--color-border), var(--color-surface-sunken)); background-size: 200% 100%; animation: provider-shimmer 1.2s linear infinite; }
+@keyframes provider-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .provider-card.is-skeleton .skeleton-block { animation: none; } .provider-card { transition: none; } }
+/* Logos sit on white in both themes so brand colours stay true; artwork is never stretched. */
+.provider-logo { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 10px; background: #fff; border: 1px solid var(--color-border); }
+.provider-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.provider-logo.is-monogram { background: var(--gradient-brand); border: 0; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.selected-provider { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3); border-radius: var(--radius-lg); background: var(--color-surface-sunken); }
+.plan-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.plan-list { display: flex; flex-direction: column; gap: var(--s-2); max-height: 420px; overflow-y: auto; padding: 2px; }
+.plan-card {
+  display: flex; align-items: center; gap: var(--s-3); padding: 10px 12px; min-height: var(--touch, 44px); text-align: left; width: 100%;
+  background: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius); cursor: pointer;
+}
+.plan-card:hover { border-color: var(--color-green-primary); }
+.plan-card:focus-visible { outline: 3px solid var(--color-sky-primary); outline-offset: 1px; }
+.plan-card.is-selected { border-color: var(--color-green-primary); background: var(--color-green-light); box-shadow: inset 0 0 0 1px var(--color-green-primary); }
+.plan-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.plan-card-text .xsmall { overflow-wrap: anywhere; }
+.plan-card-price { font-weight: 700; white-space: nowrap; }

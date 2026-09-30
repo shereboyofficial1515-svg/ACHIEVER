@@ -6,6 +6,7 @@ import { privacyRoutes, profileRoutes, userRoutes, verificationRoutes } from './
 import osusuRoutes from './osusuRoutes.js';
 import collectorRoutes from './collectorRoutes.js';
 import billPaymentRoutes from './billPaymentRoutes.js';
+import * as b from '../controllers/billPaymentController.js';
 import { memberSecurityRoutes, pushRoutes, referralRoutes } from './memberSecurityRoutes.js';
 import {
   callRoutes, eventRoutes, inviteRoutes, meetingRoutes, messageRoutes,
@@ -46,6 +47,8 @@ api.use('/osusu', ...money, osusuRoutes);
 api.use('/collector', ...money, collectorRoutes);
 api.use('/invites', ...money, inviteRoutes);
 api.use('/payments', ...money, paymentRoutes);
+// Provider logos: public, cacheable images (no account data); served through the API, never from VTpass directly.
+api.get('/bills-assets/logos/:serviceId', b.logo);
 api.use('/bills', ...money, billPaymentRoutes);
 api.use('/security', ...member, memberSecurityRoutes);
 api.use('/referrals', ...member, referralRoutes);

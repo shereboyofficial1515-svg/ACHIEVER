@@ -1,10 +1,25 @@
 import * as billService from '../services/billService.js';
+import * as logos from '../services/vtpass/logos.js';
 import { asyncHandler, created, ok, paged } from '../utils/http.js';
 
 const v = (req) => req.validated;
 
 // Catalogue ------------------------------------------------------------------------------------------
 export const overview = asyncHandler(async (_req, res) => ok(res, await billService.overview()));
+export const status = asyncHandler(async (_req, res) => ok(res, await billService.status()));
+
+/** Public, cacheable provider logo (VTpass catalogue artwork served through ACHIEVER). */
+export const logo = async (req, res) => {
+  const id = String(req.params.serviceId || '');
+  const img = /^[a-z0-9-]{2,60}$/.test(id) ? await logos.logoFor(id).catch(() => null) : null;
+  if (!img) return res.status(404).set('Cache-Control', 'public, max-age=600').json({ success: false, message: 'No logo' });
+  if (req.get('if-none-match') === img.etag) return res.status(304).end();
+  res.set({
+    'Content-Type': img.type, 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800', ETag: img.etag,
+    'Cross-Origin-Resource-Policy': 'cross-origin', 'X-Content-Type-Options': 'nosniff',
+  });
+  return res.send(img.buf);
+};
 export const services = asyncHandler(async (req, res) => ok(res, await billService.listServices(v(req).query.category)));
 /** /airtime/networks, /data/networks, /electricity/providers, /tv/providers, /betting/providers … */
 export const servicesFor = (category) => asyncHandler(async (_req, res) => ok(res, await billService.listServices(category)));
@@ -40,7 +55,7 @@ export const providerStatus = asyncHandler(async (_req, res) => ok(res, await bi
 export const adminServices = asyncHandler(async (_req, res) => ok(res, await billService.adminServices()));
 export const refreshCatalog = asyncHandler(async (req, res) => ok(res, await billService.refreshCatalog(req.user)));
 export const toggleService = asyncHandler(async (req, res) =>
-  ok(res, await billService.setServiceEnabled(req.user, v(req).params.serviceId, req.body.enabled, req.body.reason, req)));
+  ok(res, await billService.setServiceControl(req.user, v(req).params.serviceId, req.body, req)));
 export const reconciliation = asyncHandler(async (req, res) => paged(res, await billService.listReconciliation(v(req).query)));
 export const resolveReconciliation = asyncHandler(async (req, res) =>
   ok(res, await billService.resolveReconciliation(req.user, v(req).params.id, req.body.note, req)));

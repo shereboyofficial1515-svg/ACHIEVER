@@ -5,6 +5,7 @@ import {
   Alert, AsyncContent, Button, Card, Input, KeyValue, Loader, MoneyInput, PageHeader, Select, fieldErrors,
 } from '../../components/ui/index.js';
 import TransactionApproval from '../../components/domain/TransactionApproval.jsx';
+import { PlanCard, ProviderCard, ProviderCardSkeleton, ProviderLogo } from '../../components/domain/ProviderCard.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useSingleFlight } from '../../hooks/useSingleFlight.js';
@@ -16,15 +17,25 @@ const localPhone = (p) => String(p || '').replace(/^\+234/, '0');
 
 function ProviderPicker({ services, value, onChange }) {
   return (
-    <div className="provider-grid" role="radiogroup" aria-label="Provider">
-      {services.map((s) => (
-        <button key={s.serviceId} type="button" role="radio" aria-checked={value === s.serviceId}
-          className={`provider-chip${value === s.serviceId ? ' is-selected' : ''}`} onClick={() => onChange(s.serviceId)}>
-          <span className="provider-mark" aria-hidden>{s.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase()}</span>
-          <span className="small">{s.name}</span>
-        </button>
-      ))}
+    <div className="provider-grid" role="radiogroup" aria-label="Choose a provider">
+      {services.map((s) => <ProviderCard key={s.serviceId} provider={s} selected={value === s.serviceId} onSelect={onChange} />)}
     </div>
+  );
+}
+
+/** Plans / packages as cards (prices from the provider through the API); searchable when the list is long. */
+function PlanPicker({ plans, provider, value, onChange, label }) {
+  const [q, setQ] = useState('');
+  const list = q ? plans.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())) : plans;
+  return (
+    <fieldset className="stack-sm plan-fieldset">
+      <legend className="small"><strong>{label}</strong></legend>
+      {plans.length > 12 && <Input label="Search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. 1GB, 30 days, Compact" />}
+      <div className="plan-list" role="radiogroup" aria-label={label}>
+        {list.map((p) => <PlanCard key={p.code} plan={p} provider={provider} selected={value === p.code} onSelect={onChange} naira={naira} />)}
+        {!list.length && <p className="small muted">No plans match your search.</p>}
+      </div>
+    </fieldset>
   );
 }
 
@@ -138,6 +149,12 @@ export default function BillPurchase() {
         <PageHeader title={`Review ${meta.verb}`} subtitle="Check every detail before you confirm" />
         <Card className="review-card">
           <div className="stack">
+            {service && (
+              <div className="selected-provider">
+                <ProviderLogo provider={service} size={44} eager />
+                <div><strong>{review.service}</strong><p className="xsmall muted">{review.categoryLabel}</p></div>
+              </div>
+            )}
             <KeyValue
               items={[
                 ['Service', review.categoryLabel],
@@ -176,13 +193,20 @@ export default function BillPurchase() {
   // Details ----------------------------------------------------------------------------------------
   return (
     <div className="stack-lg">
-      <PageHeader back={{ to: '/app/bills', label: 'Bills & Services' }} title={meta.label} subtitle={meta.blurb} />
+      <PageHeader back={{ to: '/app/bills', label: 'Bills & Services' }} title={service ? `${service.providerName} ${meta.label}` : meta.label} subtitle={service?.description || meta.blurb} />
       <Card>
-        <AsyncContent loading={services.loading} error={services.error} onRetry={services.reload} empty={!services.data?.length}
+        {services.loading && !services.data ? <ProviderCardSkeleton count={4} /> : (
+        <AsyncContent loading={false} error={services.error} onRetry={services.reload} empty={!services.data?.length}
           emptyState={<Alert tone="info">{meta.label} is currently unavailable.</Alert>}>
           <form className="stack" onSubmit={toReview} noValidate>
             {error?.message && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
             <ProviderPicker services={services.data || []} value={serviceId} onChange={setServiceId} />
+            {service && (
+              <div className="selected-provider" aria-live="polite">
+                <ProviderLogo provider={service} size={40} eager />
+                <div><strong>{service.providerName} {meta.label}</strong><p className="xsmall muted">{service.shortName !== service.providerName ? service.shortName : service.categoryLabel}</p></div>
+              </div>
+            )}
 
             {category === 'electricity' && (
               <Select label="Meter type" value={form.meterType} onChange={set('meterType')} options={[{ value: 'prepaid', label: 'Prepaid' }, { value: 'postpaid', label: 'Postpaid' }]} />
@@ -203,15 +227,14 @@ export default function BillPurchase() {
                     options={[{ value: 'renew', label: `Renew current package (${naira(verified.details.renewalAmount)})` }, { value: 'change', label: 'Choose a different package' }]} />
                 ) : null}
                 {form.subscriptionType === 'change' && (plans.loading ? <Loader label="Loading packages…" /> : (
-                  <Select label="Package" placeholder="Choose a package" value={form.variationCode} onChange={set('variationCode')} error={fe.variationCode}
-                    options={(plans.data || []).map((p) => ({ value: p.code, label: `${p.name} — ${naira(p.amount)}` }))} />
+                  <PlanPicker label="Package" plans={plans.data || []} provider={service} value={form.variationCode} onChange={(code) => setForm((f) => ({ ...f, variationCode: code }))} />
                 ))}
               </>
             )}
 
             {['data', 'education', 'recharge_pin'].includes(category) && (plans.loading ? <Loader label="Loading plans…" /> : plans.error ? <Alert tone="danger">{plans.error.message}</Alert> : (
-              <Select label={category === 'data' ? 'Data plan' : 'Product'} placeholder="Choose one" value={form.variationCode} onChange={set('variationCode')} error={fe.variationCode}
-                options={(plans.data || []).map((p) => ({ value: p.code, label: `${p.name}${p.validity && !p.name.includes(p.validity) ? ` (${p.validity})` : ''} — ${naira(p.amount)}` }))} />
+              <PlanPicker label={category === 'data' ? 'Choose a data plan' : 'Choose a product'} plans={plans.data || []} provider={service}
+                value={form.variationCode} onChange={(code) => setForm((f) => ({ ...f, variationCode: code }))} />
             ))}
             {['education', 'recharge_pin'].includes(category) && service?.quantity && (
               <Select label="Quantity" value={form.quantity} onChange={set('quantity')} options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} />
@@ -227,6 +250,7 @@ export default function BillPurchase() {
             <Button type="submit" loading={pending} loadingText="Preparing review…" disabled={!ready}>Review purchase</Button>
           </form>
         </AsyncContent>
+        )}
       </Card>
     </div>
   );

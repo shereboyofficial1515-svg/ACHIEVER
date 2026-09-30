@@ -97,11 +97,25 @@ describe('VTpass client', () => {
     vi.unstubAllEnvs();
   });
 
-  it('refuses to start when the sandbox flag and base URL disagree', async () => {
-    vi.stubEnv('VTPASS_SANDBOX', 'true');
+  it('refuses to start when VTPASS_ENV and the base URL disagree', async () => {
+    vi.stubEnv('VTPASS_ENV', 'sandbox');
     vi.stubEnv('VTPASS_BASE_URL', 'https://vtpass.com/api');
     const { assertEnvironment } = await import('../../src/services/vtpass/client.js');
     expect(() => assertEnvironment()).toThrow(/sandbox/i);
+    vi.unstubAllEnvs();
+  });
+
+  it('VTPASS_ENV decides the default base URL; production must not point at the sandbox', async () => {
+    vi.stubEnv('VTPASS_ENV', 'production');
+    const { env } = await import('../../src/config/env.js');
+    const c = await import('../../src/services/vtpass/client.js');
+    expect(env.vtpassBaseUrl).toBe('https://vtpass.com/api');
+    expect(c.environment()).toBe('production');
+    expect(() => c.assertEnvironment()).not.toThrow();
+    vi.resetModules();
+    vi.stubEnv('VTPASS_BASE_URL', 'https://sandbox.vtpass.com/api');
+    const c2 = await import('../../src/services/vtpass/client.js');
+    expect(() => c2.assertEnvironment()).toThrow(/production/);
     vi.unstubAllEnvs();
   });
 

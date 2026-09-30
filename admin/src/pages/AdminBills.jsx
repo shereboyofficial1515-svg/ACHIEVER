@@ -107,22 +107,30 @@ function BillDetail({ id, onClose, onChanged }) {
   );
 }
 
-function Services() {
+const HEALTH_LABEL = { operational: ['Operational', 'success'], degraded: ['Degraded', 'warning'], unavailable: ['Unavailable', 'danger'], not_configured: ['Not configured', 'neutral'], disabled: ['Disabled', 'neutral'], maintenance: ['Maintenance', 'warning'] };
+
+/** Admin → Bills & Services → Providers: status, environment, health and controls per VTpass service. */
+function Providers({ onViewErrors }) {
   const { can } = useAuth();
   const toast = useToast();
   const confirmAction = useConfirm();
   const list = useAsync(() => api.get('/admin/bills/services'), []);
-  const [editing, setEditing] = useState(null);
+  const [editing, setEditing] = useState(null); // { provider, change: 'enable'|'disable'|'maintenance_on'|'maintenance_off' }
   const [reason, setReason] = useState('');
+  const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
   const save = async () => {
     if (!(await confirmAction({ type: 'bill_service_toggle' }))) return;
     setPending(true);
+    const body = { reason };
+    if (editing.change === 'enable') body.enabled = true;
+    if (editing.change === 'disable') body.enabled = false;
+    if (editing.change === 'maintenance_on') Object.assign(body, { maintenance: true, maintenanceMessage: message || undefined });
+    if (editing.change === 'maintenance_off') body.maintenance = false;
     try {
-      await api.patch(`/admin/bills/services/${editing.serviceId}`, { enabled: !editing.enabled, reason });
-      toast.success('Service updated');
+      await api.patch(`/admin/bills/services/${editing.provider.serviceId}`, body);
+      toast.success('Provider updated');
       setEditing(null);
-      setReason('');
       list.reload();
     } catch (err) {
       toast.error(err);
@@ -139,21 +147,45 @@ function Services() {
       toast.error(err);
     }
   };
+  const open = (provider, change) => { setEditing({ provider, change }); setReason(''); setMessage(''); };
+  const TITLES = { enable: 'Switch on', disable: 'Switch off', maintenance_on: 'Put into maintenance', maintenance_off: 'End maintenance' };
   return (
-    <Card title="Services" flush actions={can('bills.manage') && <Button variant="secondary" icon={RefreshCw} onClick={refresh}>Refresh from VTpass</Button>}>
+    <Card title="Providers" flush actions={can('bills.manage') && <Button variant="secondary" icon={RefreshCw} onClick={refresh}>Refresh from VTpass</Button>}>
       <AsyncContent loading={list.loading} error={list.error} onRetry={list.reload} empty={!list.data?.length}>
         <DataTable rows={list.data || []} rowKey="serviceId" columns={[
-          { key: 'c', label: 'Category', render: (s) => s.category },
-          { key: 'n', label: 'Service', render: (s) => <span>{s.name}<br /><span className="xsmall muted mono">{s.serviceId}</span></span> },
-          { key: 'a', label: 'Offered by VTpass', render: (s) => (s.available ? 'Yes' : 'No') },
-          { key: 'e', label: 'Enabled', render: (s) => (s.enabled ? <span className="badge badge-success">On</span> : <span className="badge badge-neutral" title={s.disabledReason || ''}>Off</span>) },
-          { key: 'x', label: '', render: (s) => can('bills.manage') && <Button variant="ghost" onClick={() => { setEditing(s); setReason(''); }}>{s.enabled ? 'Switch off' : 'Switch on'}</Button> },
+          { key: 'p', label: 'Provider', render: (s) => <span><strong>{s.providerName}</strong> <span className="xsmall muted">{s.shortName !== s.providerName ? s.shortName : ''}</span><br /><span className="xsmall muted mono">{s.serviceId}</span></span> },
+          { key: 'c', label: 'Category', render: (s) => s.categoryLabel || s.category },
+          { key: 'h', label: 'Status', render: (s) => { const [l, t] = HEALTH_LABEL[s.health] || [s.health, 'neutral']; return <span className="stack-sm"><span className={`badge badge-${t}`}>{l}</span>{s.maintenanceMessage && <span className="xsmall muted">{s.maintenanceMessage}</span>}</span>; } },
+          { key: 'e', label: 'Environment', render: (s) => <span className={`badge badge-${s.environment === 'production' ? 'success' : 'warning'}`}>{String(s.environment).toUpperCase()}</span> },
+          { key: 'ls', label: 'Last success', render: (s) => (s.lastSuccessAt ? formatDateTime(s.lastSuccessAt) : '—') },
+          { key: 'lf', label: 'Last failure', render: (s) => (s.lastFailureAt ? formatDateTime(s.lastFailureAt) : '—') },
+          { key: 'lr', label: 'Last provider response', render: (s) => (s.lastResponse ? <span className="xsmall">{s.lastResponse.code || '—'} / {s.lastResponse.status || '—'}<br />{formatDateTime(s.lastResponse.at)}</span> : '—') },
+          { key: '24', label: '24 h', render: (s) => <span className="xsmall">{s.successes24h} ok · {s.failures24h} failed · {s.pendingNow} pending</span> },
+          {
+            key: 'x', label: '', render: (s) => (
+              <span className="row-wrap">
+                {s.failures24h > 0 || s.lastFailureAt ? <Button variant="ghost" onClick={() => onViewErrors(s.serviceId)}>Errors</Button> : null}
+                {can('bills.manage') && (
+                  <>
+                    <Button variant="ghost" onClick={() => open(s, s.enabled ? 'disable' : 'enable')}>{s.enabled ? 'Switch off' : 'Switch on'}</Button>
+                    {s.enabled && <Button variant="ghost" onClick={() => open(s, s.maintenance ? 'maintenance_off' : 'maintenance_on')}>{s.maintenance ? 'End maintenance' : 'Maintenance'}</Button>}
+                  </>
+                )}
+              </span>
+            ),
+          },
         ]} />
       </AsyncContent>
       {editing && (
-        <Modal open onClose={() => setEditing(null)} title={`${editing.enabled ? 'Switch off' : 'Switch on'} ${editing.name}`}
+        <Modal open onClose={() => setEditing(null)} title={`${TITLES[editing.change]}: ${editing.provider.providerName}`}
           footer={<Button onClick={save} loading={pending} disabled={reason.trim().length < 5}>Continue</Button>}>
-          <Textarea label="Reason (recorded in the audit log)" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div className="stack">
+            {editing.change === 'maintenance_on' && (
+              <Textarea label="Message members will see (optional)" value={message} onChange={(e) => setMessage(e.target.value.slice(0, 200))} placeholder="This provider is under maintenance. Please try again later." />
+            )}
+            <Textarea label="Reason (recorded in the audit log)" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <p className="xsmall muted">New purchases stop immediately for a provider that is off or in maintenance. Purchases already paid are still delivered or refunded.</p>
+          </div>
         </Modal>
       )}
     </Card>
@@ -203,16 +235,19 @@ export default function AdminBills() {
   const [tab, setTab] = useState('transactions');
   const [detail, setDetail] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [serviceFilter, setServiceFilter] = useState(null);
   return (
     <div className="stack-lg">
       <PageHeader title="Bills & Services" subtitle="VTpass purchases, provider health, services and reconciliation. Unknown outcomes are requeried automatically." />
       <Tabs value={tab} onChange={setTab} tabs={[
         { value: 'transactions', label: 'Transactions' }, { value: 'status', label: 'VTpass status' },
-        { value: 'services', label: 'Services' }, { value: 'reconciliation', label: 'Reconciliation' },
+        { value: 'services', label: 'Providers' }, { value: 'reconciliation', label: 'Reconciliation' },
       ]} />
       {tab === 'transactions' && (
         <AdminTable
+          key={serviceFilter || 'all'}
           endpoint="/admin/bills"
+          extraParams={serviceFilter ? { serviceId: serviceFilter, status: 'FAILED' } : {}}
           reloadKey={reloadKey}
           onRowClick={(b) => setDetail(b.id)}
           filters={[
@@ -233,7 +268,8 @@ export default function AdminBills() {
         />
       )}
       {tab === 'status' && <ProviderStatus />}
-      {tab === 'services' && <Services />}
+      {tab === 'transactions' && serviceFilter && <Alert tone="info">Showing failed transactions for {serviceFilter}. <Button variant="ghost" onClick={() => setServiceFilter(null)}>Show all</Button></Alert>}
+      {tab === 'services' && <Providers onViewErrors={(id) => { setServiceFilter(id); setTab('transactions'); }} />}
       {tab === 'reconciliation' && <Reconciliation />}
       {detail && <BillDetail id={detail} onClose={() => setDetail(null)} onChanged={() => setReloadKey((k) => k + 1)} />}
     </div>

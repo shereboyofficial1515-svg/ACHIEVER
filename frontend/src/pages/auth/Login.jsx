@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Fingerprint } from 'lucide-react';
 import { Alert, Button, Input } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import SocialSignIn, { OAUTH_ERRORS } from '../../components/domain/SocialSignIn.jsx';
+import { biometricEnrolment, forgetBiometrics, isNative } from '../../platform/index.js';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginWithBiometrics } = useAuth();
+  const [bio, setBio] = useState(() => (isNative() && biometricEnrolment()?.allowLogin ? biometricEnrolment() : null));
+  const [notice, setNotice] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
@@ -30,6 +33,25 @@ export default function Login() {
     }
   };
 
+  const bioSignIn = async () => {
+    setPending(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const me = await loginWithBiometrics();
+      navigate(me.emailVerified ? location.state?.from?.pathname || '/app' : '/verify-email', { replace: true });
+    } catch (err) {
+      if (err?.code === 'CANCELLED') setNotice('Biometric sign-in was cancelled. You can sign in with your password.');
+      else if (['KEY_INVALIDATED', 'KEY_MISSING', 'BIOMETRIC_LOGIN_UNAVAILABLE'].includes(err?.code)) {
+        await forgetBiometrics();
+        setBio(null);
+        setNotice('Biometric sign-in is no longer set up on this phone (for example, fingerprints changed or it was turned off). Sign in with your password, then turn it on again in Settings.');
+      } else setError(err);
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <form onSubmit={submit} className="stack" noValidate>
       <div>
@@ -40,6 +62,15 @@ export default function Login() {
         <Alert tone="danger" icon={AlertCircle}>
           {OAUTH_ERRORS[oauthError] || 'Social sign-in could not be completed. Please try again.'}
         </Alert>
+      )}
+      {notice && <Alert tone="info">{notice}</Alert>}
+      {bio && (
+        <>
+          <Button type="button" icon={Fingerprint} block onClick={bioSignIn} loading={pending} loadingText="Waiting for biometrics...">
+            Sign in with fingerprint or face
+          </Button>
+          <p className="xsmall muted" style={{ textAlign: 'center' }}>or use your password</p>
+        </>
       )}
       <SocialSignIn next={location.state?.from?.pathname || '/app'} />
       {error && (

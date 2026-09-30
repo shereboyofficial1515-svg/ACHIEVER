@@ -11,6 +11,7 @@ const CATEGORY_LABELS = {
   authentication: 'Authentication', verification: 'Verification codes', sms: 'SMS', email: 'Email', payments: 'Payments',
   notifications: 'Notifications', security: 'Security', maintenance: 'Maintenance', support: 'Support', registration: 'Registration',
   kyc: 'KYC', collector_onboarding: 'Collector onboarding', transaction_limits: 'Transaction limits', admin: 'Admin sessions', general: 'General',
+  bills: 'Bills & Services (VTpass)', referrals: 'Referral programme',
 };
 const show = (v) => (typeof v === 'object' ? JSON.stringify(v) : String(v));
 

@@ -122,7 +122,7 @@ function assertRecipient(user, invite) {
   }
 }
 
-export async function accept(user, token, req) {
+export async function accept(user, token, req, { termsAccepted = false } = {}) {
   const invite = await findValid(token);
   assertRecipient(user, invite);
   // Claim the invitation first (conditional update) so two concurrent accepts
@@ -133,7 +133,7 @@ export async function accept(user, token, req) {
   try {
     if (invite.kind === 'osusu_group') {
       const group = await osusuRepo.findGroup(invite.group_id);
-      result = await osusuService.addMember(user, group, { viaInvite: true }, req);
+      result = await osusuService.addMember(user, group, { viaInvite: true, termsAccepted }, req);
     } else {
       result = await collectorService.createPlanFromInvite(user, invite, req);
     }

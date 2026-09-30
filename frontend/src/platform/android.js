@@ -1,3 +1,4 @@
+import { registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { Network } from '@capacitor/network';
@@ -10,8 +11,16 @@ import { closeTopOverlay } from './overlays.js';
  * Android-only behaviour (loaded only inside the Capacitor app).
  */
 
-// Screens where "back" leaves the app instead of navigating (never logs out).
-const ROOT_PATHS = new Set(['/', '/app', '/login', '/register']);
+// In-app native plugin (android/app/.../AchieverSecurityPlugin.java).
+const Security = registerPlugin('AchieverSecurity');
+
+// Screens where "back" always leaves the app instead of navigating (never logs out).
+const ROOT_PATHS = new Set(['/', '/app']);
+
+// React Router records the position in its own history entries (idx 0 = first screen of this app session).
+function canGoBackInApp() {
+  return (window.history.state?.idx ?? 0) > 0;
+}
 
 async function applyStatusBar(theme) {
   try {
@@ -26,7 +35,7 @@ async function applyStatusBar(theme) {
 function handleBack() {
   // 1) close a dialog or drawer, 2) go back a screen, 3) at a root screen, leave the app (it stays signed in).
   if (closeTopOverlay()) return;
-  if (!ROOT_PATHS.has(window.location.pathname) && window.history.length > 1) {
+  if (!ROOT_PATHS.has(window.location.pathname) && canGoBackInApp()) {
     window.history.back();
     return;
   }
@@ -65,6 +74,18 @@ export async function init() {
     Browser.open({ url: href }).catch(() => {});
   }, true);
 
+  // App lock / session handling: tell the app how long it was in the background.
+  let hiddenAt = null;
+  App.addListener('appStateChange', ({ isActive }) => {
+    if (!isActive) {
+      hiddenAt = Date.now();
+      return;
+    }
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = null;
+    window.dispatchEvent(new CustomEvent('achiever:app-resumed', { detail: { awayMs: away } }));
+  });
+
   // Show the app as soon as the first screen is ready (no long splash).
   requestAnimationFrame(() => SplashScreen.hide({ fadeOutDuration: 150 }).catch(() => {}));
 }
@@ -97,4 +118,44 @@ export async function saveFile(blob, filename) {
   const text = await blob.text();
   await Share.share({ title: filename, text, dialogTitle: `Save ${filename}` }).catch(() => {});
   return 'shared';
+}
+
+// Biometrics (Keystore key; see AchieverSecurityPlugin.java) ----------------------------------
+export const biometricStatus = () => Security.status();
+export const createBiometricKey = (alias) => Security.createKey({ alias });
+export const hasBiometricKey = (alias) => Security.hasKey({ alias }).then((r) => r.exists);
+export const deleteBiometricKey = (alias) => Security.deleteKey({ alias });
+export const biometricSign = (alias, payload, prompt = {}) => Security.sign({ alias, payload, ...prompt }).then((r) => r.signature);
+export const biometricUnlock = (prompt = {}) => Security.authenticate(prompt);
+export const setSecureScreen = (enabled) => Security.setSecureScreen({ enabled });
+
+// Push notifications (Firebase Cloud Messaging) ------------------------------------------------
+export async function pushPermission() {
+  const { PushNotifications } = await import('@capacitor/push-notifications');
+  return (await PushNotifications.checkPermissions()).receive;
+}
+
+/** Ask Android for permission, then register; the FCM token is sent to the API by the caller. */
+export async function registerPush(onToken) {
+  const { PushNotifications } = await import('@capacitor/push-notifications');
+  let perm = await PushNotifications.checkPermissions();
+  if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
+  if (perm.receive !== 'granted') return { available: true, granted: false };
+  await PushNotifications.removeAllListeners();
+  await PushNotifications.createChannel({ id: 'general', name: 'Updates', description: 'Payments, reminders and referrals', importance: 3 }).catch(() => {});
+  await PushNotifications.createChannel({ id: 'security', name: 'Security alerts', description: 'Sign-ins and account security', importance: 4 }).catch(() => {});
+  // Token refresh: Firebase may issue a new token at any time; each one is re-registered.
+  PushNotifications.addListener('registration', ({ value }) => onToken(value));
+  PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const route = notification?.data?.route;
+    if (typeof route === 'string' && route.startsWith('/app/')) window.dispatchEvent(new CustomEvent('achiever:navigate', { detail: { to: route } }));
+  });
+  await PushNotifications.register();
+  return { available: true, granted: true };
+}
+
+export async function unregisterPush() {
+  const { PushNotifications } = await import('@capacitor/push-notifications');
+  await PushNotifications.removeAllListeners().catch(() => {});
+  await PushNotifications.unregister().catch(() => {});
 }

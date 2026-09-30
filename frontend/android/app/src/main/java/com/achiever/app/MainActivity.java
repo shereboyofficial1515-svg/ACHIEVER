@@ -9,6 +9,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // In-app plugin: Keystore-backed biometric keys and screenshot protection.
+        registerPlugin(AchieverSecurityPlugin.class);
         super.onCreate(savedInstanceState);
         // The app's pages load from https://localhost and call the ACHIEVER API on its own
         // domain. The API marks the app's session cookies SameSite=None; Secure and

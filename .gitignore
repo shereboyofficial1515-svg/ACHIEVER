@@ -8,3 +8,6 @@ coverage/
 .DS_Store
 supabase/.temp/
 supabase/.branches/
+
+# IDE workspace (Android Studio / IntelliJ)
+.idea/

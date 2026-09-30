@@ -12,6 +12,8 @@ import * as userController from './controllers/userController.js';
 import { apiLimiter, webhookLimiter } from './middleware/rateLimiters.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import * as paymentController from './controllers/paymentController.js';
+import * as billPaymentController from './controllers/billPaymentController.js';
+import { safeEqual } from './utils/crypto.js';
 import api from './routes/index.js';
 import adminRoutes, { adminAuthRoutes } from './routes/adminRoutes.js';
 import { adminCsrf, authenticateAdmin } from './middleware/adminAuth.js';
@@ -99,6 +101,12 @@ export function createApp() {
   // mounted BEFORE the JSON parser and are exempt from CSRF (they are
   // authenticated by HMAC / signed JWT instead).
   app.post('/api/paystack/webhook', webhookLimiter, express.raw({ type: 'application/json', limit: '256kb' }), paymentController.paystackWebhook);
+  // VTpass callbacks are not signed: the URL carries a secret token and the body
+  // is only used to decide which transaction to requery with our own credentials.
+  app.post('/api/webhooks/vtpass/:token', webhookLimiter, express.json({ limit: '64kb' }), (req, res, next) => {
+    if (!env.VTPASS_WEBHOOK_TOKEN || !safeEqual(req.params.token, env.VTPASS_WEBHOOK_TOKEN)) return res.status(404).json({ success: false });
+    return billPaymentController.vtpassWebhook(req, res, next);
+  });
   app.post('/api/calls/livekit/webhook', webhookLimiter, express.raw({ type: ['application/webhook+json', 'application/json'], limit: '256kb' }), paymentController.livekitWebhook);
 
   app.use(express.json({ limit: '100kb' }));

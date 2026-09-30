@@ -27,6 +27,7 @@ export const ACTIONS = {
   phone_change: 'change your phone number',
   payout_account_change: 'change your payout account',
   account_deletion: 'request deletion of your account',
+  transaction_pin_change: 'create or change your transaction PIN',
 };
 const MAX_PER_HOUR = 5;
 

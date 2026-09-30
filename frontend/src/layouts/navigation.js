@@ -1,5 +1,5 @@
 import {
-  BookOpen, Bell, CalendarDays, FileText, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Settings, UsersRound, Wallet, Zap,
+  BookOpen, Bell, CalendarDays, FileText, Gift, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Settings, UsersRound, Wallet, Zap,
 } from 'lucide-react';
 
 /** Navigation adapts to the roles and permissions the SERVER reports for the user. */
@@ -14,7 +14,8 @@ export function buildNavigation(has) {
     collector && { to: '/app/collector', label: 'Collector desk', short: 'Savers', icon: HandCoins },
     saver && { to: '/app/savings', label: 'My savings', short: 'Savings', icon: PiggyBank },
     { to: '/app/transactions', label: 'Payments', icon: Wallet },
-    { to: '/app/bills', label: 'Bills', icon: Zap },
+    { to: '/app/bills', label: 'Bills & Services', short: 'Bills', icon: Zap },
+    { to: '/app/referrals', label: 'Refer & Earn', short: 'Refer', icon: Gift },
     { to: '/app/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
     osusu && { to: '/app/meetings', label: 'Meetings', icon: CalendarDays },
     { to: '/app/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },

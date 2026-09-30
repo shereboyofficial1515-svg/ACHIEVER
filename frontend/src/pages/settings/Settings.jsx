@@ -8,6 +8,7 @@ import {
 } from '../../components/ui/index.js';
 import SecurityChallenge from '../../components/domain/SecurityChallenge.jsx';
 import CriticalGate from '../../components/domain/CriticalGate.jsx';
+import { BiometricSection, PushSection, TransactionPinSection } from '../../components/domain/SecuritySettings.jsx';
 import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { useVerificationMethods } from '../../components/domain/PhoneVerification.jsx';
 import { Activity, Deactivate, Details, PayoutAccount, Sessions } from '../app/Profile.jsx';
@@ -268,6 +269,8 @@ function SecuritySection() {
   const [security, save] = useSaver('security');
   return (
     <div className="stack-lg">
+      <TransactionPinSection />
+      <BiometricSection />
       <SignInMethods />
       <Card title="Sign-in alerts">
         <Select
@@ -288,7 +291,7 @@ function SecuritySection() {
 
 // Notifications --------------------------------------------------------------------------------
 const GROUPS = [
-  { title: 'Transactional', note: 'Money movement and obligations on your account.', keys: [['payments', 'Payment confirmations'], ['reminders', 'Contribution reminders'], ['payouts', 'Payouts, returns and commissions'], ['groups', 'Group membership updates'], ['meetings', 'Meetings'], ['support', 'Support cases and disputes'], ['account', 'Account updates'], ['messages', 'Missed calls and messages']] },
+  { title: 'Transactional', note: 'Money movement and obligations on your account.', keys: [['payments', 'Payment confirmations'], ['reminders', 'Contribution reminders'], ['payouts', 'Payouts, returns and commissions'], ['groups', 'Group membership updates'], ['meetings', 'Meetings'], ['support', 'Support cases and disputes'], ['account', 'Account updates'], ['messages', 'Missed calls and messages'], ['referrals', 'Referral programme']] },
   { title: 'Updates & marketing', note: 'Optional. You can unsubscribe from any of these emails.', keys: [['system', 'Platform notices'], ['marketing', 'News and offers']] },
 ];
 
@@ -319,7 +322,9 @@ function NotificationsSection() {
             <Alert tone="info" icon={ShieldCheck}>
               <strong>Security alerts are always on.</strong> Sign-ins from new devices and changes to your password, email, phone or payout account are always sent by email (and SMS when your phone is verified).
             </Alert>
-            <p className="small muted">In-app notifications are always on. Push notifications are not available yet.</p>
+            <p className="small muted">In-app notifications are always on.</p>
+            <PushSection />
+            <Toggle label="Push notifications" description="Master switch for optional push notifications on your phone" checked={state.pushEnabled !== false} onChange={(v) => setState({ ...state, pushEnabled: v })} />
             <Toggle label="Email notifications" description="Master switch for optional email" checked={state.emailEnabled} onChange={(v) => setState({ ...state, emailEnabled: v })} />
             <Toggle label="SMS notifications" description="Master switch for optional SMS (daily limit applies)" checked={state.smsEnabled} onChange={(v) => setState({ ...state, smsEnabled: v })} />
             {GROUPS.map((g) => (
@@ -327,12 +332,13 @@ function NotificationsSection() {
                 <h3 style={{ fontSize: 15, margin: '12px 0 2px' }}>{g.title}</h3>
                 <p className="xsmall muted">{g.note}</p>
                 <table className="table">
-                  <thead><tr><th>Category</th><th>In-app</th><th>Email</th><th>SMS</th></tr></thead>
+                  <thead><tr><th>Category</th><th>In-app</th><th>Push</th><th>Email</th><th>SMS</th></tr></thead>
                   <tbody>
                     {g.keys.map(([key, name]) => (
                       <tr key={key}>
                         <td>{name}</td>
                         <td><input type="checkbox" checked disabled aria-label={`${name} in-app (always on)`} /></td>
+                        <td><input type="checkbox" aria-label={`${name} by push`} checked={state.categories[key]?.push !== false} disabled={state.pushEnabled === false} onChange={(e) => setCat(key, 'push', e.target.checked)} /></td>
                         <td><input type="checkbox" aria-label={`${name} by email`} checked={Boolean(state.categories[key]?.email)} disabled={!state.emailEnabled} onChange={(e) => setCat(key, 'email', e.target.checked)} /></td>
                         <td><input type="checkbox" aria-label={`${name} by SMS`} checked={Boolean(state.categories[key]?.sms)} disabled={!state.smsEnabled} onChange={(e) => setCat(key, 'sms', e.target.checked)} /></td>
                       </tr>

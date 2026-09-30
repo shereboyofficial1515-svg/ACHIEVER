@@ -4,12 +4,13 @@ import * as notificationRepo from '../repositories/notificationRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
 import * as settingsService from './settingsService.js';
 import * as emailService from './emailService.js';
+import * as pushService from './pushService.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 
 const MAX_ATTEMPTS = 3;
 // Security notifications are not a preference: they are always delivered.
-export const CATEGORIES = ['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing'];
+export const CATEGORIES = ['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing', 'referrals'];
 
 /**
  * Create an in-app notification; email/SMS delivery is decided in SQL from the
@@ -35,7 +36,8 @@ function deepLink(data = {}) {
   const base = `${env.CLIENT_URL}/app`;
   if (data.group_id) return `${base}/osusu/${data.group_id}`;
   if (data.plan_id) return `${base}/collector/plans/${data.plan_id}`;
-  if (data.bill_payment_id) return `${base}/bills/${data.bill_payment_id}`;
+  if (data.bill_payment_id) return `${base}/bills/history/${data.bill_payment_id}`;
+  if (data.referral_id || data.reward_id) return `${base}/referrals`;
   if (data.meeting_id) return `${base}/meetings`;
   if (data.transaction_id) return `${base}/transactions`;
   return base;
@@ -48,6 +50,8 @@ async function deliver(item, profile, channel, smsCap) {
   let result;
   if (channel === 'email') {
     result = await emailService.sendNotificationEmail(item, profile, deepLink(item.data));
+  } else if (channel === 'push') {
+    result = await pushService.send(item);
   } else {
     if (item.category !== 'security') {
       const since = new Date();
@@ -63,7 +67,7 @@ async function deliver(item, profile, channel, smsCap) {
 
   if (result.ok) {
     await notificationRepo.setChannelStatus(item.id, channel, 'sent');
-  } else if (result.skipped || ['EMAIL_NOT_CONFIGURED', 'SMS_NOT_CONFIGURED'].includes(result.error) || attempts + 1 >= MAX_ATTEMPTS) {
+  } else if (result.skipped || ['EMAIL_NOT_CONFIGURED', 'SMS_NOT_CONFIGURED', 'PUSH_NOT_CONFIGURED'].includes(result.error) || attempts + 1 >= MAX_ATTEMPTS) {
     // Switched off, not configured or provider paused: not retried (email/in-app still deliver).
     await notificationRepo.setChannelStatus(item.id, channel, result.skipped || result.error?.endsWith('NOT_CONFIGURED') ? 'skipped' : 'failed', result.error);
   }
@@ -82,6 +86,7 @@ export async function dispatchPending(limit = 50) {
     try {
       if (item.email_status === 'pending') await deliver(item, profile, 'email', smsCap);
       if (item.sms_status === 'pending') await deliver(item, profile, 'sms', smsCap);
+      if (item.push_status === 'pending') await deliver(item, profile, 'push', smsCap);
     } catch (err) {
       logger.warn({ id: item.id, err: err.message }, 'notification delivery error');
     }
@@ -107,7 +112,7 @@ export function markAllRead(userId) {
 }
 
 export async function getPreferences(userId) {
-  const prefs = (await userRepo.getPreferences(userId)) || { email_enabled: true, sms_enabled: true, category_settings: {} };
+  const prefs = (await userRepo.getPreferences(userId)) || { email_enabled: true, sms_enabled: true, push_enabled: true, category_settings: {} };
   const defaults = {
     payments: { email: true, sms: true },
     reminders: { email: true, sms: true },
@@ -119,10 +124,11 @@ export async function getPreferences(userId) {
     support: { email: true, sms: false },
     system: { email: false, sms: false },
     marketing: { email: false, sms: false },
+    referrals: { email: true, sms: false },
   };
   const categories = {};
-  for (const c of CATEGORIES) categories[c] = { ...defaults[c], ...(prefs.category_settings?.[c] || {}) };
-  return { emailEnabled: prefs.email_enabled, smsEnabled: prefs.sms_enabled, categories };
+  for (const c of CATEGORIES) categories[c] = { push: true, ...defaults[c], ...(prefs.category_settings?.[c] || {}) };
+  return { emailEnabled: prefs.email_enabled, smsEnabled: prefs.sms_enabled, pushEnabled: prefs.push_enabled !== false, categories };
 }
 
 /** One-click unsubscribe from a non-transactional category (signed link in the email). */
@@ -132,18 +138,19 @@ export async function unsubscribe(userId, category, token) {
   }
   const current = await getPreferences(userId);
   const categories = { ...current.categories, [category]: { ...current.categories[category], email: false } };
-  await updatePreferences(userId, { emailEnabled: current.emailEnabled, smsEnabled: current.smsEnabled, categories });
+  await updatePreferences(userId, { emailEnabled: current.emailEnabled, smsEnabled: current.smsEnabled, pushEnabled: current.pushEnabled, categories });
 }
 
-export async function updatePreferences(userId, { emailEnabled, smsEnabled, categories }) {
+export async function updatePreferences(userId, { emailEnabled, smsEnabled, pushEnabled, categories }) {
   const categorySettings = {};
   for (const [key, value] of Object.entries(categories || {})) {
     if (!CATEGORIES.includes(key)) throw AppError.badRequest('Unknown notification category');
-    categorySettings[key] = { email: Boolean(value.email), sms: Boolean(value.sms) };
+    categorySettings[key] = { email: Boolean(value.email), sms: Boolean(value.sms), push: value.push !== false };
   }
   await userRepo.upsertPreferences(userId, {
     email_enabled: emailEnabled,
     sms_enabled: smsEnabled,
+    ...(pushEnabled === undefined ? {} : { push_enabled: Boolean(pushEnabled) }),
     category_settings: categorySettings,
   });
   return getPreferences(userId);

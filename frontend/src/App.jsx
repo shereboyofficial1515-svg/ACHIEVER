@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { Loader } from './components/ui/index.js';
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from './routes/guards.jsx';
 import StepUpPrompt from './components/domain/StepUpPrompt.jsx';
@@ -35,6 +35,10 @@ const MySavings = lazy(() => import('./pages/collector/MySavings.jsx'));
 const PlanDetail = lazy(() => import('./pages/collector/PlanDetail.jsx'));
 const Bills = lazy(() => import('./pages/bills/Bills.jsx'));
 const BillReceipt = lazy(() => import('./pages/bills/BillReceipt.jsx'));
+const BillPurchase = lazy(() => import('./pages/bills/BillPurchase.jsx'));
+const BillHistory = lazy(() => import('./pages/bills/BillHistory.jsx'));
+const Referrals = lazy(() => import('./pages/referrals/Referrals.jsx'));
+const ReferralTerms = lazy(() => import('./pages/public/ReferralTerms.jsx'));
 const Messages = lazy(() => import('./pages/messages/Messages.jsx'));
 const Meetings = lazy(() => import('./pages/app/Meetings.jsx'));
 const Support = lazy(() => import('./pages/support/Support.jsx'));
@@ -45,6 +49,12 @@ const Settings = lazy(() => import('./pages/settings/Settings.jsx'));
 const HelpCenter = lazy(() => import('./help/HelpCenter.jsx'));
 const PublicHelpCenter = lazy(() => import('./help/HelpCenter.jsx').then((m) => ({ default: m.PublicHelpCenter })));
 const CompleteProfile = lazy(() => import('./pages/auth/CompleteProfile.jsx'));
+
+/** Old receipt links (/app/bills/:id) keep working. */
+function LegacyBillRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/app/bills/history/${id}`} replace />;
+}
 
 function SignedInShell() {
   return (
@@ -63,6 +73,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/legal" element={<Legal />} />
+        <Route path="/referral-terms" element={<ReferralTerms />} />
         <Route path="/help" element={<PublicHelpCenter />} />
         <Route path="/help/:articleId" element={<PublicHelpCenter />} />
         <Route path="/403" element={<ErrorPage kind="403" />} />
@@ -102,7 +113,11 @@ export default function App() {
             <Route path="collector/plans/:planId" element={<PlanDetail />} />
             <Route path="savings" element={<MySavings />} />
             <Route path="bills" element={<Bills />} />
-            <Route path="bills/:id" element={<BillReceipt />} />
+            <Route path="bills/buy/:category" element={<BillPurchase />} />
+            <Route path="bills/history" element={<BillHistory />} />
+            <Route path="bills/history/:id" element={<BillReceipt />} />
+            <Route path="bills/:id" element={<LegacyBillRedirect />} />
+            <Route path="referrals" element={<Referrals />} />
             <Route path="messages" element={<Messages />} />
             <Route path="messages/:conversationId" element={<Messages />} />
             <Route path="meetings" element={<Meetings />} />

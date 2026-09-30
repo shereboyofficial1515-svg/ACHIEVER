@@ -1,184 +1,79 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lightbulb, Smartphone, Wifi, Zap } from 'lucide-react';
-import {
-  Alert, AsyncContent, Button, Card, DataTable, EmptyState, Input, Loader, MoneyInput, PageHeader, Pagination, Select, StatusBadge, Tabs, fieldErrors,
-} from '../../components/ui/index.js';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import { useToast } from '../../contexts/ToastContext.jsx';
+import { Link, useNavigate } from 'react-router-dom';
+import { History, Info } from 'lucide-react';
+import { Alert, AsyncContent, Button, Card, DataTable, EmptyState, PageHeader } from '../../components/ui/index.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
-import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
-import { formatDateTime, naira, parseNairaToKobo } from '../../utils/format.js';
+import { formatDateTime, naira } from '../../utils/format.js';
+import { CATEGORY, CATEGORY_ORDER, STATUS_TEXT, UNAVAILABLE_REASON } from './billsShared.js';
 
-const BILL_LABEL = { airtime: 'Airtime top-up', data: 'Data bundle', electricity: 'Electricity' };
-
-/** Bills: review (recipient, amount, fee, total) → Confirm payment → Paystack. Amount for data plans comes from the plan. */
-function useCheckout() {
-  const { review, activeId } = usePaymentReview();
-  const [error, setError] = useState(null);
-  const submit = (body, { amount, recipient }) => {
-    setError(null);
-    review(
-      { id: 'bill', recipient, purpose: BILL_LABEL[body.category] || 'Bill payment', amount },
-      (idempotencyKey) => api.post('/bills', body, { idempotencyKey }).catch((err) => { setError(err); throw err; }),
-    );
-  };
-  return { submit, pending: activeId === 'bill', error };
+export function BillStatus({ status }) {
+  const [label, tone] = STATUS_TEXT[status] || [status, 'neutral'];
+  return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
-function AirtimeForm({ services }) {
-  const { user } = useAuth();
-  const [form, setForm] = useState({ serviceId: services[0]?.serviceId || '', phone: user.phone || '', amount: '' });
-  const { submit, pending, error } = useCheckout();
-  const kobo = parseNairaToKobo(form.amount);
-  const fe = fieldErrors(error);
-  return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'airtime', serviceId: form.serviceId, phone: form.phone, amount: kobo }, { amount: kobo, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} airtime for ${form.phone}` }); }}>
-      <Select label="Network" value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
-      <Input label="Phone number" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} error={fe.phone} />
-      <MoneyInput label="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} error={fe.amount} hint="₦50 – ₦50,000" />
-      <Button type="submit" loading={pending} loadingText="Opening secure checkout..." disabled={!kobo}>
-        Buy airtime {kobo ? `· ${naira(kobo)}` : ''}
-      </Button>
-    </form>
-  );
-}
-
-function DataForm({ services }) {
-  const { user } = useAuth();
-  const [form, setForm] = useState({ serviceId: services[0]?.serviceId || '', phone: user.phone || '', variationCode: '' });
-  const plans = useAsync(() => (form.serviceId ? api.get('/bills/variations', { serviceId: form.serviceId }) : Promise.resolve({ data: [] })), [form.serviceId]);
-  const { submit, pending, error } = useCheckout();
-  const selected = plans.data?.find((p) => p.code === form.variationCode);
-  const fe = fieldErrors(error);
-  useEffect(() => setForm((f) => ({ ...f, variationCode: '' })), [form.serviceId]);
-  return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'data', serviceId: form.serviceId, phone: form.phone, variationCode: form.variationCode }, { amount: selected.amount, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} ${selected.name} for ${form.phone}` }); }}>
-      <Select label="Network" value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
-      <Input label="Phone number" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} error={fe.phone} />
-      {plans.loading ? (
-        <Loader label="Loading data plans..." />
-      ) : plans.error ? (
-        <Alert tone="danger">{plans.error.message}</Alert>
-      ) : (
-        <Select label="Data plan" placeholder="Choose a plan" value={form.variationCode} onChange={(e) => setForm({ ...form, variationCode: e.target.value })} options={(plans.data || []).map((p) => ({ value: p.code, label: `${p.name} — ${naira(p.amount)}` }))} error={fe.variationCode} />
-      )}
-      <Button type="submit" loading={pending} loadingText="Opening secure checkout..." disabled={!selected}>
-        Buy data {selected ? `· ${naira(selected.amount)}` : ''}
-      </Button>
-    </form>
-  );
-}
-
-function ElectricityForm({ services }) {
-  const { user } = useAuth();
-  const toast = useToast();
-  const [form, setForm] = useState({ serviceId: services[0]?.serviceId || '', meterType: 'prepaid', customerId: '', phone: user.phone || '', amount: '' });
-  const [customer, setCustomer] = useState(null);
-  const [verifying, setVerifying] = useState(false);
-  const { submit, pending, error } = useCheckout();
-  const kobo = parseNairaToKobo(form.amount);
-  const fe = fieldErrors(error);
-  const verify = async () => {
-    setVerifying(true);
-    setCustomer(null);
-    try {
-      const { data } = await api.post('/bills/verify-customer', { serviceId: form.serviceId, customerId: form.customerId, meterType: form.meterType });
-      setCustomer(data);
-    } catch (err) {
-      toast.error(err);
-    } finally {
-      setVerifying(false);
-    }
-  };
-  const change = (k) => (e) => {
-    setForm({ ...form, [k]: e.target.value });
-    if (['serviceId', 'meterType', 'customerId'].includes(k)) setCustomer(null);
-  };
-  return (
-    <form className="stack" onSubmit={(e) => { e.preventDefault(); submit({ category: 'electricity', serviceId: form.serviceId, meterType: form.meterType, customerId: form.customerId, phone: form.phone, amount: kobo }, { amount: kobo, recipient: `${services.find((x) => x.serviceId === form.serviceId)?.name || 'Provider'} meter ${form.customerId}` }); }}>
-      <Select label="Distribution company" value={form.serviceId} onChange={change('serviceId')} options={services.map((s) => ({ value: s.serviceId, label: s.name }))} />
-      <div className="grid-2">
-        <Select label="Meter type" value={form.meterType} onChange={change('meterType')} options={[{ value: 'prepaid', label: 'Prepaid' }, { value: 'postpaid', label: 'Postpaid' }]} />
-        <Input label="Meter / account number" inputMode="numeric" value={form.customerId} onChange={change('customerId')} error={fe.customerId} />
-      </div>
-      {customer ? (
-        <Alert tone="success">
-          Meter belongs to <strong>{customer.name}</strong>
-          {customer.address ? ` · ${customer.address}` : ''}
-        </Alert>
-      ) : (
-        <Button variant="secondary" onClick={verify} loading={verifying} disabled={form.customerId.length < 6}>
-          Verify meter
-        </Button>
-      )}
-      <Input label="Phone number (for token SMS)" type="tel" value={form.phone} onChange={change('phone')} error={fe.phone} />
-      <MoneyInput label="Amount" value={form.amount} onChange={change('amount')} error={fe.amount} hint="Minimum ₦1,000" />
-      <Button type="submit" loading={pending} loadingText="Opening secure checkout..." disabled={!customer || !kobo}>
-        Pay electricity {kobo ? `· ${naira(kobo)}` : ''}
-      </Button>
-    </form>
-  );
-}
-
-const ICON = { airtime: Smartphone, data: Wifi, electricity: Lightbulb };
-
+/** Bills & Services hub: what can be bought right now, and recent purchases. */
 export default function Bills() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('airtime');
-  const [page, setPage] = useState(1);
-  const catalog = useAsync(() => api.get('/bills/catalog'), []);
-  const history = useAsync(() => api.get('/bills', { page, pageSize: 10 }), [page]);
+  const overview = useAsync(() => api.get('/bills/overview'), []);
+  const recent = useAsync(() => api.get('/bills/history', { page: 1, pageSize: 5 }), []);
+  const byKey = Object.fromEntries((overview.data?.categories || []).map((c) => [c.key, c]));
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Bills" subtitle="Airtime, data and electricity" />
-      <div className="grid-2">
-        <Card>
-          <AsyncContent loading={catalog.loading} error={catalog.error} onRetry={catalog.reload}>
-            {catalog.data && !catalog.data.enabled ? (
-              <EmptyState icon={Zap} title="Bill payments are not available yet" message="A bill-payment provider has not been connected on this platform. You have not been charged." />
+      <PageHeader
+        title="Bills & Services"
+        subtitle="Airtime, data, electricity, TV and more — approved by you, paid securely, delivered by a licensed provider"
+        actions={<Button variant="secondary" icon={History} onClick={() => navigate('/app/bills/history')}>Transaction history</Button>}
+      />
+      <AsyncContent loading={overview.loading} error={overview.error} onRetry={overview.reload}>
+        {overview.data && !overview.data.configured && (
+          <Alert tone="info" icon={Info}>Bill payment is temporarily unavailable. Please try again shortly. You have not been charged.</Alert>
+        )}
+        {overview.data?.sandbox && (
+          <Alert tone="warning">Test mode: purchases use the provider’s sandbox. No real airtime, data or tokens are delivered.</Alert>
+        )}
+        <div className="bill-grid">
+          {CATEGORY_ORDER.map((key) => {
+            const meta = CATEGORY[key];
+            const c = byKey[key];
+            const available = Boolean(c?.available);
+            const Icon = meta.icon;
+            const body = (
+              <>
+                <span className="bill-tile-icon" aria-hidden><Icon size={22} /></span>
+                <span className="bill-tile-text">
+                  <strong>{meta.label}</strong>
+                  <span className="xsmall muted">{available ? meta.blurb : UNAVAILABLE_REASON[c?.reason] || 'Currently unavailable'}</span>
+                </span>
+              </>
+            );
+            return available ? (
+              <Link key={key} to={`/app/bills/buy/${key}`} className="bill-tile">{body}</Link>
             ) : (
-              catalog.data && (
-                <div className="stack">
-                  <Tabs value={tab} onChange={setTab} tabs={[{ value: 'airtime', label: 'Airtime' }, { value: 'data', label: 'Data' }, { value: 'electricity', label: 'Electricity' }]} />
-                  {tab === 'airtime' && <AirtimeForm services={catalog.data.services.airtime} />}
-                  {tab === 'data' && <DataForm services={catalog.data.services.data} />}
-                  {tab === 'electricity' && <ElectricityForm services={catalog.data.services.electricity} />}
-                  <p className="xsmall muted">Payment is confirmed with Paystack before your purchase is sent. If delivery fails, you are refunded automatically.</p>
-                </div>
-              )
-            )}
-          </AsyncContent>
-        </Card>
-        <Card title="Recent purchases" flush>
-          <AsyncContent loading={history.loading} error={history.error} onRetry={history.reload} empty={!history.data?.length} emptyState={<EmptyState title="No purchases yet" />}>
-            <DataTable
-              rows={history.data || []}
-              onRowClick={(b) => navigate(`/app/bills/${b.id}`)}
-              columns={[
-                {
-                  key: 'c',
-                  label: 'Purchase',
-                  render: (b) => {
-                    const I = ICON[b.category];
-                    return (
-                      <span className="row">
-                        <I size={16} aria-hidden /> {b.customerIdentifier}
-                      </span>
-                    );
-                  },
-                },
-                { key: 'a', label: 'Amount', align: 'right', render: (b) => <span className="money">{naira(b.amount)}</span> },
-                { key: 's', label: 'Status', render: (b) => <StatusBadge status={b.status} /> },
-                { key: 'd', label: 'Date', render: (b) => formatDateTime(b.createdAt) },
-              ]}
-            />
-            <Pagination meta={history.meta} onPage={setPage} />
-          </AsyncContent>
-        </Card>
-      </div>
+              <div key={key} className="bill-tile is-disabled" aria-disabled="true">{body}</div>
+            );
+          })}
+        </div>
+      </AsyncContent>
+
+      <Card title="Recent purchases" flush actions={<Link to="/app/bills/history" className="small">See all</Link>}>
+        <AsyncContent loading={recent.loading} error={recent.error} onRetry={recent.reload} empty={!recent.data?.length}
+          emptyState={<EmptyState title="No purchases yet" message="Your airtime, data and bill receipts will appear here." />}>
+          <DataTable
+            rows={recent.data || []}
+            onRowClick={(b) => navigate(`/app/bills/history/${b.id}`)}
+            columns={[
+              { key: 's', label: 'Service', render: (b) => <span>{b.service}<br /><span className="xsmall muted">{b.recipient}</span></span> },
+              { key: 't', label: 'Total', align: 'right', render: (b) => <span className="money">{naira(b.total)}</span> },
+              { key: 'st', label: 'Status', render: (b) => <BillStatus status={b.status} /> },
+              { key: 'd', label: 'Date', render: (b) => formatDateTime(b.createdAt) },
+            ]}
+          />
+        </AsyncContent>
+      </Card>
+      <p className="xsmall muted">
+        ACHIEVER never stores your card details. Purchases are sent to the provider only after Paystack confirms your payment; if delivery fails you are refunded.
+      </p>
     </div>
   );
 }

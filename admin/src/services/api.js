@@ -65,11 +65,13 @@ function url(path, params) {
   return `${BASE}/api${path}${query(params)}`;
 }
 
-async function request(method, path, { body, params, raw = false, retry = true } = {}) {
+async function request(method, path, { body, params, raw = false, retry = true, idempotencyKey } = {}) {
   const target = url(path, params); // throws before any network call for non-admin paths
   const headers = {};
   if (method !== 'GET') headers['X-CSRF-Token'] = await ensureCsrf();
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // Money/approval actions: a retried request is recognised by the server and never acts twice.
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
   let res;
   try {
     res = await fetch(target, { method, credentials: 'include', headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -83,10 +85,10 @@ async function request(method, path, { body, params, raw = false, retry = true }
     if (res.status >= 500) error.message = SERVER_MESSAGE;
     if (retry && error.code === 'CSRF_INVALID') {
       await ensureCsrf(true);
-      return request(method, path, { body, params, raw, retry: false });
+      return request(method, path, { body, params, raw, retry: false, idempotencyKey });
     }
     if (retry && error.code === 'STEP_UP_REQUIRED' && onStepUpRequired) {
-      if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false });
+      if (await onStepUpRequired()) return request(method, path, { body, params, raw, retry: false, idempotencyKey });
     }
     if (res.status === 401 && ['ADMIN_AUTH_REQUIRED', 'ADMIN_SESSION_EXPIRED'].includes(error.code)) onSignedOut(error);
     throw error;
@@ -96,7 +98,7 @@ async function request(method, path, { body, params, raw = false, retry = true }
 
 export const api = {
   get: (path, params) => request('GET', path, { params }),
-  post: (path, body) => request('POST', path, { body }),
+  post: (path, body, opts = {}) => request('POST', path, { body, ...opts }),
   put: (path, body) => request('PUT', path, { body }),
   patch: (path, body) => request('PATCH', path, { body }),
   del: (path) => request('DELETE', path),
@@ -118,3 +120,8 @@ export const api = {
     csrfToken = null;
   },
 };
+
+/** A fresh key for one money/approval action (reuse it only for retries of that same action). */
+export function newIdempotencyKey() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

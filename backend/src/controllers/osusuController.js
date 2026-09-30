@@ -17,7 +17,8 @@ export const cancelGroup = asyncHandler(async (req, res) => {
   await osusuService.cancelGroup(req.user, v(req).params.groupId, req);
   return ok(res, {}, 'Group cancelled');
 });
-export const joinGroup = asyncHandler(async (req, res) => ok(res, await osusuService.joinByCode(req.user, req.body.joinCode, req), 'Request sent'));
+export const joinGroup = asyncHandler(async (req, res) => ok(res, await osusuService.joinByCode(req.user, req.body.joinCode, req, { termsAccepted: req.body.acceptTerms === true }), 'Request sent'));
+export const groupTerms = asyncHandler(async (req, res) => ok(res, await osusuService.termsByCode(req.validated.query.code)));
 export const leaveGroup = asyncHandler(async (req, res) => {
   await osusuService.leaveGroup(req.user, v(req).params.groupId, req);
   return ok(res, {}, 'You left the group');

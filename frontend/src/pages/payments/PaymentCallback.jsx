@@ -10,7 +10,7 @@ const MAX_POLLS = 20;
 
 function destination(p) {
   if (!p) return '/app';
-  if (p.purpose === 'bill_payment') return `/app/bills/${p.targetId}`;
+  if (p.purpose === 'bill_payment') return `/app/bills/history/${p.targetId}`;
   if (p.purpose === 'collector_savings') return `/app/collector/plans/${p.targetId}`;
   return '/app';
 }

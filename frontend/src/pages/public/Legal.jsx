@@ -9,6 +9,7 @@ const POLICIES = [
   ['Cookie Policy', '/cookie-policy.html', 'The small set of necessary cookies ACHIEVER uses.'],
   ['Security', '/security.html', 'How accounts and money records are protected, and how to report a problem.'],
   ['Deleting your data', '/delete-data.html', 'Account deletion, personal-data deletion and records we must keep.'],
+  ['Referral Programme Terms', '/referral-terms', 'How referral codes work, the qualification rules, the reward, reviews and what is not allowed.'],
   ['Accessibility', '/accessibility.html', 'Accessibility features and how to request help.'],
 ];
 

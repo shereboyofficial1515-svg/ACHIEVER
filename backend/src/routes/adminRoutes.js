@@ -22,6 +22,10 @@ import { idParam } from '../validators/common.js';
 import { groupParam } from '../validators/osusuValidators.js';
 import { planParam } from '../validators/collectorValidators.js';
 import * as s from '../validators/miscValidators.js';
+import * as bv from '../validators/billValidators.js';
+import * as sv from '../validators/securityValidators.js';
+import * as bp from '../controllers/billPaymentController.js';
+import * as ts from '../controllers/transactionSecurityController.js';
 
 const p = requirePermission;
 // Sensitive actions: permission + an authenticator code entered within the last few minutes.
@@ -90,7 +94,28 @@ r.patch('/collectors/:id/status', ...sensitive('collectors.review', 'collectors.
 // Finance
 r.get('/transactions', p('finance.ledger.read'), validate({ query: s.adminTransactions }), c.listTransactions);
 r.get('/payments', p('finance.ledger.read'), validate({ query: s.adminAttempts }), c.listPaymentAttempts);
-r.get('/bills', p('finance.ledger.read', 'support.tickets'), validate({ query: s.listBills }), c.listBills);
+// Bills & Services (VTpass)
+r.get('/bills', p('finance.ledger.read', 'support.tickets', 'bills.manage'), validate({ query: bv.adminList }), bp.adminList);
+r.get('/bills/provider-status', p('finance.ledger.read', 'bills.manage', 'overview.read'), bp.providerStatus);
+r.get('/bills/services', p('finance.ledger.read', 'bills.manage'), bp.adminServices);
+r.post('/bills/services/refresh', ...sensitive('bills.manage'), bp.refreshCatalog);
+r.patch('/bills/services/:serviceId', ...sensitive('bills.manage'), validate({ params: bv.serviceParams, body: bv.serviceToggle }), bp.toggleService);
+r.get('/bills/reconciliation', p('finance.ledger.read', 'bills.manage'), validate({ query: bv.reconciliationList }), bp.reconciliation);
+r.post('/bills/reconciliation/:id/resolve', ...sensitive('bills.manage'), validate({ params: bv.reconId, body: bv.resolve }), bp.resolveReconciliation);
+r.get('/bills/:id', p('finance.ledger.read', 'support.tickets', 'bills.manage'), validate({ params: idParam }), bp.adminDetail);
+r.post('/bills/:id/reconcile', ...sensitive('bills.manage'), validate({ params: idParam }), bp.adminReconcile);
+
+// Referral programme (personal data masked unless users.read_sensitive)
+r.get('/referrals', p('referrals.read'), validate({ query: sv.referralList }), ts.adminReferrals);
+r.get('/referrals/:id/events', p('referrals.read'), validate({ params: idParam }), ts.adminReferralEvents);
+r.post('/referrals/:id/flag', ...sensitive('referrals.review'), validate({ params: idParam, body: sv.flagDecision }), ts.adminFlagDecision);
+r.get('/referral-rewards', p('referrals.read'), validate({ query: sv.rewardList }), ts.adminRewards);
+r.get('/referral-rewards/:id', p('referrals.read'), validate({ params: idParam }), ts.adminReward);
+// Approve/reject needs referrals.review; paying/reversing needs referrals.pay (a different admin than the approver).
+r.post('/referral-rewards/:id/transition', adminSensitiveLimiter,
+  validate({ params: idParam, body: sv.rewardTransition }),
+  (req, res, next) => p(...(['mark_paid', 'reverse'].includes(req.body.action) ? ['referrals.pay'] : ['referrals.review']))(req, res, next),
+  requireAdminStepUp, idempotent, ts.adminRewardTransition);
 r.get('/payouts', p('finance.payouts.execute'), c.payoutQueue);
 r.post('/payouts/:kind/:id/confirm', ...sensitive('finance.payouts.execute'), idempotent, validate({ params: s.disbursementParam, body: s.confirmDisbursement }), c.confirmPayout);
 r.post('/payouts/:kind/:id/fail', ...sensitive('finance.payouts.execute'), validate({ params: s.disbursementParam, body: s.failDisbursement }), c.failPayout);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   Activity, BadgeCheck, Banknote, ClipboardCheck, FileText, Gauge, GitBranch, HandCoins, KeyRound, LifeBuoy, LogOut, Menu,
-  MessageSquare, Receipt, ScrollText, Settings, ShieldAlert, ShieldCheck, UserCog, Users, UsersRound, X, Zap, Eye, Trash2,
+  MessageSquare, Receipt, ScrollText, Settings, ShieldAlert, ShieldCheck, UserCog, Users, UsersRound, X, Zap, Eye, Trash2, Gift,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
@@ -23,7 +23,8 @@ export const NAV = [
     { to: '/transactions', label: 'Transactions', icon: Receipt, perms: ['finance.ledger.read'] },
     { to: '/payouts', label: 'Payouts', icon: Banknote, perms: ['finance.payouts.execute'] },
     { to: '/approvals', label: 'Approvals', icon: ClipboardCheck, perms: ['finance.reversal.request', 'finance.reversal.approve', 'collectors.status', 'risk.review', 'finance.payouts.execute'] },
-    { to: '/bills', label: 'Bill payments', icon: Zap, perms: ['finance.ledger.read', 'support.tickets'] },
+    { to: '/bills', label: 'Bills & Services', icon: Zap, perms: ['finance.ledger.read', 'support.tickets', 'bills.manage'] },
+    { to: '/referrals', label: 'Referrals', icon: Gift, perms: ['referrals.read'] },
   ] },
   { section: 'Cases', items: [
     { to: '/support', label: 'Support & disputes', icon: LifeBuoy, perms: ['support.tickets', 'disputes.manage'] },

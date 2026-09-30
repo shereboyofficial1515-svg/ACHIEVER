@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, ArrowRight, Crown, HandCoins, PiggyBank, User, UsersRound, Wallet } from 'lucide-react';
 import { Alert, Button, Checkbox, Input, Select, Textarea, fieldErrors } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
 import SocialSignIn from '../../components/domain/SocialSignIn.jsx';
+import ReferralCodeField from '../../components/domain/ReferralCodeField.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 
 const TYPES = [
@@ -44,7 +45,7 @@ const EMPLOYMENT = [
 const FIELD_STEP = {
   firstName: 3, middleName: 3, lastName: 3, preferredName: 3, gender: 3, dateOfBirth: 3, nationality: 3, occupation: 3, employmentStatus: 3, businessName: 3,
   email: 4, phone: 4, stateCode: 4, lgaId: 4, city: 4, address: 4, addressUnit: 4, postalCode: 4,
-  password: 5, confirm: 5, acceptTerms: 5, acceptPrivacy: 5,
+  password: 5, confirm: 5, acceptTerms: 5, acceptPrivacy: 5, referralCode: 5,
 };
 const STEP_TITLES = { 1: 'Account type', 2: 'Your role', 3: 'About you', 4: 'Contact & address', 5: 'Security' };
 
@@ -72,17 +73,24 @@ const EMPTY = {
   firstName: '', middleName: '', lastName: '', preferredName: '', gender: '', dateOfBirth: '', nationality: 'NG',
   occupation: '', employmentStatus: '', businessName: '',
   email: '', phone: '', stateCode: '', lgaId: '', city: '', address: '', addressUnit: '', postalCode: '',
-  password: '', confirm: '', acceptTerms: false, acceptPrivacy: false,
+  password: '', confirm: '', acceptTerms: false, acceptPrivacy: false, referralCode: '',
 };
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
   const [step, setStep] = useState(1);
   const [accountType, setAccountType] = useState(null);
   const [role, setRole] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  // A shared link (/register?ref=ACH-XXXXXX) pre-fills the optional referral code.
+  const [form, setForm] = useState(() => {
+    const ref = (params.get('ref') || '').toUpperCase().slice(0, 10);
+    // Kept for this tab so Google/Facebook sign-up (which leaves the page) can still use it.
+    try { if (ref) sessionStorage.setItem('achiever.ref', ref); } catch { /* storage unavailable */ }
+    return { ...EMPTY, referralCode: ref };
+  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const [localErrors, setLocalErrors] = useState({});
@@ -146,6 +154,7 @@ export default function Register() {
         lgaId: Number(rest.lgaId),
         employmentStatus: rest.employmentStatus || undefined,
         address: rest.address || undefined,
+        referralCode: rest.referralCode.trim() || undefined,
         acceptTerms: true,
         acceptPrivacy: true,
       });
@@ -293,6 +302,7 @@ export default function Register() {
             hint="At least 10 characters with upper and lower case letters and a number"
           />
           <Input label="Confirm password" type="password" autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} error={fe.confirm} />
+          <ReferralCodeField value={form.referralCode} onChange={(v) => setForm({ ...form, referralCode: v })} error={fe.referralCode} />
           <Checkbox
             checked={form.acceptTerms}
             onChange={set('acceptTerms')}

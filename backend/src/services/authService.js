@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import * as referralService from './referralService.js';
 import { BLOCKED_STATES, LOGIN_LOCK, REGISTRATION_ROLE_MAP, STAFF_ROLES } from '../config/constants.js';
 import { supabaseAdmin, createAuthClient } from '../integrations/supabase/client.js';
 import { sendEmail } from '../integrations/resend/resendClient.js';
@@ -201,6 +202,11 @@ export async function register(input, req) {
   }
   if (await userRepo.findByEmail(email)) throw AppError.conflict('An account with this email already exists', 'EMAIL_IN_USE');
   if (await userRepo.findByPhone(input.phone)) throw AppError.conflict('An account with this phone number already exists', 'PHONE_IN_USE');
+  // A referral code is checked before the account exists; the relationship is created by the database afterwards.
+  if (input.referralCode) {
+    const ref = await referralService.validateCode(input.referralCode);
+    if (!ref.valid) throw AppError.badRequest('That referral code is not valid. Check it or leave the field empty.', 'INVALID_REFERRAL_CODE');
+  }
 
   // Supabase Auth stores credentials (bcrypt). Email confirmation is tracked
   // by ACHIEVER itself (profiles.email_verified_at) and sent via Resend.
@@ -236,6 +242,7 @@ export async function register(input, req) {
     throw err;
   }
 
+  if (input.referralCode) await referralService.attachAfterRegistration(userId, input.referralCode, req);
   await sendEmailVerification(userId).catch((err) => logger.warn({ err: err.message }, 'verification email not sent'));
   const session = await signIn(email, input.password);
   await auditService.record({ actorId: userId, action: 'auth.register', resourceType: 'profile', resourceId: userId, req });

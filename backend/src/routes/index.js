@@ -5,8 +5,10 @@ import authRoutes from './authRoutes.js';
 import { privacyRoutes, profileRoutes, userRoutes, verificationRoutes } from './accountRoutes.js';
 import osusuRoutes from './osusuRoutes.js';
 import collectorRoutes from './collectorRoutes.js';
+import billPaymentRoutes from './billPaymentRoutes.js';
+import { memberSecurityRoutes, pushRoutes, referralRoutes } from './memberSecurityRoutes.js';
 import {
-  billRoutes, callRoutes, eventRoutes, inviteRoutes, meetingRoutes, messageRoutes,
+  callRoutes, eventRoutes, inviteRoutes, meetingRoutes, messageRoutes,
   notificationRoutes, paymentRoutes, supportRoutes,
 } from './featureRoutes.js';
 import { reportRoutes } from './adminRoutes.js';
@@ -44,7 +46,10 @@ api.use('/osusu', ...money, osusuRoutes);
 api.use('/collector', ...money, collectorRoutes);
 api.use('/invites', ...money, inviteRoutes);
 api.use('/payments', ...money, paymentRoutes);
-api.use('/bills', ...money, billRoutes);
+api.use('/bills', ...money, billPaymentRoutes);
+api.use('/security', ...member, memberSecurityRoutes);
+api.use('/referrals', ...member, referralRoutes);
+api.use('/push', authenticate, pushRoutes);
 api.use('/messages', ...member, messageRoutes);
 api.use('/calls', ...member, callRoutes);
 api.use('/meetings', ...member, meetingRoutes);

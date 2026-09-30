@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ReferralCodeField from '../../components/domain/ReferralCodeField.jsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { Alert, Button, Checkbox, Input, Loader, Select, Textarea, fieldErrors } from '../../components/ui/index.js';
@@ -31,6 +32,7 @@ export default function CompleteProfile() {
   const [form, setForm] = useState({
     accountRole: 'personal:personal', firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '',
     phone: '', stateCode: '', lgaId: '', city: '', address: '', acceptTerms: false, acceptPrivacy: false,
+    referralCode: (() => { try { return sessionStorage.getItem('achiever.ref') || ''; } catch { return ''; } })(),
   });
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
@@ -55,7 +57,7 @@ export default function CompleteProfile() {
       const { data } = await api.post('/auth/oauth/complete', {
         accountType, role, firstName: form.firstName, middleName: form.middleName || undefined, lastName: form.lastName,
         gender: form.gender, dateOfBirth: form.dateOfBirth, phone: form.phone, stateCode: form.stateCode, lgaId: Number(form.lgaId),
-        city: form.city, address: form.address || undefined, nationality: 'NG', acceptTerms: form.acceptTerms, acceptPrivacy: form.acceptPrivacy,
+        city: form.city, address: form.address || undefined, nationality: 'NG', acceptTerms: form.acceptTerms, acceptPrivacy: form.acceptPrivacy, referralCode: form.referralCode.trim() || undefined,
       });
       await refresh();
       navigate(data.emailVerificationRequired ? '/verify-email' : '/app/onboarding', { replace: true });
@@ -99,6 +101,7 @@ export default function CompleteProfile() {
       <LocationPicker stateCode={form.stateCode} lgaId={form.lgaId} errors={fe} onChange={({ stateCode, lgaId }) => setForm({ ...form, stateCode, lgaId })} />
       <Input label="City / town" value={form.city} onChange={set('city')} error={fe.city} />
       <Textarea label={operator ? 'Residential address' : 'Residential address (optional)'} rows={2} value={form.address} onChange={set('address')} error={fe.address} hint="Private — never shown publicly" />
+      <ReferralCodeField value={form.referralCode} onChange={(v) => setForm({ ...form, referralCode: v })} error={fe.referralCode} />
       <Checkbox checked={form.acceptTerms} onChange={set('acceptTerms')} label={<>I accept the <a href="/terms.html" target="_blank" rel="noreferrer">Terms of Service</a> and understand ACHIEVER is not a bank.</>} />
       {fe.acceptTerms && <span className="error xsmall" style={{ color: 'var(--red-600)' }}>{fe.acceptTerms}</span>}
       <Checkbox checked={form.acceptPrivacy} onChange={set('acceptPrivacy')} label={<>I agree to the <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</>} />

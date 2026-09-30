@@ -26,7 +26,43 @@ const ACTIVITY_LABELS = {
   receive_payout: 'receive payouts',
   withdraw: 'withdraw funds',
   operator: 'manage other people’s money',
+  osusu_join: 'join an Osusu group',
+  osusu_admin: 'run an Osusu group',
+  bill_payment: 'buy airtime, data and bills',
 };
+
+/**
+ * Verification state for one activity, from the configurable
+ * kyc.required_levels setting (Admin Platform). Basic savers and bill users
+ * are not asked for BVN/NIN/face checks unless the setting requires it.
+ *
+ *   BASIC_VERIFIED  email verified; the activity needs no identity check
+ *   KYC_REQUIRED    the activity needs a higher level the user has not started
+ *   KYC_PENDING     identity check submitted and being reviewed
+ *   KYC_VERIFIED    identity verified to the level required
+ *   KYC_REJECTED    the last identity check failed
+ *   RESTRICTED      verification-dependent activities paused (review)
+ */
+export async function verificationState(userId, activity) {
+  const [levels, k] = await Promise.all([requiredLevels(), complianceRepo.getKyc(userId)]);
+  const min = Number(levels[activity] ?? 0);
+  const level = k?.level ?? 0;
+  const status = k?.status ?? 'not_started';
+  let state;
+  if (k?.restricted || status === 'restricted') state = 'RESTRICTED';
+  else if (level >= min) state = min >= 2 ? 'KYC_VERIFIED' : 'BASIC_VERIFIED';
+  else if (['pending', 'in_review'].includes(status)) state = 'KYC_PENDING';
+  else if (status === 'failed') state = 'KYC_REJECTED';
+  else state = 'KYC_REQUIRED';
+  return { activity, state, requiredLevel: min, currentLevel: level };
+}
+
+export async function verificationStates(userId) {
+  const activities = Object.keys(ACTIVITY_LABELS);
+  const out = {};
+  for (const a of activities) out[a] = await verificationState(userId, a);
+  return out;
+}
 
 export async function recompute(userId) {
   return complianceRepo.recomputeKyc(userId);

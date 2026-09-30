@@ -80,37 +80,13 @@ export const listTransactions = paging.merge(dateRange).extend({
   search,
 });
 
-// Bills ---------------------------------------------------------------------------
-export const createBill = z.discriminatedUnion('category', [
-  z.object({ category: z.literal('airtime'), serviceId: z.string().max(40), phone, amount: kobo(5000, 5_000_000) }),
-  z.object({ category: z.literal('data'), serviceId: z.string().max(40), phone, variationCode: z.string().max(80) }),
-  z.object({
-    category: z.literal('electricity'),
-    serviceId: z.string().max(40),
-    meterType: z.enum(['prepaid', 'postpaid']),
-    customerId: z.string().trim().regex(/^[0-9]{6,20}$/, 'Enter a valid meter number'),
-    phone,
-    amount: kobo(100000, 50_000_000),
-  }),
-]);
-export const variationsQuery = z.object({ serviceId: z.string().trim().max(40) });
-export const verifyCustomer = z.object({
-  serviceId: z.string().max(40),
-  customerId: z.string().trim().regex(/^[0-9]{6,20}$/),
-  meterType: z.enum(['prepaid', 'postpaid']),
-});
-export const listBills = paging.extend({
-  status: z.enum(['awaiting_payment', 'paid', 'processing', 'delivered', 'failed', 'refund_pending', 'refunded', 'cancelled']).optional(),
-  category: z.enum(['airtime', 'data', 'electricity']).optional(),
-  search,
-});
-
 // Notifications ----------------------------------------------------------------------
-const channelPref = z.object({ email: z.boolean(), sms: z.boolean() });
+const channelPref = z.object({ email: z.boolean(), sms: z.boolean(), push: z.boolean().optional() });
 export const preferences = z.object({
   emailEnabled: z.boolean(),
   smsEnabled: z.boolean(),
-  categories: z.record(z.enum(['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing']), channelPref).default({}),
+  pushEnabled: z.boolean().optional(),
+  categories: z.record(z.enum(['payments', 'reminders', 'payouts', 'meetings', 'groups', 'messages', 'account', 'support', 'system', 'marketing', 'referrals']), channelPref).default({}),
 });
 export const listNotifications = paging.extend({ unreadOnly: z.enum(['true', 'false']).optional().transform((v) => v === 'true') });
 

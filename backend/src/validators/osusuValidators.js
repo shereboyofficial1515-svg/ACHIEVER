@@ -31,7 +31,12 @@ export const listGroups = paging.extend({
   search,
 });
 
-export const joinGroup = z.object({ joinCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8}$/, 'Enter the 8-character group code') });
+export const joinGroup = z.object({
+  joinCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8}$/, 'Enter the 8-character group code'),
+  // The member confirms the arrangement's terms (amount, schedule, grace period, default charges).
+  acceptTerms: z.literal(true, { errorMap: () => ({ message: 'Read and accept the terms of this group to join' }) }),
+});
+export const groupCodeQuery = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8}$/, 'Enter the 8-character group code') });
 export const groupParam = z.object({ groupId: uuid });
 export const memberParam = z.object({ memberId: uuid });
 export const cycleParam = z.object({ cycleId: uuid });

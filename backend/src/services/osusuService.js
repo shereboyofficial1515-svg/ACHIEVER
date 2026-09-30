@@ -1,4 +1,5 @@
 import { BUCKETS, ROLES } from '../config/constants.js';
+import * as kycService from './kycService.js';
 import { canOversee } from './permissionService.js';
 import * as osusuRepo from '../repositories/osusuRepository.js';
 import * as userRepo from '../repositories/userRepository.js';
@@ -207,8 +208,13 @@ async function ensureMemberRole(user, req) {
 }
 
 /** Shared by join-by-code and invite acceptance. */
-export async function addMember(user, group, { viaInvite }, req) {
+export const OSUSU_TERMS_VERSION = '2026-09-v1';
+
+export async function addMember(user, group, { viaInvite, termsAccepted = false }, req) {
   if (group.status !== 'recruiting') throw AppError.conflict('This group is no longer accepting members', 'GROUP_NOT_RECRUITING');
+  if (!termsAccepted) throw AppError.badRequest('Read and accept the terms of this group to join', 'TERMS_NOT_ACCEPTED');
+  // Verification required to join is configurable (kyc.required_levels.osusu_join).
+  await kycService.requireLevel(user.id, 'osusu_join');
   const existing = await osusuRepo.findMembership(group.id, user.id);
   if (existing && ['active', 'pending_approval'].includes(existing.status)) {
     throw AppError.conflict('You are already in this group', 'ALREADY_MEMBER');
@@ -225,6 +231,8 @@ export async function addMember(user, group, { viaInvite }, req) {
     removal_reason: null,
     payout_position: null,
     joined_at: new Date().toISOString(),
+    terms_version: OSUSU_TERMS_VERSION,
+    terms_accepted_at: new Date().toISOString(),
   };
   const member = existing
     ? await osusuRepo.updateMember(existing.id, fields)
@@ -243,10 +251,30 @@ export async function addMember(user, group, { viaInvite }, req) {
   return { groupId: group.id, status };
 }
 
-export async function joinByCode(user, joinCode, req) {
+export async function joinByCode(user, joinCode, req, { termsAccepted = false } = {}) {
   const group = await osusuRepo.findGroupByCode(joinCode.toUpperCase());
   if (!group) throw AppError.notFound('No group matches that code');
-  return addMember(user, group, { viaInvite: false }, req);
+  return addMember(user, group, { viaInvite: false, termsAccepted }, req);
+}
+
+/** What a member agrees to, shown before joining (no member list, no join code). */
+export async function termsByCode(joinCode) {
+  const group = await osusuRepo.findGroupByCode(joinCode.toUpperCase());
+  if (!group) throw AppError.notFound('No group matches that code');
+  const members = await osusuRepo.countMembers(group.id, ['active', 'pending_approval']);
+  return {
+    termsVersion: OSUSU_TERMS_VERSION,
+    groupName: group.name,
+    contributionAmount: Number(group.contribution_amount),
+    frequency: group.frequency,
+    startDate: group.start_date,
+    maxMembers: group.max_members,
+    members,
+    gracePeriodDays: group.grace_period_days ?? 0,
+    defaultCharge: Number(group.default_charge_kobo ?? 0),
+    requiresApproval: Boolean(group.requires_approval),
+    status: group.status,
+  };
 }
 
 export async function leaveGroup(user, groupId, req) {

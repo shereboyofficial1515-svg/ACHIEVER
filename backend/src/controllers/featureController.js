@@ -1,4 +1,3 @@
-import * as billService from '../services/billService.js';
 import * as notificationService from '../services/notificationService.js';
 import * as messageService from '../services/messageService.js';
 import * as callService from '../services/callService.js';
@@ -13,13 +12,6 @@ const v = (req) => req.validated;
 const paged = (res, { items, meta }) => ok(res, items, 'OK', 200, meta);
 
 // Bills ------------------------------------------------------------------------------
-export const billCatalog = (_req, res) => ok(res, billService.catalog());
-export const billVariations = asyncHandler(async (req, res) => ok(res, await billService.variations(v(req).query.serviceId)));
-export const billVerifyCustomer = asyncHandler(async (req, res) => ok(res, await billService.verifyCustomer(req.body)));
-export const createBill = asyncHandler(async (req, res) => created(res, await billService.create(req.user, req.body), 'Redirecting to secure payment'));
-export const listBills = asyncHandler(async (req, res) => paged(res, await billService.list(req.user, v(req).query)));
-export const getBill = asyncHandler(async (req, res) => ok(res, await billService.get(req.user, v(req).params.id)));
-export const requeryBill = asyncHandler(async (req, res) => ok(res, await billService.requery(req.user, v(req).params.id)));
 
 // Notifications -----------------------------------------------------------------------
 export const listNotifications = asyncHandler(async (req, res) => {
@@ -87,7 +79,7 @@ export const joinMeeting = asyncHandler(async (req, res) => ok(res, await meetin
 
 // Invites ------------------------------------------------------------------------------------------
 export const previewInvite = asyncHandler(async (req, res) => ok(res, await inviteService.preview(v(req).params.token)));
-export const acceptInvite = asyncHandler(async (req, res) => ok(res, await inviteService.accept(req.user, v(req).params.token, req), 'Invitation accepted'));
+export const acceptInvite = asyncHandler(async (req, res) => ok(res, await inviteService.accept(req.user, v(req).params.token, req, { termsAccepted: req.body?.acceptTerms === true }), 'Invitation accepted'));
 export const declineInvite = asyncHandler(async (req, res) => {
   await inviteService.decline(req.user, v(req).params.token, req);
   return ok(res, {}, 'Invitation declined');

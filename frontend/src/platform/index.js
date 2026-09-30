@@ -114,11 +114,90 @@ export async function saveFile(blob, filename) {
   return 'downloaded';
 }
 
-/**
- * Push notifications: architecture only. Android push needs Firebase Cloud
- * Messaging (google-services.json) and a server-side sender; until then this
- * reports "unavailable" and the app keeps using in-app, email and SMS notices.
- */
-export async function registerPushNotifications() {
-  return { available: false, reason: 'not_configured' };
+// Push notifications -------------------------------------------------------------------------------
+// Android only, and only in builds that include Firebase (google-services.json):
+// build-android.mjs sets VITE_PUSH_ENABLED. Otherwise in-app, email and SMS notices are used.
+export const pushSupported = () => isNative() && import.meta.env.VITE_PUSH_ENABLED === 'true';
+
+export async function pushPermissionState() {
+  if (!pushSupported()) return 'unavailable';
+  const m = await nativeModule();
+  return m.pushPermission().catch(() => 'unavailable');
+}
+
+/** Asks for permission (only when the user chose to turn notifications on) and registers the device. */
+export async function registerPushNotifications(onToken) {
+  if (!pushSupported()) return { available: false, reason: 'not_configured' };
+  const m = await nativeModule();
+  return m.registerPush(onToken);
+}
+
+export async function unregisterPushNotifications() {
+  if (!pushSupported()) return;
+  const m = await nativeModule();
+  await m.unregisterPush();
+}
+
+// Biometrics (Android) --------------------------------------------------------------------------------
+// The server never trusts "biometric = true" from here: the device key signs a
+// server challenge after the fingerprint/face check, and the server verifies it.
+const BIO_ALIAS = 'achiever-device-key';
+const BIO_STORE = 'achiever.biometric';
+
+/** { keyId, allowLogin, allowTransactions, label } saved after enrolment (public identifiers only). */
+export function biometricEnrolment() {
+  try {
+    return JSON.parse(localStorage.getItem(BIO_STORE) || 'null');
+  } catch {
+    return null;
+  }
+}
+function saveEnrolment(v) {
+  try {
+    if (v) localStorage.setItem(BIO_STORE, JSON.stringify(v));
+    else localStorage.removeItem(BIO_STORE);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export async function biometricAvailability() {
+  if (!isNative()) return { available: false, reason: 'web' };
+  const m = await nativeModule();
+  return m.biometricStatus().catch(() => ({ available: false, reason: 'unavailable' }));
+}
+
+/** Creates the Keystore key; returns its public key (base64 SPKI). */
+export async function createBiometricKey() {
+  const m = await nativeModule();
+  return (await m.createBiometricKey(BIO_ALIAS)).publicKey;
+}
+
+/** Shows the system prompt and signs the server's payload. Rejects with code CANCELLED if the user cancels. */
+export async function signWithBiometrics(payload, prompt) {
+  const m = await nativeModule();
+  return m.biometricSign(BIO_ALIAS, payload, prompt);
+}
+
+export async function unlockWithBiometrics(prompt) {
+  const m = await nativeModule();
+  return m.biometricUnlock(prompt);
+}
+
+export function rememberBiometricEnrolment(enrolment) {
+  saveEnrolment(enrolment);
+}
+
+export async function forgetBiometrics() {
+  saveEnrolment(null);
+  if (!isNative()) return;
+  const m = await nativeModule();
+  await m.deleteBiometricKey(BIO_ALIAS).catch(() => {});
+}
+
+/** Hide the screen from screenshots / recent apps while sensitive data is shown (Android). */
+export async function setSecureScreen(enabled) {
+  if (!isNative()) return;
+  const m = await nativeModule();
+  await m.setSecureScreen(enabled).catch(() => {});
 }

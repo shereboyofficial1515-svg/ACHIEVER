@@ -128,6 +128,7 @@ export const deleteBiometricKey = (alias) => Security.deleteKey({ alias });
 export const biometricSign = (alias, payload, prompt = {}) => Security.sign({ alias, payload, ...prompt }).then((r) => r.signature);
 export const biometricUnlock = (prompt = {}) => Security.authenticate(prompt);
 export const setSecureScreen = (enabled) => Security.setSecureScreen({ enabled });
+export const flushCookies = () => Security.flushCookies();
 
 // Push notifications (Firebase Cloud Messaging) ------------------------------------------------
 export async function pushPermission() {

@@ -192,6 +192,36 @@ function Providers({ onViewErrors }) {
   );
 }
 
+/** Bill revenue: what members paid, VTpass cost and commission, ACHIEVER fees, refunds and reversals. */
+function Revenue() {
+  const [period, setPeriod] = useState('30');
+  const from = period === 'all' ? undefined : new Date(Date.now() - Number(period) * 86400000).toISOString();
+  const r = useAsync(() => api.get('/admin/bills/revenue', from ? { from } : {}), [period]);
+  const d = r.data;
+  return (
+    <Card title="Bill revenue" actions={<Tabs value={period} onChange={setPeriod} tabs={[{ value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: 'all', label: 'All time' }]} />}>
+      <AsyncContent loading={r.loading} error={r.error} onRetry={r.reload}>
+        {d && (
+          <div className="stack">
+            <KeyValue items={[
+              ['Bill revenue (paid by members)', naira(d.bill_revenue)],
+              ['Provider cost (VTpass wallet debits)', naira(d.provider_cost)],
+              ['VTpass commission', naira(d.vtpass_commission)],
+              ['ACHIEVER fees', naira(d.achiever_fees)],
+              ['Gross revenue (commission + fees)', <strong key="g">{naira(d.gross_revenue)}</strong>],
+              ['Refunds', `${naira(d.refunds)} (${d.refund_count})`],
+              ['Reversals', `${naira(d.reversals)} (${d.reversal_count})`],
+              ['Net revenue', <strong key="n">{naira(d.net_revenue)}</strong>],
+              ['Successful purchases', d.delivered_count],
+            ]} />
+            <p className="xsmall muted">Commission and provider cost are exactly what VTpass reported for each transaction (no assumed percentage). Purchases are paid by the member through Paystack at checkout.</p>
+          </div>
+        )}
+      </AsyncContent>
+    </Card>
+  );
+}
+
 function Reconciliation() {
   const { can } = useAuth();
   const toast = useToast();
@@ -241,7 +271,7 @@ export default function AdminBills() {
       <PageHeader title="Bills & Services" subtitle="VTpass purchases, provider health, services and reconciliation. Unknown outcomes are requeried automatically." />
       <Tabs value={tab} onChange={setTab} tabs={[
         { value: 'transactions', label: 'Transactions' }, { value: 'status', label: 'VTpass status' },
-        { value: 'services', label: 'Providers' }, { value: 'reconciliation', label: 'Reconciliation' },
+        { value: 'services', label: 'Providers' }, { value: 'revenue', label: 'Revenue' }, { value: 'reconciliation', label: 'Reconciliation' },
       ]} />
       {tab === 'transactions' && (
         <AdminTable
@@ -271,6 +301,7 @@ export default function AdminBills() {
       {tab === 'transactions' && serviceFilter && <Alert tone="info">Showing failed transactions for {serviceFilter}. <Button variant="ghost" onClick={() => setServiceFilter(null)}>Show all</Button></Alert>}
       {tab === 'services' && <Providers onViewErrors={(id) => { setServiceFilter(id); setTab('transactions'); }} />}
       {tab === 'reconciliation' && <Reconciliation />}
+      {tab === 'revenue' && <Revenue />}
       {detail && <BillDetail id={detail} onClose={() => setDetail(null)} onChanged={() => setReloadKey((k) => k + 1)} />}
     </div>
   );

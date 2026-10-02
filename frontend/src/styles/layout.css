@@ -147,7 +147,7 @@
   .auth-main { padding-top: calc(var(--s-5) + env(safe-area-inset-top)); }
 }
 .toasts, .incoming-call { top: calc(12px + env(safe-area-inset-top)); }
-.modal { max-height: calc(92vh - env(safe-area-inset-top)); }
+.modal { max-height: calc(92vh - env(safe-area-inset-top)); max-height: calc(92dvh - env(safe-area-inset-top)); }
 @media (min-width: 900px) {
   .settings-layout .settings-nav { top: calc(var(--topbar-h) + 16px + env(safe-area-inset-top)); }
 }

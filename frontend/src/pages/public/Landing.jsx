@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { isNative } from '../../platform/index.js';
+import { SessionSplash, SessionUnreachable } from '../../routes/guards.jsx';
 import { BadgeCheck, CalendarClock, HandCoins, MessagesSquare, ShieldCheck, UsersRound, Zap } from 'lucide-react';
 import { Button } from '../../components/ui/index.js';
 import BrandLogo from '../../components/brand/BrandLogo.jsx';
@@ -18,7 +20,23 @@ const FEATURES = [
   { icon: Zap, title: 'Everyday bills', text: 'Buy airtime and data, and pay electricity, from the same account.' },
 ];
 
+/**
+ * Inside the Android app "/" is only the starting point: go straight to the
+ * dashboard (or sign-in) once the session check has finished — no marketing
+ * page and no sign-in flash while the session is being restored.
+ */
+function AppStart() {
+  const { status } = useAuth();
+  if (status === 'loading') return <SessionSplash />;
+  if (status === 'unreachable') return <SessionUnreachable />;
+  return <Navigate to={status === 'authenticated' ? '/app' : status === 'incomplete' ? '/complete-profile' : '/login'} replace />;
+}
+
 export default function Landing() {
+  return isNative() ? <AppStart /> : <WebLanding />;
+}
+
+function WebLanding() {
   const { status } = useAuth();
   const heroRef = useReveal({ children: true });
   const featuresRef = useReveal({ children: true });

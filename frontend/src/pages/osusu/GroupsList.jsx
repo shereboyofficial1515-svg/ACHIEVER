@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { useNavigate } from 'react-router-dom';
 import { KeyRound, Plus, UsersRound } from 'lucide-react';
 import { AsyncContent, Button, Card, EmptyState, PageHeader, Pagination, SkeletonList, StatusBadge, Tabs } from '../../components/ui/index.js';
@@ -19,6 +20,7 @@ export default function GroupsList() {
   const groups = useAsync(() => api.get('/osusu/groups', { scope, status, search: q, page, pageSize: 20 }), [scope, status, q, page]);
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(groups)}>
     <div className="stack-lg">
       <PageHeader
         title="Osusu groups"
@@ -94,5 +96,6 @@ export default function GroupsList() {
         </AsyncContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }

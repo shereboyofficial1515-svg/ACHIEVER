@@ -78,4 +78,8 @@ export const reconciliationList = z.object({
   open: z.enum(['true', 'false']).default('true'),
 });
 export const resolve = z.object({ note: z.string().trim().min(5).max(1000) });
+export const revenueQuery = z.object({
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+});
 export const reconId = z.object({ id: z.coerce.number().int().positive() });

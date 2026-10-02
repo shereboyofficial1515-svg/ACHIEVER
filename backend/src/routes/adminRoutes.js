@@ -98,6 +98,7 @@ r.get('/payments', p('finance.ledger.read'), validate({ query: s.adminAttempts }
 r.get('/bills', p('finance.ledger.read', 'support.tickets', 'bills.manage'), validate({ query: bv.adminList }), bp.adminList);
 r.get('/bills/provider-status', p('finance.ledger.read', 'bills.manage', 'overview.read'), bp.providerStatus);
 r.get('/bills/services', p('finance.ledger.read', 'bills.manage'), bp.adminServices);
+r.get('/bills/revenue', p('finance.ledger.read', 'reports.platform'), validate({ query: bv.revenueQuery }), bp.revenue);
 r.post('/bills/services/refresh', ...sensitive('bills.manage'), bp.refreshCatalog);
 r.patch('/bills/services/:serviceId', ...sensitive('bills.manage'), validate({ params: bv.serviceParams, body: bv.serviceToggle }), bp.toggleService);
 r.get('/bills/reconciliation', p('finance.ledger.read', 'bills.manage'), validate({ query: bv.reconciliationList }), bp.reconciliation);

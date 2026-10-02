@@ -52,6 +52,12 @@ describe('VTpass response mapping', () => {
     expect(mapProviderResult({ json: { code: '040', content: { transactions: { status: 'reversed' } } } }).outcome).toBe('reversed');
   });
 
+  it('keeps the provider cost and commission VTpass reports (no hard-coded rate)', () => {
+    const r = mapProviderResult({ json: { code: '000', content: { transactions: { status: 'delivered', amount: 320, total_amount: 310.4, commission: 9.6 } } } });
+    expect(r).toMatchObject({ outcome: 'delivered', providerCost: 31040, commission: 960, unitAmount: 32000 });
+    expect(mapProviderResult({ json: { code: '000', content: { transactions: { status: 'delivered' } } } })).toMatchObject({ providerCost: null, commission: null });
+  });
+
   it('exam PINs come back as a list of serial/PIN pairs', () => {
     const r = mapProviderResult({ json: { code: '000', content: { transactions: { status: 'delivered' } }, purchased_code: 'Serial No:WRN1, pin: 0987', cards: [{ Serial: 'WRN1', Pin: '0987' }] } });
     expect(r.pins).toEqual([{ serial: 'WRN1', pin: '0987' }]);

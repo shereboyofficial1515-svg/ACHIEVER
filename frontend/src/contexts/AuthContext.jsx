@@ -1,27 +1,68 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, setSessionEndedHandler } from '../services/api.js';
 import { disablePushForSignOut } from '../services/pushDevice.js';
-import { biometricEnrolment, signWithBiometrics } from '../platform/index.js';
+import { biometricEnrolment, flushNativeCookies, signWithBiometrics } from '../platform/index.js';
+
+// A non-sensitive hint ("this device had a signed-in member") so a restart shows
+// "Restoring your session" instead of flashing the sign-in page. No token is stored here.
+const HINT = 'achiever.signedIn';
+const hint = {
+  get: () => { try { return localStorage.getItem(HINT) === '1'; } catch { return false; } },
+  set: (on) => { try { if (on) localStorage.setItem(HINT, '1'); else localStorage.removeItem(HINT); } catch { /* storage unavailable */ } },
+};
+const isNetworkError = (err) => err && (err.status === 0 || err.status >= 502 || ['NETWORK_ERROR', 'SERVICE_UNAVAILABLE'].includes(err.code));
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [status, setStatus] = useState('loading'); // loading | authenticated | anonymous
+  // loading      : restoring the session (splash, never the sign-in page)
+  // authenticated: signed in
+  // anonymous    : genuinely no valid session
+  // incomplete   : social sign-in finished, ACHIEVER profile still needed
+  // unreachable  : the API could not be reached (offline / server waking up); the session is kept
+  const [status, setStatus] = useState('loading');
+  const [wasSignedIn] = useState(hint.get);
 
-  const loadMe = useCallback(async () => {
+  const loadMe = useCallback(async ({ quiet = false } = {}) => {
     try {
       const { data } = await api.get('/auth/me');
       setUser(data);
       setStatus('authenticated');
+      hint.set(true);
       return data;
     } catch (err) {
+      // A network failure is not a sign-out: keep the session and try again.
+      if (isNetworkError(err)) {
+        if (!quiet) setStatus((s) => (s === 'authenticated' ? s : 'unreachable'));
+        return null;
+      }
       setUser(null);
+      hint.set(false);
       // Social sign-in succeeded but the ACHIEVER profile still has to be created.
       setStatus(err?.code === 'PROFILE_INCOMPLETE' ? 'incomplete' : 'anonymous');
       return null;
     }
   }, []);
+
+  // While the API is unreachable, retry with back-off; also retry as soon as the device is online.
+  useEffect(() => {
+    if (status !== 'unreachable') return undefined;
+    let delay = 3000;
+    let timer;
+    const tick = () => { timer = setTimeout(async () => { await loadMe(); delay = Math.min(delay * 2, 30000); tick(); }, delay); };
+    tick();
+    const online = () => loadMe();
+    window.addEventListener('online', online);
+    return () => { clearTimeout(timer); window.removeEventListener('online', online); };
+  }, [status, loadMe]);
+
+  // Back in the foreground: re-check the session quietly (never signs out on a network error).
+  useEffect(() => {
+    const onResume = () => { if (status === 'authenticated' || status === 'unreachable') loadMe({ quiet: true }); };
+    window.addEventListener('achiever:app-resumed', onResume);
+    return () => window.removeEventListener('achiever:app-resumed', onResume);
+  }, [status, loadMe]);
 
   // Android: Google/Facebook sign-in returns through the app's deep link with a one-time code.
   useEffect(() => {
@@ -44,8 +85,10 @@ export function AuthProvider({ children }) {
   }, [loadMe]);
 
   useEffect(() => {
+    // Called only when the server says the session is over (refresh rejected / revoked).
     setSessionEndedHandler(() => {
       setUser(null);
+      hint.set(false);
       setStatus('anonymous');
     });
     api.primeCsrf().catch(() => {});
@@ -56,6 +99,8 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/auth/login', { email, password });
     setUser(data);
     setStatus('authenticated');
+    hint.set(true);
+    flushNativeCookies();
     return data;
   }, []);
 
@@ -71,6 +116,8 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/auth/biometric/login', { keyId: enrolment.keyId, challengeId: ch.challengeId, signature });
     setUser(data);
     setStatus('authenticated');
+    hint.set(true);
+    flushNativeCookies();
     return data;
   }, []);
 
@@ -88,8 +135,11 @@ export function AuthProvider({ children }) {
       await disablePushForSignOut();
       await api.post('/auth/logout');
     } finally {
+      // Logout is the only place the local session is deliberately cleared.
       setUser(null);
+      hint.set(false);
       setStatus('anonymous');
+      flushNativeCookies();
     }
   }, []);
 
@@ -102,6 +152,7 @@ export function AuthProvider({ children }) {
     return {
       user,
       status,
+      wasSignedIn,
       roles,
       has,
       can,
@@ -115,7 +166,7 @@ export function AuthProvider({ children }) {
       refresh: loadMe,
       setUser,
     };
-  }, [user, status, login, loginWithBiometrics, register, logout, loadMe]);
+  }, [user, status, wasSignedIn, login, loginWithBiometrics, register, logout, loadMe]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

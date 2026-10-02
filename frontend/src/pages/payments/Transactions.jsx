@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { Receipt } from 'lucide-react';
 import { AsyncContent, Card, EmptyState, Input, KeyValue, Modal, PageHeader, Pagination, SkeletonList, StatusBadge } from '../../components/ui/index.js';
 import { TransactionList } from '../../components/domain/TransactionList.jsx';
@@ -23,6 +24,7 @@ export default function Transactions() {
   };
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(list)}>
     <div className="stack-lg">
       <PageHeader title="Transactions" subtitle="Your permanent record of verified contributions, payouts, returns, refunds and bills." />
       <Card flush>
@@ -91,5 +93,6 @@ export default function Transactions() {
         )}
       </Modal>
     </div>
+    </PullToRefresh>
   );
 }

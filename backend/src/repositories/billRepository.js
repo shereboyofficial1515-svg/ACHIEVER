@@ -3,7 +3,7 @@ import { likePattern, toRange } from '../utils/pagination.js';
 
 const COLUMNS =
   'id, reference, user_id, category, service_id, service_name, variation_code, customer_identifier, customer_name, phone, amount, fee, ' +
-  'total_amount, provider_cost, quantity, subscription_type, verified_customer, status, payment_reference, transaction_id, provider, ' +
+  'total_amount, provider_cost, commission_amount, commission_rate, net_revenue, quantity, subscription_type, verified_customer, status, payment_reference, transaction_id, provider, ' +
   'provider_request_id, provider_reference, provider_transaction_id, secure_payload, token, units, attempts, last_error, last_provider_code, ' +
   'next_retry_at, auth_method, auth_challenge_id, authorized_at, quote_expires_at, idempotency_key, reversed_at, created_at, updated_at, completed_at';
 
@@ -142,6 +142,10 @@ export async function markServicesUnavailable(category, keepIds) {
 
 export async function updateService(serviceId, patch) {
   return one(db.from('bill_services').update({ ...patch, changed_at: new Date().toISOString() }).eq('service_id', serviceId).select('*').maybeSingle());
+}
+
+export async function revenueSummary(from, to) {
+  return rpc('bill_revenue_summary', { p_from: from, p_to: to });
 }
 
 export async function serviceStats() {

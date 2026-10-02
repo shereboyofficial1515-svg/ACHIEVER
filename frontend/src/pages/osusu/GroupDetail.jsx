@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowDown, ArrowUp, CalendarPlus, CheckCircle2, Copy, Download, MessageSquare, Phone, Play, ShieldAlert, UserPlus, UsersRound, XCircle,
+  ArrowDown, ArrowUp, CalendarClock, CalendarPlus, CheckCircle2, Copy, Download, MessageSquare, Phone, Play, ShieldAlert, UserPlus, UsersRound, Wallet, XCircle,
 } from 'lucide-react';
 import {
   Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, Input, KeyValue, Loader, Modal, PageHeader,
@@ -14,6 +14,8 @@ import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
+import WalletPayModal from '../../components/domain/WalletPayModal.jsx';
+import { AutoPaySetup } from '../wallet/AutoPay.jsx';
 import { FREQUENCY_LABEL, formatDate, formatDateTime, naira } from '../../utils/format.js';
 import { TX_TYPE_LABEL } from '../../utils/status.js';
 
@@ -45,6 +47,11 @@ function Overview({ group, onChanged, conversationId }) {
     [group.id, user.id],
   );
   const openMine = (mine.data || []).filter((c) => c.status !== 'paid');
+  const [walletPay, setWalletPay] = useState(null);
+  const [autoSetup, setAutoSetup] = useState(false);
+  const isActiveMember = group.membership?.status === 'active' && !['completed', 'cancelled'].includes(group.status);
+  const mandates = useAsync(() => (isActiveMember ? api.get('/wallet/mandates') : Promise.resolve({ data: [] })), [group.id, isActiveMember]);
+  const mandate = (mandates.data || []).find((m) => m.groupId === group.id && ['ACTIVE', 'PAUSED'].includes(m.status));
 
   const act = async () => {
     setPending(true);
@@ -96,9 +103,38 @@ function Overview({ group, onChanged, conversationId }) {
                 <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'gold'} onClick={() => review(contributionReview(group, c), (idempotencyKey) => api.post(`/osusu/contributions/${c.id}/pay`, undefined, { idempotencyKey }))} loading={paying === c.id}>
                   Pay now
                 </Button>
+                <Button size="sm" variant="secondary" icon={Wallet} onClick={() => setWalletPay(c)}>Wallet</Button>
               </li>
             ))}
           </ul>
+        </Card>
+      )}
+
+      <WalletPayModal
+        open={Boolean(walletPay)}
+        payment={walletPay ? { kind: 'osusu', contributionId: walletPay.id } : null}
+        amount={walletPay?.amount ?? 0}
+        title={walletPay ? `Osusu contribution, cycle ${walletPay.cycleNumber}` : ''}
+        recipient={`${group.name} (group pool)`}
+        onClose={() => setWalletPay(null)}
+        onPaid={() => { setWalletPay(null); toast.success('Contribution paid from your wallet'); mine.reload(); onChanged(); }}
+      />
+
+      {isActiveMember && group.status !== 'recruiting' && (
+        <Card title="Automatic payments" actions={mandate ? <StatusBadge status={mandate.status.toLowerCase()} label={mandate.status === 'ACTIVE' ? 'On' : 'Paused'} /> : null}>
+          {mandate ? (
+            <div className="row-between small">
+              <span>{naira(mandate.amount)} is paid from your ACHIEVER Wallet when each contribution is due.</span>
+              <Button size="sm" variant="secondary" to="/app/wallet/autopay">Manage</Button>
+            </div>
+          ) : autoSetup ? (
+            <AutoPaySetup groupId={group.id} groupName={group.name} onCancel={() => setAutoSetup(false)} onDone={() => { setAutoSetup(false); toast.success('Automatic payments are on'); mandates.reload(); }} />
+          ) : (
+            <div className="row-between small">
+              <span>Never miss a contribution: pay automatically from your wallet when due.</span>
+              <Button size="sm" icon={CalendarClock} onClick={() => setAutoSetup(true)}>Pay automatically from wallet</Button>
+            </div>
+          )}
         </Card>
       )}
 

@@ -1,5 +1,5 @@
 import {
-  BookOpen, Bell, CalendarDays, FileText, Gift, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Settings, UsersRound, Wallet, Zap,
+  BookOpen, Bell, CalendarDays, FileText, Gift, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Receipt, Settings, UsersRound, Wallet, Zap,
 } from 'lucide-react';
 
 /** Navigation adapts to the roles and permissions the SERVER reports for the user. */
@@ -13,7 +13,8 @@ export function buildNavigation(has) {
     osusu && { to: '/app/osusu', label: 'Osusu groups', short: 'Groups', icon: UsersRound },
     collector && { to: '/app/collector', label: 'Collector desk', short: 'Savers', icon: HandCoins },
     saver && { to: '/app/savings', label: 'My savings', short: 'Savings', icon: PiggyBank },
-    { to: '/app/transactions', label: 'Payments', icon: Wallet },
+    { to: '/app/wallet', label: 'ACHIEVER Wallet', short: 'Wallet', icon: Wallet },
+    { to: '/app/transactions', label: 'Payments', icon: Receipt },
     { to: '/app/bills', label: 'Bills & Services', short: 'Bills', icon: Zap },
     { to: '/app/referrals', label: 'Refer & Earn', short: 'Refer', icon: Gift },
     { to: '/app/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
@@ -32,11 +33,11 @@ export function buildNavigation(has) {
   if (osusu && saver && !collector) {
     bottom = ['/app', '/app/osusu', '/app/savings', '/app/messages', '/app/settings'];
   } else if (collector) {
-    bottom = ['/app', '/app/collector', '/app/transactions', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/collector', '/app/wallet', '/app/messages', '/app/settings'];
   } else if (saver) {
-    bottom = ['/app', '/app/savings', '/app/transactions', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/savings', '/app/wallet', '/app/messages', '/app/settings'];
   } else {
-    bottom = ['/app', '/app/osusu', '/app/transactions', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/osusu', '/app/wallet', '/app/messages', '/app/settings'];
   }
   const bottomItems = bottom.map((to) => main.find((m) => m.to === to)).filter(Boolean);
 

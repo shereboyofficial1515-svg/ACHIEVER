@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { BellRing, Fingerprint, KeyRound } from 'lucide-react';
-import { Alert, AsyncContent, Button, Card, Input, fieldErrors } from '../ui/index.js';
+import { BellRing, Fingerprint, Grid3x3, KeyRound } from 'lucide-react';
+import { Alert, AsyncContent, Button, Card, Checkbox, Input, fieldErrors } from '../ui/index.js';
+import SecureKeypad from '../ui/SecureKeypad.jsx';
+import { keypadPrefs, setKeypadPrefs } from '../../utils/keypadPrefs.js';
 import { useConfirm } from '../ui/ConfirmProvider.jsx';
 import CriticalGate from './CriticalGate.jsx';
 import SecurityChallenge from './SecurityChallenge.jsx';
@@ -24,7 +26,6 @@ export function TransactionPinSection() {
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
   const isSet = status.data?.set;
-  const digits = (k) => (e) => setForm({ ...form, [k]: e.target.value.replace(/\D/g, '').slice(0, 6) });
 
   const submit = (ch) => run(async () => {
     setError(null);
@@ -44,9 +45,10 @@ export function TransactionPinSection() {
       <AsyncContent loading={status.loading} error={status.error} onRetry={status.reload}>
         <div className="stack">
           <p className="small muted">
-            A 6-digit PIN, separate from your sign-in password, that approves payments together with a code sent to your email.
+            A 6-digit PIN, separate from your sign-in password, that approves payments. Larger payments also need a code sent to your email.
             {isSet ? ` Last changed ${formatDateTime(status.data.changedAt)}.` : ' You need one before you can buy airtime, data or pay bills.'}
           </p>
+          {status.data?.resetRequired && <Alert tone="danger">Your PIN was locked several times in a row. For your security, set a new PIN before your next payment.</Alert>}
           {status.data?.locked && <Alert tone="warning">Your PIN is locked after several wrong attempts. It unlocks at {formatDateTime(status.data.lockedUntil)}, or you can set a new one now.</Alert>}
           <CriticalGate type="change_transaction_pin" startLabel={isSet ? 'Change or reset PIN' : 'Create transaction PIN'}
             confirmOptions={isSet ? undefined : { title: 'Create a transaction PIN?', message: 'You will need your sign-in password and a security code sent to your email.' }}>
@@ -55,10 +57,19 @@ export function TransactionPinSection() {
                 {(ch) => (
                   <form className="stack" onSubmit={(e) => { e.preventDefault(); submit(ch); }}>
                     {error?.message && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-                    <Input label="New 6-digit PIN" type="password" inputMode="numeric" autoComplete="new-password" value={form.pin} onChange={digits('pin')} error={fe.pin}
-                      hint="Avoid birthdays and patterns like 123456 or 111111" />
-                    <Input label="Confirm PIN" type="password" inputMode="numeric" autoComplete="new-password" value={form.confirmPin} onChange={digits('confirmPin')} error={fe.confirmPin} />
-                    <div><Button type="submit" loading={pending} disabled={form.pin.length !== 6 || form.confirmPin.length !== 6}>Save PIN</Button></div>
+                    {form.pin.length < 6 ? (
+                      <SecureKeypad id="new-pin" type="pin" label="New 6-digit PIN" hint="Avoid birthdays and patterns like 123456 or 111111"
+                        value={form.pin} onChange={(pin) => setForm({ pin, confirmPin: '' })} />
+                    ) : (
+                      <SecureKeypad id="confirm-pin" type="pin" label="Enter the same PIN again" value={form.confirmPin}
+                        onChange={(confirmPin) => setForm({ ...form, confirmPin })} disabled={pending} />
+                    )}
+                    {(fe.pin || fe.confirmPin) && <p className="xsmall text-red" role="alert">{fe.pin || fe.confirmPin}</p>}
+                    {form.confirmPin.length === 6 && form.confirmPin !== form.pin && <p className="xsmall text-red" role="alert">The PINs do not match. Try again.</p>}
+                    <div className="row-wrap">
+                      <Button type="submit" loading={pending} disabled={form.pin.length !== 6 || form.confirmPin !== form.pin}>Save PIN</Button>
+                      {form.pin && <Button variant="ghost" onClick={() => setForm({ pin: '', confirmPin: '' })} disabled={pending}>Start again</Button>}
+                    </div>
                   </form>
                 )}
               </SecurityChallenge>
@@ -66,6 +77,21 @@ export function TransactionPinSection() {
           </CriticalGate>
         </div>
       </AsyncContent>
+    </Card>
+  );
+}
+
+// Settings → Security → Secure keypad (this device) ---------------------------------------------
+export function KeypadSection() {
+  const [prefs, setPrefs] = useState(keypadPrefs());
+  const update = (patch) => setPrefs(setKeypadPrefs(patch));
+  return (
+    <Card title={<span className="row"><Grid3x3 size={18} aria-hidden /> Secure keypad</span>}>
+      <div className="stack">
+        <p className="small muted">ACHIEVER uses its own keypad for PINs, codes and amounts. These settings apply to this device.</p>
+        {isNative() && <Checkbox label="Vibrate when I press a key" checked={prefs.haptics} onChange={(e) => update({ haptics: e.target.checked })} />}
+        <Checkbox label="Shuffle the PIN keypad layout each time (harder for others to watch)" checked={prefs.shuffle} onChange={(e) => update({ shuffle: e.target.checked })} />
+      </div>
     </Card>
   );
 }

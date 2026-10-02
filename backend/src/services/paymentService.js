@@ -18,6 +18,8 @@ const ABANDON_AFTER_MS = 60 * 60 * 1000;
 let billServicePromise;
 const billService = () => (billServicePromise ??= import('./billService.js'));
 let payoutServicePromise;
+let walletServicePromise;
+const walletService = () => (walletServicePromise ??= import('./walletService.js'));
 const payoutService = () => (payoutServicePromise ??= import('./payoutService.js'));
 
 /**
@@ -195,6 +197,9 @@ export async function processWebhook(webhookId, event) {
       case 'refund.processed':
       case 'refund.failed':
         await refundService.handleRefundEvent(event.event, data);
+        if (event.event === 'refund.processed' && data.transaction_reference) {
+          await (await walletService()).handleTopupRefund(data.transaction_reference, 'Refunded by Paystack');
+        }
         break;
       default:
         await paymentRepo.updateWebhook(webhookId, { status: 'ignored', processed_at: new Date().toISOString() });

@@ -26,6 +26,8 @@ import * as bv from '../validators/billValidators.js';
 import * as sv from '../validators/securityValidators.js';
 import * as bp from '../controllers/billPaymentController.js';
 import * as ts from '../controllers/transactionSecurityController.js';
+import * as wc from '../controllers/walletController.js';
+import * as wv from '../validators/walletValidators.js';
 
 const p = requirePermission;
 // Sensitive actions: permission + an authenticator code entered within the last few minutes.
@@ -106,6 +108,18 @@ r.post('/bills/reconciliation/:id/resolve', ...sensitive('bills.manage'), valida
 r.get('/bills/:id', p('finance.ledger.read', 'support.tickets', 'bills.manage'), validate({ params: idParam }), bp.adminDetail);
 r.post('/bills/:id/reconcile', ...sensitive('bills.manage'), validate({ params: idParam }), bp.adminReconcile);
 
+// ACHIEVER Wallet (masked personal data; adjustments need a second administrator)
+r.get('/wallets/stats', p('wallet.read'), wc.adminStats);
+r.get('/wallets', p('wallet.read'), validate({ query: wv.adminSearch }), wc.adminSearch);
+r.get('/wallets/transfers/review', p('wallet.manage'), wc.adminTransfersForReview);
+r.post('/wallets/transfers/:id/review', ...sensitive('wallet.manage'), idempotent, validate({ params: idParam, body: wv.adminDecision }), wc.adminReviewTransfer);
+r.get('/wallets/adjustments', p('wallet.adjust', 'wallet.read'), validate({ query: wv.adjustmentList }), wc.adminAdjustments);
+r.post('/wallets/adjustments/:id/decide', ...sensitive('wallet.adjust'), idempotent, validate({ params: idParam, body: wv.adminDecision }), wc.adminDecideAdjustment);
+r.get('/wallets/ledger/:id', p('wallet.read'), validate({ params: idParam }), wc.adminLedger);
+r.get('/wallets/:id', p('wallet.read'), validate({ params: idParam }), wc.adminAccount);
+r.post('/wallets/:id/status', ...sensitive('wallet.manage'), validate({ params: idParam, body: wv.adminStatus }), wc.adminSetStatus);
+r.post('/wallets/:id/adjustments', ...sensitive('wallet.adjust'), idempotent, validate({ params: idParam, body: wv.adminAdjust }), wc.adminRequestAdjustment);
+
 // Referral programme (personal data masked unless users.read_sensitive)
 r.get('/referrals', p('referrals.read'), validate({ query: sv.referralList }), ts.adminReferrals);
 r.get('/referrals/:id/events', p('referrals.read'), validate({ params: idParam }), ts.adminReferralEvents);
@@ -115,7 +129,7 @@ r.get('/referral-rewards/:id', p('referrals.read'), validate({ params: idParam }
 // Approve/reject needs referrals.review; paying/reversing needs referrals.pay (a different admin than the approver).
 r.post('/referral-rewards/:id/transition', adminSensitiveLimiter,
   validate({ params: idParam, body: sv.rewardTransition }),
-  (req, res, next) => p(...(['mark_paid', 'reverse'].includes(req.body.action) ? ['referrals.pay'] : ['referrals.review']))(req, res, next),
+  (req, res, next) => p(...(['mark_paid', 'pay_wallet', 'reverse'].includes(req.body.action) ? ['referrals.pay'] : ['referrals.review']))(req, res, next),
   requireAdminStepUp, idempotent, ts.adminRewardTransition);
 r.get('/payouts', p('finance.payouts.execute'), c.payoutQueue);
 r.post('/payouts/:kind/:id/confirm', ...sensitive('finance.payouts.execute'), idempotent, validate({ params: s.disbursementParam, body: s.confirmDisbursement }), c.confirmPayout);

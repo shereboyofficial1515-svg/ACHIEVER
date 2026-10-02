@@ -16,6 +16,7 @@ const AdminCollectors = lazy(() => import('./pages/AdminCollectors.jsx'));
 const AdminTransactions = lazy(() => import('./pages/AdminTransactions.jsx'));
 const AdminPayouts = lazy(() => import('./pages/AdminPayouts.jsx'));
 const AdminBills = lazy(() => import('./pages/AdminBills.jsx'));
+const AdminWallets = lazy(() => import('./pages/AdminWallets.jsx'));
 const AdminReferrals = lazy(() => import('./pages/AdminReferrals.jsx'));
 const AdminVerification = lazy(() => import('./pages/AdminVerification.jsx'));
 const AdminSupport = lazy(() => import('./pages/AdminSupport.jsx'));
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="payouts" element={<AdminPayouts />} />
           <Route path="bills" element={<AdminBills />} />
+          <Route path="wallets" element={<AdminWallets />} />
           <Route path="referrals" element={<AdminReferrals />} />
           <Route path="verification" element={<AdminVerification />} />
           <Route path="support" element={<AdminSupport />} />

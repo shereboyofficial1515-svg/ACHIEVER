@@ -16,6 +16,11 @@ describe('plan normalisation (real VTpass names)', () => {
     expect(normalisePlan(plan('9mobile Data - 100 Naira - 100MB - 1 day', 10000), { category: 'data' })).toMatchObject({ title: '100 MB', validity: '1 day' });
   });
 
+  it('non-data bundles keep their own value, drop only the price, and never repeat the name as validity', () => {
+    const v = normalisePlan(plan('600 Naira Voice Bundle - N100', 10000), { providerName: 'Airtel', category: 'data' });
+    expect(v).toMatchObject({ title: '600 Naira Voice Bundle', validity: null, kind: null, price: 10000 });
+  });
+
   it('packages (TV) keep the provider name without the price', () => {
     expect(normalisePlan(plan('DStv Padi N2,950', 295000), { category: 'tv' })).toMatchObject({ title: 'DStv Padi', type: null, kind: null });
   });

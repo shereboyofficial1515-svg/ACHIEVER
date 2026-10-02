@@ -8,7 +8,7 @@ import {
 } from '../../components/ui/index.js';
 import SecurityChallenge from '../../components/domain/SecurityChallenge.jsx';
 import CriticalGate from '../../components/domain/CriticalGate.jsx';
-import { BiometricSection, PushSection, TransactionPinSection } from '../../components/domain/SecuritySettings.jsx';
+import { BiometricSection, KeypadSection, PushSection, TransactionPinSection } from '../../components/domain/SecuritySettings.jsx';
 import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { useVerificationMethods } from '../../components/domain/PhoneVerification.jsx';
 import { Activity, Deactivate, Details, PayoutAccount, Sessions } from '../app/Profile.jsx';
@@ -271,6 +271,7 @@ function SecuritySection() {
     <div className="stack-lg">
       <TransactionPinSection />
       <BiometricSection />
+      <KeypadSection />
       <SignInMethods />
       <Card title="Sign-in alerts">
         <Select

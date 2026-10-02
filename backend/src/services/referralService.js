@@ -215,5 +215,14 @@ export async function decideFlag(actor, referralId, { decision, reason }) {
 }
 
 export async function transitionReward(actor, rewardId, { action, reason, paymentReference }) {
+  // Paid as an ACHIEVER Wallet credit (REFERRAL_REWARD), with the same two-person rule.
+  if (action === 'pay_wallet') return (await import('../repositories/walletRepository.js')).payReferralReward(rewardId, actor.id, reason);
+  if (action === 'reverse') {
+    const reward = await referralRepo.findReward(rewardId);
+    if (String(reward?.payment_reference || '').startsWith('ACH-WTX')) {
+      // Paid into a wallet: recover it with a two-person wallet adjustment (debit), not by changing the status alone.
+      throw AppError.conflict('This reward was paid into the member’s ACHIEVER Wallet. Recover it with a wallet adjustment (Wallets → Adjust), which needs a second administrator.', 'WALLET_REWARD_USE_ADJUSTMENT');
+    }
+  }
   return referralRepo.transitionReward(rewardId, actor.id, action, reason, paymentReference ?? null);
 }

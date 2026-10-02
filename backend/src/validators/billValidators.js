@@ -37,16 +37,18 @@ export const quote = z.discriminatedUnion('category', [
   }
 });
 
+const fundingSource = z.enum(['paystack', 'wallet']).default('paystack');
 export const authorize = z.discriminatedUnion('method', [
-  z.object({ method: z.literal('email_otp'), pin: z.string().regex(/^\d{6}$/, 'Enter your 6-digit transaction PIN') }),
-  z.object({ method: z.literal('device_biometric'), deviceKeyId: z.string().uuid() }),
+  z.object({ method: z.literal('pin'), pin: z.string().regex(/^\d{6}$/, 'Enter your 6-digit transaction PIN'), fundingSource }),
+  z.object({ method: z.literal('email_otp'), pin: z.string().regex(/^\d{6}$/, 'Enter your 6-digit transaction PIN'), fundingSource }),
+  z.object({ method: z.literal('device_biometric'), deviceKeyId: z.string().uuid(), fundingSource }),
 ]);
 
 export const confirm = z.object({
   challengeId: z.string().uuid(),
   code: z.string().regex(/^\d{6}$/).optional(),
   signature: z.string().trim().regex(/^[A-Za-z0-9+/=_-]{16,2000}$/).optional(),
-}).refine((v) => Boolean(v.code) !== Boolean(v.signature), { message: 'Enter the code from your email', path: ['code'] });
+}).strict().refine((v) => !(v.code && v.signature), { message: 'Enter the code from your email', path: ['code'] });
 
 export const history = z.object({
   page: z.coerce.number().int().min(1).default(1),

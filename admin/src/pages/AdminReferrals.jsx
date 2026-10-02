@@ -124,7 +124,8 @@ const ACTIONS = {
   start_review: { label: 'Start review', perm: 'referrals.review', confirm: 'reward_start_review', from: ['ELIGIBLE'] },
   approve: { label: 'Approve', perm: 'referrals.review', confirm: 'reward_approve', from: ['ELIGIBLE', 'UNDER_REVIEW'] },
   reject: { label: 'Reject', perm: 'referrals.review', confirm: 'reward_reject', from: ['ELIGIBLE', 'UNDER_REVIEW', 'APPROVED'] },
-  mark_paid: { label: 'Record payment', perm: 'referrals.pay', confirm: 'reward_mark_paid', from: ['APPROVED'], reference: true },
+  pay_wallet: { label: 'Pay into wallet', perm: 'referrals.pay', confirm: 'reward_pay_wallet', from: ['APPROVED'] },
+  mark_paid: { label: 'Record bank payment', perm: 'referrals.pay', confirm: 'reward_mark_paid', from: ['APPROVED'], reference: true },
   reverse: { label: 'Reverse', perm: 'referrals.pay', confirm: 'reward_reverse', from: ['PAID'] },
 };
 

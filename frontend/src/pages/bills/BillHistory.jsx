@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { useNavigate } from 'react-router-dom';
 import { AsyncContent, Card, DataTable, EmptyState, Input, PageHeader, Pagination, Select } from '../../components/ui/index.js';
 import { useAsync } from '../../hooks/useAsync.js';
@@ -19,6 +20,7 @@ export default function BillHistory() {
   const set = (k) => (e) => { setPage(1); setFilters({ ...filters, [k]: e.target.value }); };
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(list)}>
     <div className="stack-lg">
       <PageHeader back={{ to: '/app/bills', label: 'Bills & Services' }} title="Transaction history" subtitle="Every bill purchase, with its status and references" />
       <Card>
@@ -50,5 +52,6 @@ export default function BillHistory() {
         </AsyncContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }

@@ -5,7 +5,7 @@
    ===================================================================== */
 
 /* Error / status pages */
-.error-page { min-height: 100vh; display: grid; place-items: center; padding: var(--s-6) var(--s-4); background: var(--color-background); }
+.error-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: var(--s-6) var(--s-4); background: var(--color-background); }
 .error-card { width: 100%; max-width: 520px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--s-8) var(--s-6); text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--s-3); box-shadow: var(--shadow); }
 .error-icon { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--color-info-bg); color: var(--color-info-text); margin-top: var(--s-2); }
 .error-code { font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-green-primary); margin: 0; }

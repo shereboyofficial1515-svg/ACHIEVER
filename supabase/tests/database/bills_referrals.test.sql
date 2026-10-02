@@ -4,7 +4,7 @@
 -- =====================================================================
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(69);
+select plan(72);
 
 -- ---------------------------------------------------------------------
 -- Fixtures: referrer R, admins A1/A2, seven referred users
@@ -196,6 +196,19 @@ select is((select last_response_code from bill_service_stats() where service_id 
 set local role authenticated;
 select throws_like($$ select * from bill_service_stats() $$, '%permission denied%', 'members cannot read provider statistics');
 reset role;
+
+-- Revenue accounting (migration 014)
+insert into bill_payments (id, reference, user_id, category, service_id, customer_identifier, phone, amount, fee, status, provider, provider_request_id)
+values ('22000000-0000-0000-0000-000000000009', 'ACH-BILL-REV', '20000000-0000-0000-0000-0000000000a0', 'data', 'glo-sme-data', '08051234567', '+2348051234567',
+        32000, 1000, 'awaiting_authorization', 'vtpass', '202610010900rev');
+update bill_payments set status = 'awaiting_payment' where id = '22000000-0000-0000-0000-000000000009';
+insert into payment_attempts (reference, user_id, purpose, target_id, amount) values ('PSK-REV', '20000000-0000-0000-0000-0000000000a0', 'bill_payment', '22000000-0000-0000-0000-000000000009', 33000);
+select confirm_payment('PSK-REV', 33000, 'NGN', 'card', 'Approved', now(), 'webhook');
+select record_bill_result('22000000-0000-0000-0000-000000000009', 'delivered', 'VT-REV', null, null, null, 60, 'api', 'VT-REV', '000');
+update bill_payments set provider_cost = 31040, commission_amount = 960, commission_rate = 3.0 where id = '22000000-0000-0000-0000-000000000009';
+select is((select net_revenue from bill_payments where id = '22000000-0000-0000-0000-000000000009'), 1960::bigint, 'net revenue = ACHIEVER fee + VTpass commission');
+select is((bill_revenue_summary() ->> 'vtpass_commission')::bigint, 960::bigint, 'revenue summary totals VTpass commission');
+select ok((bill_revenue_summary() ->> 'reversal_count')::int >= 1, 'revenue summary counts reversals separately');
 
 select * from finish();
 rollback;

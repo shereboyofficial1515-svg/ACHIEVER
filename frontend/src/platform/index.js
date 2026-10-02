@@ -195,6 +195,13 @@ export async function forgetBiometrics() {
   await m.deleteBiometricKey(BIO_ALIAS).catch(() => {});
 }
 
+/** Android: write the WebView's cookies to disk now (so killing the app right after sign-in keeps the session). */
+export async function flushNativeCookies() {
+  if (!isNative()) return;
+  const m = await nativeModule();
+  await m.flushCookies().catch(() => {});
+}
+
 /** Hide the screen from screenshots / recent apps while sensitive data is shown (Android). */
 export async function setSecureScreen(enabled) {
   if (!isNative()) return;

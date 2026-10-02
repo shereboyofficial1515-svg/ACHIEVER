@@ -77,16 +77,29 @@ async function ensureCsrf(force = false) {
   return csrfPromise;
 }
 
+/**
+ * Refresh the access cookie. Resolves true (refreshed) or false (the session is
+ * really over: the server rejected the refresh). Throws a NETWORK_ERROR /
+ * SERVICE_UNAVAILABLE error when the server could not be reached — that is
+ * never treated as a sign-out (offline, or the API waking up).
+ */
 async function refreshSession() {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const token = await ensureCsrf();
-      const res = await fetch(`${BASE}/api/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'X-CSRF-Token': token },
-      });
-      return res.ok;
+      let res;
+      try {
+        res = await fetch(`${BASE}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'X-CSRF-Token': token },
+        });
+      } catch {
+        throw unavailable(0);
+      }
+      if (res.ok) return true;
+      if (res.status === 401 || res.status === 403) return false;
+      throw unavailable(res.status);
     })().finally(() => {
       refreshPromise = null;
     });

@@ -28,4 +28,12 @@ public class MainActivity extends BridgeActivity {
         // Persist the session cookies so a signed-in member stays signed in.
         CookieManager.getInstance().flush();
     }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        // Swiping the app away from Recents can kill the process without another pause:
+        // write the session cookies again when the app leaves the screen.
+        CookieManager.getInstance().flush();
+    }
 }

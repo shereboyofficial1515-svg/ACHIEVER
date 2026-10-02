@@ -208,6 +208,13 @@ public class AchieverSecurityPlugin extends Plugin {
         }
     }
 
+    /** Writes the WebView's cookies (the HTTP-only session) to disk now, e.g. right after sign-in. */
+    @PluginMethod
+    public void flushCookies(PluginCall call) {
+        android.webkit.CookieManager.getInstance().flush();
+        call.resolve();
+    }
+
     /** Hides the screen from screenshots and the recent-apps preview (tokens, PINs, approvals). */
     @PluginMethod
     public void setSecureScreen(PluginCall call) {

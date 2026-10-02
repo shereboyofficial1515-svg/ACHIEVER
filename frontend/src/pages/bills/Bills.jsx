@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { History, Info } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, DataTable, EmptyState, PageHeader } from '../../components/ui/index.js';
 import { useAsync } from '../../hooks/useAsync.js';
@@ -19,6 +20,7 @@ export default function Bills() {
   const byKey = Object.fromEntries((overview.data?.categories || []).map((c) => [c.key, c]));
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(overview, recent)}>
     <div className="stack-lg">
       <PageHeader
         title="Bills & Services"
@@ -76,5 +78,6 @@ export default function Bills() {
         ACHIEVER never stores your card details. Purchases are sent to the provider only after Paystack confirms your payment; if delivery fails you are refunded.
       </p>
     </div>
+    </PullToRefresh>
   );
 }

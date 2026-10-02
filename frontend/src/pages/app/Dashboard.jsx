@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, BadgeCheck, CalendarClock, HandCoins, PiggyBank, Plus, ShieldAlert, TrendingUp, Users, UsersRound, Wallet,
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const pendingOperator = d?.onboarding?.operators?.filter((o) => !o.active) || [];
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(dash)}>
     <div className="stack-lg">
       <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
@@ -210,5 +212,6 @@ export default function Dashboard() {
         )}
       </AsyncContent>
     </div>
+    </PullToRefresh>
   );
 }

@@ -36,7 +36,12 @@ export function mapProviderResult({ json, networkError = false, httpStatus = 0 }
   const status = String(tx.status || '').toLowerCase();
   const providerTransactionId = tx.transactionId ? String(tx.transactionId) : json.transactionId ? String(json.transactionId) : null;
   const providerReference = providerTransactionId || (json.requestId ? String(json.requestId) : null);
-  const base = { code, status: status || null, providerReference, providerTransactionId, httpStatus };
+  const kobo = (v) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v) * 100));
+  const base = {
+    code, status: status || null, providerReference, providerTransactionId, httpStatus,
+    // As reported by VTpass for this transaction (never a hard-coded rate).
+    providerCost: kobo(tx.total_amount), commission: kobo(tx.commission), unitAmount: kobo(tx.amount ?? tx.unit_price),
+  };
 
   if (code === '040' || status === 'reversed') {
     return { ...base, outcome: 'reversed', error: json.response_description || 'Reversed by provider' };

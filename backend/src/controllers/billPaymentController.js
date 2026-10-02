@@ -52,6 +52,7 @@ export const adminList = asyncHandler(async (req, res) => paged(res, await billS
 export const adminDetail = asyncHandler(async (req, res) => ok(res, await billService.adminDetail(v(req).params.id)));
 export const adminReconcile = asyncHandler(async (req, res) => ok(res, await billService.reconcile(v(req).params.id, req.user)));
 export const providerStatus = asyncHandler(async (_req, res) => ok(res, await billService.providerStatus()));
+export const revenue = asyncHandler(async (req, res) => ok(res, await billService.revenue(v(req).query)));
 export const adminServices = asyncHandler(async (_req, res) => ok(res, await billService.adminServices()));
 export const refreshCatalog = asyncHandler(async (req, res) => ok(res, await billService.refreshCatalog(req.user)));
 export const toggleService = asyncHandler(async (req, res) =>

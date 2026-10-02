@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { useNavigate } from 'react-router-dom';
 import { BellOff, CheckCheck } from 'lucide-react';
 import { AsyncContent, Button, Card, EmptyState, PageHeader, Pagination, SkeletonList, Tabs } from '../../components/ui/index.js';
@@ -37,6 +38,7 @@ export default function Notifications() {
   };
 
   return (
+    <PullToRefresh onRefresh={() => reloadAll(list)}>
     <div className="stack-lg" style={{ maxWidth: 820 }}>
       <PageHeader title="Notifications" actions={<Button variant="secondary" size="sm" icon={CheckCheck} onClick={readAll}>Mark all as read</Button>} />
       <Card flush>
@@ -60,5 +62,6 @@ export default function Notifications() {
         </AsyncContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }

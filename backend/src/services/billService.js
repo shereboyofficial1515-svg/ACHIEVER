@@ -423,6 +423,14 @@ async function applyResult(bill, result, source) {
     p_provider_code: result.code ?? null,
   });
   if (recorded?.refund_transaction_id) await refundService.processRefund(recorded.refund_transaction_id);
+  if (result.outcome === 'delivered' && (result.providerCost != null || result.commission != null)) {
+    const base = Number(result.unitAmount || bill.amount) || null;
+    await billRepo.update(bill.id, {
+      provider_cost: result.providerCost,
+      commission_amount: result.commission,
+      commission_rate: result.commission != null && base ? Math.round((result.commission / base) * 1_000_000) / 10_000 : null,
+    }).catch((err) => logger.warn({ billId: bill.id, err: err.message }, 'commission not recorded'));
+  }
   return recorded;
 }
 
@@ -562,6 +570,11 @@ function format(b, { admin = false } = {}) {
     reversedAt: b.reversed_at,
     user: admin && b.user ? { name: b.user.full_name, email: b.user.email } : undefined,
     attempts: admin ? b.attempts : undefined,
+    providerCost: admin && b.provider_cost != null ? Number(b.provider_cost) : undefined,
+    commission: admin && b.commission_amount != null ? Number(b.commission_amount) : undefined,
+    commissionRate: admin && b.commission_rate != null ? Number(b.commission_rate) : undefined,
+    netRevenue: admin && b.net_revenue != null ? Number(b.net_revenue) : undefined,
+    fundingSource: admin ? 'Paystack (card / transfer / USSD)' : undefined,
     lastError: admin ? b.last_error : undefined,
     lastProviderCode: admin ? b.last_provider_code : undefined,
   };
@@ -685,6 +698,12 @@ export async function setServiceControl(actor, serviceId, { enabled, maintenance
     previousState: { enabled: before.enabled, maintenance: before.maintenance }, newState: { enabled: row.enabled, maintenance: row.maintenance },
   });
   return formatService(row);
+}
+
+/** Admin: bill revenue, provider cost, VTpass commission, fees, refunds and reversals for a period. */
+export async function revenue({ from, to } = {}) {
+  const r = await billRepo.revenueSummary(from || null, to || null);
+  return { from: from || null, to: to || null, ...r };
 }
 
 export async function listReconciliation(filters) {

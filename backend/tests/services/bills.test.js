@@ -64,11 +64,21 @@ vi.mock('../../src/services/vtpass/client.js', () => ({
 }));
 
 function bill(id) { return state.bills.get(id); }
+// Fee engine (the database's fee_quote): fixed fees per service for these tests.
+const FEES = { bill_airtime: 5000 };
+const quoteFor = (service, amount) => {
+  const fee = FEES[service] ?? 0;
+  return { service, amount, fee, total_debit: amount + fee, recipient_amount: amount, fee_type: 'FIXED', fee_bearing_mode: 'FEE_ADDED', rule: 'test', fee_version: 1 };
+};
+vi.mock('../../src/repositories/feeRepository.js', () => ({
+  quote: vi.fn(async (service, amount) => quoteFor(service, amount)),
+  listAll: vi.fn(async () => []),
+}));
 vi.mock('../../src/repositories/billRepository.js', () => ({
   insert: vi.fn(async (row) => {
     if ([...state.bills.values()].some((b) => b.provider_request_id === row.provider_request_id)) throw new Error('duplicate key');
     const b = { id: crypto.randomUUID(), attempts: 0, created_at: new Date().toISOString(), payment_reference: null, provider_reference: null,
-      provider_transaction_id: null, secure_payload: null, token: null, last_error: null, ...row, total_amount: row.amount + (row.fee || 0) };
+      provider_transaction_id: null, secure_payload: null, token: null, last_error: null, ...row, fee: FEES[`bill_${row.category}`] ?? 0, total_amount: row.amount + (FEES[`bill_${row.category}`] ?? 0) };
     state.bills.set(b.id, b);
     state.events.push({ bill_id: b.id, to_status: b.status });
     return { ...b };

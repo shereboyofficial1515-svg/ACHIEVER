@@ -6,7 +6,8 @@ import { useAsync } from '../../hooks/useAsync.js';
 import { useSingleFlight } from '../../hooks/useSingleFlight.js';
 import { api, newIdempotencyKey } from '../../services/api.js';
 import { naira } from '../../utils/format.js';
-import { amountToKobo } from './walletShared.js';
+import { amountToKobo, useFeeQuote } from './walletShared.js';
+import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
 
 const QUICK = [100_000, 200_000, 500_000, 1_000_000];
 
@@ -17,6 +18,7 @@ export default function AddMoney() {
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
   const kobo = amountToKobo(value);
+  const { quote } = useFeeQuote('wallet_topup', kobo >= 10_000 ? kobo : 0);
   const key = useMemo(() => newIdempotencyKey(), [kobo]);
   const limits = summary.data?.limits;
   const tooLow = limits && kobo > 0 && kobo < limits.topupMin;
@@ -47,8 +49,12 @@ export default function AddMoney() {
           </div>
           {tooLow && <p className="xsmall text-red" role="alert">The minimum top-up is {naira(limits.topupMin)}.</p>}
           {tooHigh && <p className="xsmall text-red" role="alert">The maximum single top-up is {naira(limits.topupMax)}.</p>}
-          <Button icon={CreditCard} onClick={start} loading={pending} loadingText="Opening secure payment…" disabled={!kobo || tooLow || tooHigh} block>
-            {kobo ? `Add ${naira(kobo)} with Paystack` : 'Enter an amount'}
+          {quote && !tooLow && !tooHigh && (
+            <FeeBreakdown amount={kobo} fee={quote.fee} total={quote.totalDebit} recipientAmount={quote.recipientAmount} mode={quote.feeBearingMode}
+              amountLabel="Top-up" recipientLabel="Added to your wallet" />
+          )}
+          <Button icon={CreditCard} onClick={start} loading={pending} loadingText="Opening secure payment…" disabled={!kobo || tooLow || tooHigh || !quote} block>
+            {kobo && quote ? `Pay ${naira(quote.totalDebit)} with Paystack` : 'Enter an amount'}
           </Button>
           <p className="xsmall muted">
             You pay on Paystack’s secure page (card, bank transfer or USSD). Your wallet is credited only after ACHIEVER confirms the payment with Paystack. ACHIEVER Wallet is not a bank account.

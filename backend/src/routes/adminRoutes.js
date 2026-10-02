@@ -116,6 +116,18 @@ r.post('/wallets/transfers/:id/review', ...sensitive('wallet.manage'), idempoten
 r.get('/wallets/adjustments', p('wallet.adjust', 'wallet.read'), validate({ query: wv.adjustmentList }), wc.adminAdjustments);
 r.post('/wallets/adjustments/:id/decide', ...sensitive('wallet.adjust'), idempotent, validate({ params: idParam, body: wv.adminDecision }), wc.adminDecideAdjustment);
 r.get('/wallets/ledger/:id', p('wallet.read'), validate({ params: idParam }), wc.adminLedger);
+r.get('/wallets/bank-transfers', p('wallet.read', 'wallet.payouts'), validate({ query: wv.bankTransferList }), wc.adminBankTransfers);
+r.post('/wallets/bank-transfers/:id/mark-paid', ...sensitive('wallet.payouts'), idempotent, validate({ params: idParam, body: wv.bankMarkPaid }), wc.adminBankMarkPaid);
+r.post('/wallets/bank-transfers/:id/refund', ...sensitive('wallet.payouts'), idempotent, validate({ params: idParam, body: wv.bankRefund }), wc.adminBankRefund);
+r.post('/wallets/bank-transfers/:id/requery', p('wallet.payouts', 'wallet.manage'), validate({ params: idParam }), wc.adminBankRequery);
+
+// Fees & Charges (proposed by one administrator, approved by another; every version kept)
+r.get('/fees', p('fees.read', 'fees.manage', 'fees.approve'), wc.adminFees);
+r.get('/fees/revenue', p('fees.read', 'finance.ledger.read'), validate({ query: wv.feeRevenue }), wc.adminFeeRevenue);
+r.get('/fees/services/:service/history', p('fees.read', 'fees.manage', 'fees.approve'), validate({ params: wv.feeServiceParam }), wc.adminFeeHistory);
+r.post('/fees', ...sensitive('fees.manage'), idempotent, validate({ body: wv.feeProposal }), wc.adminFeePropose);
+r.post('/fees/:id/decide', ...sensitive('fees.approve'), idempotent, validate({ params: idParam, body: wv.adminDecision }), wc.adminFeeDecide);
+r.post('/fees/:id/cancel', ...sensitive('fees.manage'), validate({ params: idParam }), wc.adminFeeCancel);
 r.get('/wallets/:id', p('wallet.read'), validate({ params: idParam }), wc.adminAccount);
 r.post('/wallets/:id/status', ...sensitive('wallet.manage'), validate({ params: idParam, body: wv.adminStatus }), wc.adminSetStatus);
 r.post('/wallets/:id/adjustments', ...sensitive('wallet.adjust'), idempotent, validate({ params: idParam, body: wv.adminAdjust }), wc.adminRequestAdjustment);

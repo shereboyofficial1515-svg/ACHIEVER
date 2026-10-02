@@ -101,6 +101,11 @@ export const paystack = {
     });
   },
 
+  /** GET /transfer/verify/:reference — the provider's current status of a transfer. */
+  verifyTransfer(reference) {
+    return request('GET', `/transfer/verify/${encodeURIComponent(reference)}`);
+  },
+
   /** POST /transfer — reference must be unique per transfer attempt. */
   initiateTransfer({ amount, recipientCode, reference, reason }) {
     return request('POST', '/transfer', {

@@ -4,11 +4,12 @@ import { CheckCircle2, Clock, ShieldCheck, UserCheck } from 'lucide-react';
 import { Alert, Button, Card, Input, KeyValue, PageHeader } from '../../components/ui/index.js';
 import SecureKeypad from '../../components/ui/SecureKeypad.jsx';
 import TransactionApproval from '../../components/domain/TransactionApproval.jsx';
+import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useSingleFlight } from '../../hooks/useSingleFlight.js';
 import { api, newIdempotencyKey } from '../../services/api.js';
 import { naira } from '../../utils/format.js';
-import { amountToKobo } from './walletShared.js';
+import { amountToKobo, useFeeQuote } from './walletShared.js';
 
 /**
  * Send to another ACHIEVER Wallet:
@@ -29,6 +30,7 @@ export default function SendMoney() {
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
   const kobo = amountToKobo(value);
+  const { quote, error: quoteError } = useFeeQuote('wallet_transfer', step === 'amount' ? kobo : 0);
   const key = useMemo(() => newIdempotencyKey(), [walletId, kobo, note]);
   const w = summary.data;
 
@@ -74,7 +76,7 @@ export default function SendMoney() {
             {held ? <Clock size={48} className="text-sky" aria-hidden /> : <CheckCircle2 size={48} className="text-green" aria-hidden />}
             <p className="wallet-balance" style={{ fontSize: '1.75rem' }}>{naira(done.amount)}</p>
             <p className="muted">{held ? done.message : `Sent to ${recipient?.name} (${recipient?.walletId})`}</p>
-            <KeyValue items={[['Reference', <span key="r" className="mono">{done.reference}</span>], ['Fee', done.fee ? naira(done.fee) : '₦0.00']]} />
+            <KeyValue items={[['Reference', <span key="r" className="mono">{done.reference}</span>], ['Fee', done.fee ? naira(done.fee) : '₦0.00'], ['Total debit', naira(done.total ?? done.amount + done.fee)]]} />
             {done.transactionId && <Button to={`/app/wallet/transactions/${done.transactionId}`} variant="secondary" block>View receipt</Button>}
             <Button onClick={() => navigate('/app/wallet')} block>Back to wallet</Button>
           </div>
@@ -85,23 +87,23 @@ export default function SendMoney() {
 
   return (
     <div className="stack-lg">
-      <PageHeader back={{ to: '/app/wallet', label: 'Wallet' }} title="Send money" subtitle="To another ACHIEVER Wallet" />
+      <PageHeader back={{ to: '/app/wallet/transfer', label: 'Transfer money' }} title="Send to ACHIEVER user" subtitle="Internal transfer · ACHIEVER Wallet → ACHIEVER Wallet" />
       {error && <Alert tone="danger">{error.message}</Alert>}
 
       {step === 'recipient' && (
         <Card>
           <form className="stack" onSubmit={verify} noValidate>
             <Input
-              label="Recipient’s wallet ID"
-              placeholder="ACHW-XXXXXXXX"
+              label="Recipient’s wallet account number"
+              placeholder="ACH…"
               value={walletId}
               onChange={(e) => { setWalletId(e.target.value.toUpperCase()); setRecipient(null); }}
               autoCapitalize="characters"
               autoComplete="off"
               spellCheck={false}
-              hint="Ask the person for the wallet ID shown on their ACHIEVER Wallet page."
+              hint="Ask the person for the wallet account number on their ACHIEVER Wallet page (e.g. ACH7K92M4X81P6Q3R5T)."
             />
-            <Button type="submit" icon={UserCheck} loading={pending} disabled={walletId.trim().length < 8} block>Verify recipient</Button>
+            <Button type="submit" icon={UserCheck} loading={pending} disabled={walletId.replace(/[\s-]/g, '').length < 12} block>Find recipient</Button>
           </form>
         </Card>
       )}
@@ -113,15 +115,18 @@ export default function SendMoney() {
               <UserCheck size={22} className="text-green" aria-hidden />
               <div className="grow">
                 <strong>{recipient.name}</strong>
-                <p className="xsmall muted" style={{ margin: 0 }}>{recipient.walletId} · verified ACHIEVER Wallet</p>
+                <p className="xsmall muted mono" style={{ margin: 0 }}>{recipient.walletId}</p>
+                <p className="xsmall muted" style={{ margin: 0 }}>Verified ACHIEVER Wallet{recipient.legacyId ? ' (old wallet ID — this is their new number)' : ''}</p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => { setStep('recipient'); setRecipient(null); }}>Change</Button>
             </div>
             <SecureKeypad id="send-amount" type="amount" label="Amount to send" value={value} onChange={setValue} disabled={pending} />
             {w && <p className="xsmall muted" style={{ textAlign: 'center', margin: 0 }}>Available: {naira(w.available)} · Daily limit left: {naira(w.limits.transferDailyRemaining)}</p>}
-            {w && kobo > w.available && <p className="xsmall text-red" role="alert" style={{ textAlign: 'center' }}>This is more than your available balance.</p>}
+            {kobo > 0 && <FeeBreakdown amount={kobo} fee={quote?.fee} total={quote?.totalDebit} recipientAmount={quote?.recipientAmount} mode={quote?.feeBearingMode} loading={!quote} />}
+            {quoteError && <p className="xsmall text-red" role="alert">{quoteError.message}</p>}
+            {w && quote && quote.totalDebit > w.available && <p className="xsmall text-red" role="alert" style={{ textAlign: 'center' }}>Insufficient balance. You need {naira(quote.totalDebit)} including the fee.</p>}
             <Input label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} maxLength={120} placeholder="What is it for?" />
-            <Button onClick={toReview} loading={pending} disabled={!kobo || (w && kobo > w.available)} block>Review transfer</Button>
+            <Button onClick={toReview} loading={pending} disabled={!kobo || !quote || (w && quote.totalDebit > w.available)} block>Review transfer</Button>
           </div>
         </Card>
       )}
@@ -131,14 +136,13 @@ export default function SendMoney() {
           <div className="stack">
             <KeyValue
               items={[
+                ['Transfer type', 'ACHIEVER transfer (internal)'],
                 ['To', <span key="to"><strong>{review.recipient?.name}</strong><br /><span className="xsmall muted mono">{review.recipient?.walletId}</span></span>],
-                ['Amount', naira(review.amount)],
-                ['Fee', review.fee ? naira(review.fee) : '₦0.00 (no fee)'],
-                ['Total', <strong key="t" className="money">{naira(review.total)}</strong>],
                 review.note && ['Note', review.note],
                 ['From', 'Your ACHIEVER Wallet'],
               ].filter(Boolean)}
             />
+            <FeeBreakdown amount={review.amount} fee={review.fee} total={review.total} recipientAmount={review.recipientAmount} mode={review.feeBearingMode} />
             {review.newRecipient && <Alert tone="info" icon={ShieldCheck}>First transfer to this wallet. Check the name before you approve: transfers between wallets cannot be cancelled once sent.</Alert>}
             {!approving ? (
               <div className="row-wrap">

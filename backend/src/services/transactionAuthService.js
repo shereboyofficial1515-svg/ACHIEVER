@@ -196,7 +196,7 @@ export function hashFor(purpose, parts) {
   return hmac(env.dataEncryptionKey, [purpose, ...parts.map((p) => String(p ?? ''))].join('|'));
 }
 
-const PURPOSES = new Set(['bill_payment', 'wallet_transfer', 'wallet_mandate', 'wallet_payment']);
+const PURPOSES = new Set(['bill_payment', 'wallet_transfer', 'wallet_mandate', 'wallet_payment', 'wallet_bank_transfer']);
 const describeTarget = (t) => ({
   purpose: t.purpose ?? 'bill_payment', id: t.id, hash: t.hash ?? targetHash(t), amount: Number(t.amount_due ?? t.total_amount ?? t.amount ?? 0),
 });

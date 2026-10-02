@@ -24,9 +24,12 @@ export async function findAccountByUser(userId) {
   return one(db.from('wallet_accounts').select(ACCOUNT).eq('user_id', userId).maybeSingle());
 }
 
+/** Current account number, or a legacy ACHW-… ID kept as an alias. */
 export async function findAccountByCode(code) {
+  const id = await rpc('resolve_wallet_code', { p_code: code });
+  if (!id) return null;
   return one(db.from('wallet_accounts').select(`${ACCOUNT}, owner:profiles!wallet_accounts_user_id_fkey(id, full_name, account_status)`)
-    .eq('wallet_code', code).eq('kind', 'user').maybeSingle());
+    .eq('id', id).eq('kind', 'user').maybeSingle());
 }
 
 export async function setAccountStatus(id, status, reason) {
@@ -35,7 +38,7 @@ export async function setAccountStatus(id, status, reason) {
 
 // Transactions ---------------------------------------------------------------------------------------
 const TYPE_GROUPS = {
-  topup: ['topup'], transfer: ['transfer'], bills: ['bill_payment'], osusu: ['osusu_contribution', 'collector_savings'],
+  topup: ['topup'], transfer: ['transfer', 'bank_transfer'], bills: ['bill_payment'], osusu: ['osusu_contribution', 'collector_savings'],
   refunds: ['refund', 'reversal'], rewards: ['referral_reward'], adjustments: ['adjustment', 'fee'],
 };
 
@@ -241,3 +244,74 @@ export async function listAdjustments(status) {
 
 export const decideAdjustment = (id, actorId, approve, reason) =>
   rpc('wallet_decide_adjustment', { p_request: id, p_actor: actorId, p_approve: approve, p_reason: reason });
+
+// Bank transfers --------------------------------------------------------------------------------------
+const BANK = 'id, reference, user_id, wallet_id, bank_code, bank_name, account_number, account_name, recipient_code, amount, fee, total_debit, ' +
+  'recipient_amount, fee_snapshot, narration, status, execution_mode, idempotency_key, auth_method, authorized_at, debit_transaction_id, ' +
+  'refund_transaction_id, transfer_code, provider_reference, provider_status, provider_cost, provider_cost_estimated, failure_reason, ' +
+  'processed_by, manual_reference, attempts, last_checked_at, expires_at, created_at, updated_at, completed_at';
+
+export async function insertBankTransfer(row) {
+  return one(db.from('wallet_bank_transfers').insert(row).select(BANK).maybeSingle());
+}
+
+export async function findBankTransfer(id) {
+  return one(db.from('wallet_bank_transfers').select(BANK).eq('id', id).maybeSingle());
+}
+
+export async function findBankTransferByReference(reference) {
+  return one(db.from('wallet_bank_transfers').select(BANK).eq('reference', reference).maybeSingle());
+}
+
+export async function findBankTransferByKey(userId, key) {
+  return one(db.from('wallet_bank_transfers').select(BANK).eq('user_id', userId).eq('idempotency_key', key).maybeSingle());
+}
+
+export async function updateBankTransfer(id, patch, { fromStatus } = {}) {
+  let q = db.from('wallet_bank_transfers').update(patch).eq('id', id);
+  if (fromStatus) q = q.eq('status', fromStatus);
+  return one(q.select(BANK).maybeSingle());
+}
+
+/** Authorise once: only an INITIATED, not-yet-authorised transfer is updated. */
+export async function markBankTransferAuthorized(id, { method, challengeId }) {
+  return one(db.from('wallet_bank_transfers').update({ authorized_at: new Date().toISOString(), auth_method: method, auth_challenge_id: challengeId })
+    .eq('id', id).eq('status', 'INITIATED').is('authorized_at', null).select(BANK).maybeSingle());
+}
+
+export async function hasPaidAccount(userId, bankCode, accountNumber) {
+  const { count, error } = await db.from('wallet_bank_transfers').select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).eq('bank_code', bankCode).eq('account_number', accountNumber).eq('status', 'SUCCESS');
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+export async function recipientCodeFor(userId, bankCode, accountNumber) {
+  const rows = await run(db.from('wallet_bank_transfers').select('recipient_code').eq('user_id', userId).eq('bank_code', bankCode)
+    .eq('account_number', accountNumber).not('recipient_code', 'is', null).order('created_at', { ascending: false }).limit(1));
+  return rows[0]?.recipient_code ?? null;
+}
+
+export async function listBankTransfers({ userId, status, page = 1, pageSize = 20, search }) {
+  let q = db.from('wallet_bank_transfers').select(`${BANK}, user:profiles!wallet_bank_transfers_user_id_fkey(full_name, email)`, { count: 'exact' })
+    .order('created_at', { ascending: false });
+  if (userId) q = q.eq('user_id', userId);
+  if (status) q = q.eq('status', status);
+  if (search) q = q.ilike('reference', likePattern(search));
+  const { from: a, to: b } = toRange({ page, pageSize });
+  return runPaged(q.range(a, b));
+}
+
+/** Open transfers the job should push or check with the provider. */
+export async function listOpenBankTransfers({ olderThan, limit = 50 }) {
+  return run(db.from('wallet_bank_transfers').select(BANK).in('status', ['PENDING', 'PROCESSING']).eq('execution_mode', 'paystack_transfer')
+    .lt('updated_at', olderThan).order('updated_at').limit(limit));
+}
+
+export const debitBankTransfer = (id) => rpc('wallet_bank_transfer_debit', { p_id: id });
+export const bankTransferProcessing = (id, transferCode, providerStatus) =>
+  rpc('wallet_bank_transfer_processing', { p_id: id, p_transfer_code: transferCode ?? null, p_provider_status: providerStatus ?? null });
+export const completeBankTransfer = (id, { providerReference = null, providerCost = null, estimated = false, actorId = null, manualReference = null } = {}) =>
+  rpc('wallet_bank_transfer_complete', { p_id: id, p_provider_reference: providerReference, p_provider_cost: providerCost, p_cost_estimated: estimated, p_actor: actorId, p_manual_reference: manualReference });
+export const failBankTransfer = (id, status, reason, actorId = null) =>
+  rpc('wallet_bank_transfer_fail', { p_id: id, p_status: status, p_reason: reason, p_actor: actorId });

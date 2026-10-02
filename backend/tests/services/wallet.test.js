@@ -11,18 +11,29 @@ const OTHER = 'u-other';
 
 const accountFor = (userId) => [...state.accounts.values()].find((a) => a.user_id === userId);
 
+// Fee engine (the database's fee_quote): fixed fees per service for these tests.
+const FEES = {};
+const quoteFor = (service, amount) => {
+  const fee = FEES[service] ?? 0;
+  return { service, amount, fee, total_debit: amount + fee, recipient_amount: amount, fee_type: 'FIXED', fee_bearing_mode: 'FEE_ADDED', rule: 'test', fee_version: 1 };
+};
+vi.mock('../../src/repositories/feeRepository.js', () => ({
+  quote: vi.fn(async (service, amount) => quoteFor(service, amount)),
+  listAll: vi.fn(async () => []),
+}));
 vi.mock('../../src/repositories/walletRepository.js', () => ({
   ensureWallet: vi.fn(async (u) => accountFor(u).id),
   findAccount: vi.fn(async (id) => state.accounts.get(id) || null),
   findAccountByUser: vi.fn(async (u) => accountFor(u) || null),
-  findAccountByCode: vi.fn(async (code) => {
+  findAccountByCode: vi.fn(async (input) => {
+    const code = input === 'ACHW-BCDE6789' ? 'ACHBCDE6789ABCDEFGH' : input;   // legacy alias
     const a = [...state.accounts.values()].find((x) => x.wallet_code === code);
     return a ? { ...a, owner: { full_name: a.name, account_status: 'active' } } : null;
   }),
   sumOutgoingToday: vi.fn(async () => state.sentToday ?? 0),
   countTransfersSince: vi.fn(async () => 0),
   hasSentTo: vi.fn(async (_u, w) => state.sent.has(w)),
-  insertTransfer: vi.fn(async (row) => { const t = { id: crypto.randomUUID(), authorized_at: null, expires_at: new Date(Date.now() + 900_000).toISOString(), ...row }; state.transfers.set(t.id, t); return { ...t }; }),
+  insertTransfer: vi.fn(async (row) => { const q = quoteFor('wallet_transfer', row.amount); const t = { id: crypto.randomUUID(), authorized_at: null, expires_at: new Date(Date.now() + 900_000).toISOString(), ...row, fee: q.fee, total_debit: q.total_debit, recipient_amount: q.recipient_amount, fee_snapshot: q }; state.transfers.set(t.id, t); return { ...t }; }),
   findTransfer: vi.fn(async (id) => (state.transfers.get(id) ? { ...state.transfers.get(id) } : null)),
   findTransferByKey: vi.fn(async () => null),
   markTransferAuthorized: vi.fn(async (id, { method }) => {
@@ -33,7 +44,7 @@ vi.mock('../../src/repositories/walletRepository.js', () => ({
   executeTransfer: vi.fn(async (id) => { state.executed.push(id); state.transfers.get(id).status = 'SUCCESS'; return { outcome: 'success' }; }),
   failTransfer: vi.fn(async () => []),
   cancelTransfer: vi.fn(async () => null),
-  insertTopup: vi.fn(async (row) => { const t = { id: crypto.randomUUID(), ...row }; state.topups.set(t.id, t); return { ...t }; }),
+  insertTopup: vi.fn(async (row) => { const q = quoteFor('wallet_topup', row.amount); const t = { id: crypto.randomUUID(), ...row, amount: q.total_debit, fee: q.fee, credit_amount: q.recipient_amount }; state.topups.set(t.id, t); return { ...t }; }),
   updateTopup: vi.fn(async (id, patch) => Object.assign(state.topups.get(id), patch)),
   findTopup: vi.fn(async (id) => state.topups.get(id) || null),
   findTopupByKey: vi.fn(async () => null),
@@ -86,32 +97,35 @@ beforeEach(async () => {
   for (const k of ['accounts', 'transfers', 'topups', 'challenges', 'credentials', 'mandates']) state[k].clear();
   state.sent.clear(); state.executed.length = 0; state.events.length = 0; state.payments.length = 0; emailed.length = 0;
   state.settings = {}; state.sentToday = 0; initialize.mockClear();
-  state.accounts.set('w-me', { id: 'w-me', user_id: ME, kind: 'user', wallet_code: 'ACHW-AAAA2345', status: 'active', balance: 10_000_000, held: 0, currency: 'NGN', name: 'Me Myself' });
-  state.accounts.set('w-other', { id: 'w-other', user_id: OTHER, kind: 'user', wallet_code: 'ACHW-BCDE6789', status: 'active', balance: 0, held: 0, currency: 'NGN', name: 'Adaeze Okafor' });
+  state.accounts.set('w-me', { id: 'w-me', user_id: ME, kind: 'user', wallet_code: 'ACHAAAA2345ABCDEFGH', status: 'active', balance: 10_000_000, held: 0, currency: 'NGN', name: 'Me Myself' });
+  state.accounts.set('w-other', { id: 'w-other', user_id: OTHER, kind: 'user', wallet_code: 'ACHBCDE6789ABCDEFGH', status: 'active', balance: 0, held: 0, currency: 'NGN', name: 'Adaeze Okafor' });
   await tx.setPin(user, PIN, {});
 });
 
 describe('wallet identity and masking', () => {
-  it('normalises wallet IDs and rejects look-alike characters', () => {
-    expect(wallet.normaliseWalletCode('achw bcde 6789')).toBe('ACHW-BCDE6789');
-    expect(wallet.normaliseWalletCode('BCDE6789')).toBe('ACHW-BCDE6789');
-    expect(wallet.normaliseWalletCode('ACHW-BCDE678O')).toBeNull();   // O is not in the alphabet
+  it('normalises wallet account numbers (and old IDs) and rejects look-alike characters', () => {
+    expect(wallet.normaliseWalletCode('ach bcde-6789 abcd efgh')).toBe('ACHBCDE6789ABCDEFGH');
+    expect(wallet.normaliseWalletCode('ACHW-BCDE6789')).toBe('ACHW-BCDE6789');        // legacy ID still accepted
+    expect(wallet.normaliseWalletCode('ACHBCDE6789ABCDEFG0')).toBeNull();             // 0 is not in the alphabet
+    expect(wallet.normaliseWalletCode('ACH12345')).toBeNull();                         // too short
   });
 
   it('recipient verification shows only a masked name and masked wallet ID', async () => {
-    const r = await wallet.resolveRecipient(user, 'ACHW-BCDE6789');
-    expect(r).toEqual({ walletId: 'ACHW-••••6789', name: 'Ad**** O*****', verified: true });
-    expect(JSON.stringify(r)).not.toMatch(/Adaeze|Okafor|BCDE6789/);
+    const r = await wallet.resolveRecipient(user, 'ACHBCDE6789ABCDEFGH');
+    expect(r).toMatchObject({ walletId: 'ACHBCDE6789ABCDEFGH', name: 'Ad**** O*****', verified: true });
+    expect(JSON.stringify(r)).not.toMatch(/Adaeze|Okafor/);
+    // An old ACHW- ID finds the same wallet and shows its new account number.
+    expect(await wallet.resolveRecipient(user, 'ACHW-BCDE6789')).toMatchObject({ walletId: 'ACHBCDE6789ABCDEFGH', legacyId: true });
   });
 
   it('refuses sending to yourself or to an unknown wallet', async () => {
-    await expect(wallet.resolveRecipient(user, 'ACHW-AAAA2345')).rejects.toMatchObject({ code: 'SELF_TRANSFER' });
-    await expect(wallet.resolveRecipient(user, 'ACHW-ZZZZ2345')).rejects.toMatchObject({ code: 'WALLET_NOT_FOUND' });
+    await expect(wallet.resolveRecipient(user, 'ACHAAAA2345ABCDEFGH')).rejects.toMatchObject({ code: 'SELF_TRANSFER' });
+    await expect(wallet.resolveRecipient(user, 'ACHZZZZ2345ABCDEFGH')).rejects.toMatchObject({ code: 'WALLET_NOT_FOUND' });
   });
 
   it('never calls the wallet a bank account', async () => {
     const s = await wallet.summary(user);
-    expect(s.walletId).toBe('ACHW-AAAA2345');
+    expect(s.walletId).toBe('ACHAAAA2345ABCDEFGH');
     expect(s.notice).toMatch(/not a bank account/i);
     expect(s.available).toBe(10_000_000);
   });
@@ -141,7 +155,7 @@ describe('top-up', () => {
 describe('internal transfer: review -> approve -> execute', () => {
   it('small transfer: PIN approval, executed exactly once', async () => {
     state.sent.add('w-other');
-    const review = await wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 200_000, note: 'Lunch' });
+    const review = await wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 200_000, note: 'Lunch' });
     expect(review).toMatchObject({ amount: 200_000, total: 200_000, recipient: { name: 'Ad**** O*****' } });
     expect(review.approval.methods).toContain('pin');
     expect(state.executed).toHaveLength(0);   // nothing moves at review
@@ -156,7 +170,7 @@ describe('internal transfer: review -> approve -> execute', () => {
 
   it('an approval is bound to the reviewed amount and recipient', async () => {
     state.sent.add('w-other');
-    const review = await wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 200_000 });
+    const review = await wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 200_000 });
     const ch = await wallet.authorizeTransfer(user, review.transferId, { method: 'pin', pin: PIN }, {});
     state.transfers.get(review.transferId).amount = 9_000_000;   // tampered after approval
     await expect(wallet.confirmTransfer(user, review.transferId, { challengeId: ch.challengeId }, {})).rejects.toMatchObject({ code: 'TX_AUTH_INVALID' });
@@ -165,7 +179,7 @@ describe('internal transfer: review -> approve -> execute', () => {
 
   it('larger amounts need PIN + emailed code (PIN alone is refused)', async () => {
     state.sent.add('w-other');
-    const review = await wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 6_000_000 });
+    const review = await wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 6_000_000 });
     expect(review.approval).toMatchObject({ stepUpRequired: true });
     await expect(wallet.authorizeTransfer(user, review.transferId, { method: 'pin', pin: PIN }, {})).rejects.toMatchObject({ code: 'TX_STEP_UP_REQUIRED' });
     const ch = await wallet.authorizeTransfer(user, review.transferId, { method: 'email_otp', pin: PIN }, {});
@@ -175,19 +189,19 @@ describe('internal transfer: review -> approve -> execute', () => {
   });
 
   it('first transfer of a notable amount to a new wallet is stepped up, with the reason explained', async () => {
-    const review = await wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 2_500_000 });
+    const review = await wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 2_500_000 });
     expect(review.newRecipient).toBe(true);
     expect(review.approval.methods).not.toContain('pin');
     expect(review.approval.reason).toMatch(/first transfer/i);
   });
 
   it('server-side limits: insufficient balance, single and daily limits', async () => {
-    await expect(wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 15_000_000 })).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    await expect(wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 15_000_000 })).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
     state.settings['wallet.transfer_single_max_kobo'] = 100_000;
-    await expect(wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 200_000 })).rejects.toMatchObject({ code: 'AMOUNT_TOO_HIGH' });
+    await expect(wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 200_000 })).rejects.toMatchObject({ code: 'AMOUNT_TOO_HIGH' });
     state.settings['wallet.transfer_single_max_kobo'] = 20_000_000;
     state.sentToday = 49_900_000;
-    await expect(wallet.startTransfer(user, { walletCode: 'ACHW-BCDE6789', amount: 200_000 })).rejects.toMatchObject({ code: 'DAILY_LIMIT_REACHED' });
+    await expect(wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 200_000 })).rejects.toMatchObject({ code: 'DAILY_LIMIT_REACHED' });
   });
 
   it('the client cannot claim an approval it does not have', () => {

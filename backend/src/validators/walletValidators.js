@@ -3,7 +3,8 @@ import { isoDate, kobo, line, optionalText, uuid } from './common.js';
 import { paginationSchema } from '../utils/pagination.js';
 
 const pin = z.string().regex(/^\d{6}$/, 'Enter your 6-digit transaction PIN');
-const walletCode = z.string().trim().max(20).regex(/^(ACHW)?-?[23456789A-HJ-NP-Za-hj-np-z\s-]{8,10}$/i, 'Enter a valid ACHIEVER Wallet ID');
+// 'ACH' + 16 characters (spaces/dashes allowed when typed); old 'ACHW-XXXXXXXX' IDs still accepted.
+const walletCode = z.string().trim().max(30).regex(/^[A-Za-z0-9\s-]{8,30}$/, 'Enter a valid ACHIEVER wallet account number');
 
 /** Approval method. The server decides which methods are allowed for the amount (see approvalOptions). */
 export const approve = z.discriminatedUnion('method', [
@@ -19,6 +20,20 @@ export const confirm = z.object({
 }).strict().refine((v) => !(v.code && v.signature), { message: 'Send either the code or the signature', path: ['code'] });
 
 export const topup = z.object({ amount: kobo(10_000, 1_000_000_000) });
+export const feeQuote = z.object({
+  service: z.enum(['bank_transfer', 'wallet_transfer', 'wallet_topup', 'osusu_contribution', 'collector_savings',
+    'bill_airtime', 'bill_data', 'bill_electricity', 'bill_tv', 'bill_education', 'bill_recharge_pin', 'bill_betting']),
+  amount: kobo(1, 1_000_000_000),
+});
+
+// Bank transfers (the account name is never accepted from the app: it is verified with the bank)
+const bankCode = z.string().trim().regex(/^[A-Za-z0-9-]{2,20}$/, 'Choose a bank');
+const accountNumber = z.string().trim().regex(/^\d{10}$/, 'Enter the 10-digit account number');
+export const bankResolve = z.object({ bankCode, accountNumber });
+export const bankTransfer = z.object({
+  bankCode, accountNumber, amount: kobo(100, 1_000_000_000),
+  narration: z.string().trim().max(100).optional().nullable(),
+}).strict();
 export const resolve = z.object({ walletId: walletCode });
 export const transfer = z.object({
   walletId: walletCode,
@@ -37,6 +52,7 @@ const paymentTarget = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('collector'), planId: uuid, amount: kobo(10_000, 1_000_000_000) }),
 ]);
 export const payAuthorize = z.intersection(paymentTarget, approve);
+export const payPreview = paymentTarget;
 export const payConfirm = z.intersection(paymentTarget, z.object({
   challengeId: uuid, code: z.string().regex(/^\d{6}$/).optional(), signature: z.string().trim().regex(/^[A-Za-z0-9+/=_-]{16,2000}$/).optional(),
 }));
@@ -58,3 +74,38 @@ export const adminStatus = z.object({ status: z.enum(['active', 'frozen']), reas
 export const adminAdjust = z.object({ direction: z.enum(['credit', 'debit']), amount: kobo(100, 100_000_000), reason: line(10, 1000) });
 export const adminDecision = z.object({ approve: z.boolean(), reason: line(5, 1000) });
 export const adjustmentList = z.object({ status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional() });
+export const bankTransferList = paginationSchema.extend({
+  status: z.enum(['INITIATED', 'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'REVERSED', 'REFUNDED', 'CANCELLED']).optional(),
+  search: z.string().trim().max(60).optional(),
+});
+export const bankMarkPaid = z.object({ manualReference: line(4, 120), providerCost: kobo(0, 1_000_000).optional().nullable() });
+export const bankRefund = z.object({ reason: line(5, 300) });
+
+// Fees & Charges
+const money = (max = 1_000_000_000) => z.coerce.number().int().min(0).max(max);
+export const feeProposal = z.object({
+  service: z.enum(['bank_transfer', 'wallet_transfer', 'wallet_topup', 'bill_airtime', 'bill_data', 'bill_electricity', 'bill_tv',
+    'bill_education', 'bill_recharge_pin', 'bill_betting', 'osusu_contribution', 'collector_savings', 'osusu_payout', 'referral_payout']),
+  feeType: z.enum(['FIXED', 'PERCENTAGE', 'FIXED_PLUS_PERCENTAGE', 'TIERED']),
+  fixedAmount: money(100_000_000).optional(),
+  percentage: z.coerce.number().min(0).max(50).optional(),
+  tiers: z.array(z.object({
+    min: money(), max: money().nullable().optional(), fixed: money(100_000_000).optional(), percentage: z.coerce.number().min(0).max(50).optional(),
+  })).max(20).optional(),
+  minimumFee: money(100_000_000).nullable().optional(),
+  maximumFee: money(100_000_000).nullable().optional(),
+  minimumTransactionAmount: money().nullable().optional(),
+  maximumTransactionAmount: money().nullable().optional(),
+  feeBearingMode: z.enum(['FEE_ADDED', 'FEE_INCLUDED']),
+  enabled: z.boolean().default(true),
+  effectiveFrom: z.string().datetime({ offset: true }).optional().nullable(),
+  effectiveUntil: z.string().datetime({ offset: true }).optional().nullable(),
+  reason: line(5, 1000),
+}).strict().superRefine((v, ctx) => {
+  if (v.feeType === 'TIERED' && !v.tiers?.length) ctx.addIssue({ code: 'custom', path: ['tiers'], message: 'Add at least one tier' });
+  if (v.minimumFee != null && v.maximumFee != null && v.maximumFee < v.minimumFee) {
+    ctx.addIssue({ code: 'custom', path: ['maximumFee'], message: 'Maximum fee must be at least the minimum fee' });
+  }
+});
+export const feeServiceParam = z.object({ service: z.string().regex(/^[a-z_]{3,40}$/) });
+export const feeRevenue = z.object({ from: z.string().datetime({ offset: true }).optional(), to: z.string().datetime({ offset: true }).optional() });

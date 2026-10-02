@@ -21,6 +21,7 @@ describe('authorisation on the new endpoints', () => {
     ['get', '/api/bills/overview'], ['get', '/api/bills/history'], ['get', '/api/bills/airtime/networks'],
     ['get', '/api/security/transaction-pin'], ['get', '/api/security/biometric/devices'], ['get', '/api/referrals/me'],
     ['get', '/api/wallet'], ['get', '/api/wallet/transactions'], ['get', '/api/wallet/mandates'],
+    ['get', '/api/wallet/bank-transfers'], ['get', '/api/wallet/fees/quote?service=bank_transfer&amount=100000'],
   ])('%s %s requires a signed-in member', async (method, path) => {
     const res = await request(app)[method](path);
     expect(res.status).toBe(401);
@@ -30,6 +31,7 @@ describe('authorisation on the new endpoints', () => {
     ['post', '/api/bills/quote'], ['post', '/api/bills/00000000-0000-0000-0000-000000000001/confirm'],
     ['put', '/api/security/transaction-pin'], ['post', '/api/push/devices'],
     ['post', '/api/wallet/topups'], ['post', '/api/wallet/transfers'], ['post', '/api/wallet/payments/confirm'],
+    ['post', '/api/wallet/bank-transfers'], ['post', '/api/wallet/bank/resolve'],
   ])('%s %s requires a session (and CSRF)', async (method, path) => {
     const { agent, token } = await csrfAgent();
     const res = await agent[method](path).set('X-CSRF-Token', token).send({});

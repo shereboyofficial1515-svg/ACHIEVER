@@ -34,9 +34,13 @@ export default function WalletReceipt() {
                   ['Description', t.description],
                   t.counterparty && [t.direction === 'credit' ? 'From' : 'To', `${t.counterparty.name} · ${t.counterparty.walletId}`],
                   t.note && ['Note', t.note],
-                  t.fee > 0 && ['Fee', naira(t.fee)],
+                  t.direction === 'debit' && ['Amount', naira(t.principal ?? t.amount)],
+                  t.direction === 'debit' && ['Fee', t.fee ? naira(t.fee) : '₦0.00'],
+                  t.direction === 'debit' && ['Total debit', naira(t.amount)],
+                  t.direction === 'credit' && t.type === 'topup' && t.fee > 0 && ['Top-up fee', naira(t.fee)],
                   ['Reference', <span key="ref" className="mono">{t.reference}</span>],
                   ['Date', formatDateTime(t.createdAt)],
+                  t.bank && ['Bank', `${t.bank.name} · ${t.bank.account}`],
                   ['Paid with', 'ACHIEVER Wallet'],
                 ].filter(Boolean)}
               />

@@ -238,6 +238,102 @@ function TransfersForReview() {
   );
 }
 
+const BANK_TONE = { SUCCESS: 'success', PROCESSING: 'info', PENDING: 'warning', INITIATED: 'neutral', FAILED: 'danger', REVERSED: 'warning', REFUNDED: 'neutral', CANCELLED: 'neutral' };
+
+function BankTransferActions({ t, onDone, onClose }) {
+  const { can } = useAuth();
+  const toast = useToast();
+  const confirmAction = useConfirm();
+  const [ref, setRef] = useState('');
+  const [reason, setReason] = useState('');
+  const [pending, setPending] = useState(false);
+  const act = async (kind) => {
+    if (!(await confirmAction({ type: kind === 'paid' ? 'bank_mark_paid' : 'bank_refund' }))) return;
+    setPending(true);
+    try {
+      if (kind === 'paid') await api.post(`/admin/wallets/bank-transfers/${t.id}/mark-paid`, { manualReference: ref }, { idempotencyKey: newIdempotencyKey() });
+      else await api.post(`/admin/wallets/bank-transfers/${t.id}/refund`, { reason }, { idempotencyKey: newIdempotencyKey() });
+      toast.success(kind === 'paid' ? 'Recorded as sent' : 'Refunded to the wallet');
+      onDone();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setPending(false);
+    }
+  };
+  const requery = async () => {
+    try {
+      const { data } = await api.post(`/admin/wallets/bank-transfers/${t.id}/requery`, {});
+      toast.success(`Status: ${data.status}`);
+      onDone();
+    } catch (err) {
+      toast.error(err);
+    }
+  };
+  return (
+    <Modal open onClose={onClose} title={`Bank transfer ${t.reference}`} wide>
+      <div className="stack">
+        <KeyValue items={[
+          ['Member', `${t.user?.name || '—'} (${t.user?.email || ''})`],
+          ['Recipient', `${t.accountName} · ${t.bankName} ${t.accountNumber}`],
+          ['Amount / fee / total debit', `${naira(t.amount)} / ${naira(t.fee)} / ${naira(t.totalDebit)}`],
+          ['Recipient receives', naira(t.recipientAmount)],
+          ['Status', <span key="s" className={`badge badge-${BANK_TONE[t.status] || 'neutral'}`}>{t.status}</span>],
+          ['Payout', t.executionMode === 'manual' ? 'Manual (finance pays from the bank)' : 'Paystack Transfer'],
+          t.transferCode && ['Paystack transfer code', t.transferCode],
+          t.providerStatus && ['Provider status', t.providerStatus],
+          t.providerCost != null && ['Provider cost', `${naira(t.providerCost)}${t.providerCostEstimated ? ' (estimated)' : ''}`],
+          t.manualReference && ['Bank reference', t.manualReference],
+          t.failureReason && ['Reason', t.failureReason],
+        ].filter(Boolean)} />
+        {t.executionMode === 'manual' && t.status === 'PENDING' && can('wallet.payouts') && (
+          <Card title="Manual payout">
+            <div className="stack">
+              <Input label="Bank / transfer reference" value={ref} onChange={(e) => setRef(e.target.value)} />
+              <div className="row-wrap">
+                <Button onClick={() => act('paid')} loading={pending} disabled={ref.trim().length < 4}>Record as sent</Button>
+              </div>
+              <Textarea label="Or refund it (reason)" value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+              <div><Button variant="danger" onClick={() => act('refund')} loading={pending} disabled={reason.trim().length < 5}>Refund to wallet</Button></div>
+            </div>
+          </Card>
+        )}
+        {t.executionMode !== 'manual' && ['PENDING', 'PROCESSING'].includes(t.status) && (can('wallet.payouts') || can('wallet.manage')) && (
+          <div><Button variant="secondary" onClick={requery}>Check status with Paystack</Button></div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function BankTransfers() {
+  const [open, setOpen] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  return (
+    <>
+      <AdminTable
+        endpoint="/admin/wallets/bank-transfers"
+        reloadKey={reloadKey}
+        onRowClick={setOpen}
+        filters={[
+          { name: 'search', label: 'Reference (ACH-WBT-…)' },
+          { name: 'status', label: 'All statuses', options: ['PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'REVERSED', 'REFUNDED', 'INITIATED', 'CANCELLED'] },
+        ]}
+        columns={[
+          { key: 'r', label: 'Reference', render: (t) => <span className="mono xsmall">{t.reference}</span> },
+          { key: 'u', label: 'Member', render: (t) => t.user?.name },
+          { key: 'to', label: 'Recipient', render: (t) => <span>{t.accountName}<br /><span className="xsmall muted">{t.bankName} · {t.accountNumber}</span></span> },
+          { key: 'a', label: 'Amount', align: 'right', render: (t) => <span className="money">{naira(t.amount)}</span> },
+          { key: 'f', label: 'Fee', align: 'right', render: (t) => naira(t.fee) },
+          { key: 's', label: 'Status', render: (t) => <span className={`badge badge-${BANK_TONE[t.status] || 'neutral'}`}>{t.status}{t.executionMode === 'manual' && t.status === 'PENDING' ? ' · manual' : ''}</span> },
+          { key: 'd', label: 'Created', render: (t) => formatDateTime(t.createdAt) },
+        ]}
+      />
+      {open && <BankTransferActions t={open} onClose={() => setOpen(null)} onDone={() => { setOpen(null); setReloadKey((k) => k + 1); }} />}
+    </>
+  );
+}
+
 export default function AdminWallets() {
   const [tab, setTab] = useState('overview');
   const [detail, setDetail] = useState(null);
@@ -250,6 +346,7 @@ export default function AdminWallets() {
         { value: 'overview', label: 'Overview' },
         { value: 'wallets', label: 'Wallets' },
         { value: 'transfers', label: 'Held transfers' },
+        { value: 'bank', label: 'Bank transfers' },
         { value: 'adjustments', label: 'Adjustments' },
       ]} />
       {tab === 'overview' && <Overview />}
@@ -273,6 +370,7 @@ export default function AdminWallets() {
         />
       )}
       {tab === 'transfers' && <TransfersForReview />}
+      {tab === 'bank' && <BankTransfers />}
       {tab === 'adjustments' && <Adjustments />}
       {detail && <WalletDetail id={detail} onClose={() => setDetail(null)} onChanged={() => setReloadKey((k) => k + 1)} />}
     </div>

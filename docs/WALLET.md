@@ -1,8 +1,17 @@
 # ACHIEVER Wallet
 
-An internal stored-value balance inside ACHIEVER. Members add money with Paystack, pay bills and OSUSU/collector contributions from it, send money to other ACHIEVER members, set up automatic OSUSU contributions, and receive referral rewards into it.
+An internal stored-value balance inside ACHIEVER. Members add money with Paystack, pay bills and OSUSU/collector contributions from it, send money to other ACHIEVER members (internal) or to any Nigerian bank account (external), set up automatic OSUSU contributions, and receive referral rewards into it. Every fee comes from one admin-controlled fee engine.
 
-> **Regulatory note.** ACHIEVER Wallet is **not a bank account** and ACHIEVER does not present itself as a bank. The wallet ID (`ACHW-XXXXXXXX`) identifies a wallet inside ACHIEVER only. Holding customer funds, member-to-member transfers and withdrawals to bank accounts may require a licensed partner (for example a licensed PSP / mobile-money operator / bank holding the pooled funds) and CBN approval. **Withdrawals to bank accounts are not implemented.** Confirm the regulatory position before enabling the wallet for the public (`wallet.enabled`, `wallet.transfers_enabled`).
+> **Regulatory note.** ACHIEVER Wallet is **not a bank account** and ACHIEVER does not present itself as a bank. The wallet account number (`ACH` + 16 characters) identifies a wallet inside ACHIEVER only; it is not a bank account number (NUBAN). Holding customer funds, member-to-member transfers and withdrawals to bank accounts may require a licensed partner (for example a licensed PSP / mobile-money operator / bank holding the pooled funds) and CBN approval. Bank transfers go out through Paystack Transfers from ACHIEVER's Paystack balance (or are paid manually by finance). Confirm the regulatory position before enabling the wallet for the public (`wallet.enabled`, `wallet.transfers_enabled`, `wallet.bank_transfers_enabled`).
+
+## Wallet account number
+
+Migration `20261002000016_wallet_accounts_bank_transfers_fees.sql`.
+
+* Format: `ACH` + 16 characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (no 0/O or 1/I), always containing both digits and letters — 19 characters, ~80 bits of randomness (e.g. `ACH7XTTQB28PN5KCW6V`).
+* Generated in the database from a cryptographic random source, never from a user or row ID; `UNIQUE`; a format `CHECK`; and a trigger makes it permanent once issued.
+* Existing wallets: same wallet row (balance, ledger, history untouched), a new number issued, and the old `ACHW-XXXXXXXX` ID kept in `wallet_account_aliases`. `resolve_wallet_code()` finds a wallet by the new number or an old ID, so old IDs people already shared keep working (the recipient screen then shows the new number). Old IDs are never reissued.
+* The app shows it as “Wallet account number” with a Copy button and “ACHIEVER Wallet account · not a bank account”.
 
 ## Ledger design
 
@@ -37,7 +46,22 @@ Browser roles can **read their own rows only** (RLS) and cannot write any wallet
 ### Add money (Paystack)
 `POST /api/wallet/topups` → a `wallet_topups` row + Paystack checkout (`payment_attempts.purpose = 'wallet_topup'`). Nothing is credited until **server-side verification**: the webhook (`charge.success`) or the callback/reconciliation calls Paystack's verify API, then `confirm_payment` → `_apply_wallet_topup` credits the wallet once (replays return `already_processed`; amount mismatches are refunded, never credited). Failed/abandoned checkouts update the top-up status. A later Paystack `refund.processed` for a funded top-up reverses it (`handleTopupRefund`). Limits: `wallet.topup_min_kobo`, `wallet.topup_max_kobo`, `wallet.max_balance_kobo`.
 
-### Send to another member
+### Transfer money
+
+The Transfer screen offers two clearly labelled choices: **ACHIEVER User** (internal) and **Bank Account** (external).
+
+### Send to a Nigerian bank account (external)
+1. Choose the bank (Paystack bank list) and enter the 10-digit account number.
+2. `POST /api/wallet/bank/resolve` — name enquiry with the bank through Paystack. The name shown comes from the bank; the app can never supply it (requests with an account name or fee are rejected).
+3. Enter the amount: the fee and total debit are previewed from the fee engine (`GET /api/wallet/fees/quote`).
+4. `POST /api/wallet/bank-transfers` — the server verifies the account again, prices the transfer in the database (`price_bank_transfer` trigger → `fee_quote`), saves a fee snapshot, and returns the review. Nothing moves.
+5. `…/authorize` + `…/confirm` — the approval is bound (HMAC) to the account, amount, fee and totals. Then `wallet_bank_transfer_debit` debits the wallet **once** under a row lock (balance including the fee, single and daily limits).
+6. Payout: Paystack Transfer with the transfer's fixed reference (`ACH-WBT-…`), so a retry can never pay twice. If `PAYSTACK_TRANSFERS_ENABLED` is off, or `wallet.bank_transfers_automatic = 0`, it is queued for finance (Admin → Wallets → Bank transfers → Record as sent / Refund).
+7. Status: `INITIATED → PENDING → PROCESSING → SUCCESS`, or `FAILED` / `REVERSED` / `REFUNDED` (full refund of amount **and fee**). An HTTP 200 from Paystack only means PROCESSING; SUCCESS comes from the `transfer.success` webhook or `GET /transfer/verify/:reference` (job `wallet.bank_transfers`, every 3 minutes). A reversal after success refunds and raises a risk flag.
+
+Ledger: wallet → `payout_clearing` (amount) + `fees` (fee); on success `payout_clearing` → `paystack_clearing`; on failure everything returns to the wallet. Paystack's transfer fee is recorded as provider cost (reported by Paystack, otherwise estimated from its published tariff), separately from ACHIEVER's fee.
+
+### Send to another member (internal)
 1. `POST /api/wallet/recipients/resolve` — shows **only** a masked name (`Ad**** O*****`) and masked wallet ID (`ACHW-••••6789`).
 2. `POST /api/wallet/transfers` — review (limits, velocity, balance checked; nothing moves).
 3. `POST /api/wallet/transfers/:id/authorize` — approval challenge bound (HMAC) to sender, both wallets, amount and fee.
@@ -60,13 +84,26 @@ Admin → Referrals → reward → **Pay into wallet** (`pay_wallet`, needs `ref
 ### Admin
 Admin → **Wallets** (`wallet.read`, `wallet.manage`, `wallet.adjust`): totals and system ledger accounts, search (personal data masked unless `users.read_sensitive`), wallet detail, place on hold / release (reason, step-up, audited, member notified), held transfers (approve/reject), adjustments (request → second administrator approves; posted through the ledger).
 
+## Fee engine (Admin → Fees & Charges)
+
+One calculator, `fee_quote(service, amount)`, in the database. Money rows get their fee from it inside the database (insert triggers on transfers, bank transfers, top-ups and bills; wallet OSUSU/collector payments call it directly), so the API and the apps can never set or change a fee. Previews shown to members call the same function.
+
+* Services: `bank_transfer`, `wallet_transfer`, `wallet_topup`, `bill_airtime`, `bill_data`, `bill_electricity`, `bill_tv`, `bill_education`, `bill_recharge_pin`, `bill_betting`, `osusu_contribution`, `collector_savings` (all live), plus `osusu_payout` and `referral_payout` (configurable now, applied when those payouts are charged).
+* Types: `FIXED`, `PERCENTAGE`, `FIXED_PLUS_PERCENTAGE`, `TIERED` (`[{min, max|null, fixed, percentage}]`), with optional minimum fee, maximum fee (cap), minimum and maximum transaction amount, and an enabled switch (disabled = no fee).
+* Rounding: percentages round half-up to the kobo, then the min/max fee applies.
+* Bearing mode: `FEE_ADDED` (member pays amount + fee; recipient gets the amount) or `FEE_INCLUDED` (member pays the amount; recipient gets amount − fee). Fee-included is only allowed for bank transfers, wallet transfers and top-ups — for bills and contributions the provider/group must receive the full amount (enforced in the database).
+* Versioning: a change is a new version (`fee_configurations`, unique `(service, version)`), proposed by an administrator with `fees.manage` and approved by a **different** administrator with `fees.approve` (`fees.require_second_approver`). Approved versions can never be edited or deleted. The version in force is the latest approved version whose `effective_from` has passed, so changes can be scheduled.
+* Snapshots: each transaction stores the quote used (`fee_snapshot`: fee, type, mode, config id/code, version), so later changes never alter history.
+* Starting fees: bills and the internal transfer fee were copied from the old settings (`bills.fee_kobo`, `wallet.transfer_fee_kobo`, both now superseded); bank transfers start at ₦100 added; everything else ₦0.
+* Revenue: `fee_revenue_report()` → Admin → Fees & Charges → Fee revenue: gross volume, fees collected, refunded/reversed fees, net fees and net after bank transfer provider cost, by service, for today / 7 / 30 days / custom range. Fees refunded with a failed or reversed transaction are not revenue.
+
 ## Approval (authentication)
 
 | Situation | Allowed |
 |---|---|
-| Below `security.email_code_threshold_kobo` (default ₦50,000) | Transaction PIN alone, PIN + emailed code, or biometric |
+| Below `security.email_code_threshold_kobo` (default ₦50,000) — on the total debit including the fee | Transaction PIN alone, PIN + emailed code, or biometric |
 | At/above the threshold | PIN + emailed code, or biometric |
-| First transfer to a new wallet at/above `wallet.new_recipient_step_up_kobo` | PIN + emailed code, or biometric (reason shown) |
+| First transfer to a new wallet or bank account at/above `wallet.new_recipient_step_up_kobo` | PIN + emailed code, or biometric (reason shown) |
 | Automatic payments (standing authority) | PIN + emailed code, or biometric |
 | Android with biometric approval on | Device key signature verified by the server (fingerprint/face/screen lock) |
 
@@ -80,16 +117,21 @@ The server decides; the app only offers what the server allows and falls back to
 
 ## Settings (Admin → Settings, category `wallet`)
 
-`wallet.enabled`, `wallet.transfers_enabled`, `wallet.topup_min_kobo`, `wallet.topup_max_kobo`, `wallet.max_balance_kobo`, `wallet.transfer_min_kobo`, `wallet.transfer_single_max_kobo`, `wallet.transfer_daily_max_kobo`, `wallet.transfer_review_threshold_kobo`, `wallet.transfer_fee_kobo`, `wallet.transfer_hourly_max_count`, `wallet.new_recipient_step_up_kobo`, `wallet.bill_daily_max_kobo`, `wallet.max_auto_contribution_kobo`, plus `security.email_code_threshold_kobo` and `security.transaction_pin_review_after`.
+`wallet.enabled`, `wallet.transfers_enabled`, `wallet.topup_min_kobo`, `wallet.bank_transfers_enabled`, `wallet.bank_transfers_automatic`, `wallet.bank_transfer_min_kobo`, `wallet.bank_transfer_single_max_kobo`, `wallet.bank_transfer_daily_max_kobo`, `fees.require_second_approver`, `wallet.topup_max_kobo`, `wallet.max_balance_kobo`, `wallet.transfer_min_kobo`, `wallet.transfer_single_max_kobo`, `wallet.transfer_daily_max_kobo`, `wallet.transfer_review_threshold_kobo`, `wallet.transfer_hourly_max_count`, `wallet.new_recipient_step_up_kobo`, `wallet.bill_daily_max_kobo`, `wallet.max_auto_contribution_kobo`, plus `security.email_code_threshold_kobo` and `security.transaction_pin_review_after`.
 
 ## Deploying
 
-1. Run migration `20261001000015_achiever_wallet.sql` in Supabase (SQL editor).
-2. Deploy the API and frontend/admin. No new environment variables are needed.
+1. Run migrations `20261001000015_achiever_wallet.sql` and `20261002000016_wallet_accounts_bank_transfers_fees.sql` in Supabase (SQL editor), **before** deploying the API.
+2. Deploy the API and frontend/admin. For automatic bank payouts set `PAYSTACK_TRANSFERS_ENABLED=true` on the API (Render), make sure the Paystack balance is funded, and turn **off** “Confirm transfers before sending” (OTP) for API transfers in the Paystack dashboard (otherwise transfers wait for an OTP). The Paystack webhook (`/api/paystack/webhook`) must have transfer events enabled. Without this, bank transfers queue for manual payout.
 3. Rebuild the Android app for key-press vibration (new `haptic` method in `AchieverSecurityPlugin`).
 4. Decide the regulatory position before announcing the wallet; switch off with `wallet.enabled = false` if needed (balances stay safe and visible).
 
 ## Tests
+
+* `supabase/tests/database/wallet_fees_bank.test.sql` (66): account number format/uniqueness/permanence, legacy alias lookup, every fee type with min/max and limits, fee-included rules, versioning and two-person approval, scheduling, server-priced rows, bank transfer debit once / double-spend / immutability / status rules / success / failure / reversal refunds, internal transfer fee and historical snapshot, revenue and ledger invariants.
+* `backend/tests/services/bankTransfers.test.js` (11): name from the bank only, strict input (no client name/fee), insufficient balance including fee, single debit, PROCESSING after HTTP 200, approval binding, new-account step-up, webhooks, network retry with the same reference, requery, IDOR.
+* Migration rehearsal (old `ACHW-` wallets with money and history → migration 016): same wallets, balances and ledger, new numbers, old IDs still resolve.
+
 
 * Database (`supabase/tests/database/wallet.test.sql`, 67): top-up once/idempotent/mismatch/abandoned, ledger immutability and balance invariants, RLS, transfers (approval required, idempotency, insufficient funds, review hold, self-review blocked), wallet bills with refunds and reversals, OSUSU from wallet, mandates (paid / insufficient / no immediate retry / one per group), two-person adjustments, reversed top-up freezes the wallet.
 * API (`backend/tests/services/wallet.test.js`, 18 + auth checks in `tests/api/billsReferrals.test.js`): masking, top-up limits, review → approve → execute once, approval bound to amount/recipient, step-up rules, limits, mandates, progressive PIN lockout, PIN never stored in events/challenges.

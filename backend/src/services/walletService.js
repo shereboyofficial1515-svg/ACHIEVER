@@ -9,6 +9,7 @@ import * as transactionAuth from './transactionAuthService.js';
 import * as auditService from './auditService.js';
 import * as notificationService from './notificationService.js';
 import * as riskService from './riskService.js';
+import * as feeService from './feeService.js';
 import { AppError } from '../utils/AppError.js';
 import { newPaymentReference } from '../utils/crypto.js';
 import { pageMeta } from '../utils/pagination.js';
@@ -30,7 +31,7 @@ const naira = (k) => `₦${(Number(k) / 100).toLocaleString('en-NG', { minimumFr
 export const TYPE_LABELS = {
   topup: 'Wallet top-up', transfer: 'Transfer', bill_payment: 'Bill payment', osusu_contribution: 'OSUSU contribution',
   collector_savings: 'Savings deposit', refund: 'Refund', reversal: 'Reversal', referral_reward: 'Referral reward',
-  fee: 'Fee', adjustment: 'Adjustment',
+  fee: 'Fee', adjustment: 'Adjustment', bank_transfer: 'Bank transfer',
 };
 const CREDIT_TYPES = new Set(['topup', 'refund', 'referral_reward']);
 
@@ -41,20 +42,21 @@ export function maskName(name) {
     .join(' ') || 'ACHIEVER member';
 }
 
-/** "ACHW-7KQ2M9XA" -> "ACHW-••••M9XA" */
-export function maskWalletCode(code) {
-  const s = String(code || '');
-  return s.length === 13 ? `ACHW-••••${s.slice(-4)}` : s;
-}
-
+const CODE_CHARS = '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]';
+/**
+ * Wallet account numbers are 'ACH' + 16 characters (no 0/O/1/I). Spaces and
+ * dashes typed by people are ignored. Old 'ACHW-XXXXXXXX' IDs are still
+ * accepted (kept as aliases of the same wallet).
+ */
 export function normaliseWalletCode(input) {
   const raw = String(input || '').toUpperCase().replace(/[\s-]/g, '');
-  const body = raw.startsWith('ACHW') ? raw.slice(4) : raw;
-  return /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(body) ? `ACHW-${body}` : null;
+  if (new RegExp(`^ACH${CODE_CHARS}{16}$`).test(raw)) return raw;   // 19 characters
+  if (new RegExp(`^ACHW${CODE_CHARS}{8}$`).test(raw)) return `ACHW-${raw.slice(4)}`;
+  return null;
 }
 
 async function walletSettings() {
-  const [enabled, transfers, topupMin, topupMax, maxBalance, transferMin, single, daily, review, fee, hourly, billDaily] = await Promise.all([
+  const [enabled, transfers, topupMin, topupMax, maxBalance, transferMin, single, daily, review, bankOn, hourly, billDaily] = await Promise.all([
     settingsService.getBool('wallet.enabled', true),
     settingsService.getBool('wallet.transfers_enabled', true),
     settingsService.getInt('wallet.topup_min_kobo', 10_000),
@@ -64,11 +66,11 @@ async function walletSettings() {
     settingsService.getInt('wallet.transfer_single_max_kobo', 20_000_000),
     settingsService.getInt('wallet.transfer_daily_max_kobo', 50_000_000),
     settingsService.getInt('wallet.transfer_review_threshold_kobo', 50_000_000),
-    settingsService.getInt('wallet.transfer_fee_kobo', 0),
+    settingsService.getInt('wallet.bank_transfers_enabled', 1),
     settingsService.getInt('wallet.transfer_hourly_max_count', 10),
     settingsService.getInt('wallet.bill_daily_max_kobo', 20_000_000),
   ]);
-  return { enabled, transfers, topupMin, topupMax, maxBalance, transferMin, single, daily, review, fee, hourly, billDaily };
+  return { enabled, transfers, topupMin, topupMax, maxBalance, transferMin, single, daily, review, bankTransfers: Boolean(bankOn), hourly, billDaily };
 }
 
 async function assertWalletOpen() {
@@ -104,19 +106,30 @@ export async function summary(user) {
     currency: acct.currency,
     enabled: cfg.enabled,
     transfersEnabled: cfg.transfers,
+    bankTransfersEnabled: cfg.enabled && cfg.bankTransfers,
     limits: {
       topupMin: cfg.topupMin, topupMax: cfg.topupMax, maxBalance: cfg.maxBalance,
       transferMin: cfg.transferMin, transferSingleMax: cfg.single, transferDailyMax: cfg.daily,
-      transferDailyRemaining: Math.max(0, cfg.daily - sentToday), transferFee: cfg.fee,
+      transferDailyRemaining: Math.max(0, cfg.daily - sentToday),
     },
     notice: 'ACHIEVER Wallet is a balance held inside ACHIEVER for payments within the app. It is not a bank account.',
   };
 }
 
+/**
+ * A wallet transaction as the member sees it. amount = what moved for them
+ * (debits include the fee), principal = the transfer/purchase amount, fee
+ * shown separately. A refund returns the full original debit.
+ */
 function formatTx(t, userId) {
   const incoming = t.type === 'transfer' ? t.counterparty_user_id === userId : CREDIT_TYPES.has(t.type)
     || (t.type === 'adjustment' && t.metadata?.direction === 'credit');
-  const amount = Number(t.amount) + (incoming ? 0 : Number(t.fee || 0));
+  const fee = Number(t.fee || 0);
+  const principal = Number(t.amount);
+  let amount;
+  if (t.type === 'refund') amount = Number(t.metadata?.refund_total ?? principal + fee);
+  else if (incoming) amount = principal;
+  else amount = Number(t.metadata?.total_debit ?? principal + fee);
   return {
     id: t.id,
     reference: t.reference,
@@ -125,11 +138,14 @@ function formatTx(t, userId) {
     description: t.description,
     direction: incoming ? 'credit' : 'debit',
     amount,
-    fee: incoming ? 0 : Number(t.fee || 0),
+    principal,
+    fee: incoming && t.type !== 'refund' ? (t.type === 'topup' ? fee : 0) : fee,
     status: t.status,
     createdAt: t.created_at,
     billPaymentId: t.bill_payment_id,
     groupId: t.group_id,
+    bankTransferId: t.metadata?.bank_transfer_id ?? null,
+    bank: t.metadata?.bank ? { name: t.metadata.bank, account: t.metadata.account } : null,
   };
 }
 
@@ -148,7 +164,7 @@ export async function receipt(user, id) {
     const otherId = f.direction === 'credit' ? t.user_id : t.counterparty_user_id;
     const other = await walletRepo.findAccountByUser(otherId);
     const named = other ? await walletRepo.findAccountByCode(other.wallet_code) : null;
-    counterparty = { name: maskName(named?.owner?.full_name), walletId: maskWalletCode(other?.wallet_code) };
+    counterparty = { name: maskName(named?.owner?.full_name), walletId: other?.wallet_code ?? null };
   }
   return { ...f, counterparty, note: t.type === 'transfer' ? t.description.replace(/^Transfer: /, '') : null, completedAt: t.completed_at };
 }
@@ -161,18 +177,20 @@ export async function startTopup(user, { amount }, idempotencyKey) {
   if (amount > cfg.topupMax) throw AppError.badRequest(`The maximum single top-up is ${naira(cfg.topupMax)}`, 'AMOUNT_TOO_HIGH');
   const acct = await myAccount(user);
   if (acct.status !== 'active') throw AppError.forbidden('Your wallet cannot be funded right now. Contact support.', 'WALLET_NOT_ACTIVE');
-  if (Number(acct.balance) + amount > cfg.maxBalance) {
+  const preview = await feeService.preview('wallet_topup', amount);
+  if (Number(acct.balance) + preview.recipientAmount > cfg.maxBalance) {
     throw AppError.unprocessable(`This top-up would take your wallet above the ${naira(cfg.maxBalance)} limit`, 'BALANCE_LIMIT');
   }
   if (idempotencyKey) {
     const existing = await walletRepo.findTopupByKey(user.id, idempotencyKey);
     if (existing && existing.status !== 'INITIALIZED') return topupView(existing);
   }
+  // The database prices the top-up (fee engine): amount = charged on Paystack, credit_amount = credited.
   const topup = await walletRepo.insertTopup({
     user_id: user.id, wallet_id: acct.id, amount, status: 'INITIALIZED', idempotency_key: idempotencyKey || null,
   });
   try {
-    const pay = await paymentService.initialize({ user, purpose: 'wallet_topup', targetId: topup.id, amount, metadata: { wallet_topup_id: topup.id } });
+    const pay = await paymentService.initialize({ user, purpose: 'wallet_topup', targetId: topup.id, amount: Number(topup.amount), metadata: { wallet_topup_id: topup.id } });
     const updated = await walletRepo.updateTopup(topup.id, { status: 'PENDING', payment_reference: pay.reference });
     await auditService.record({ actorId: user.id, action: 'wallet.topup.started', resourceType: 'wallet_topup', resourceId: topup.id, metadata: { amount } });
     return { ...topupView(updated), authorizationUrl: pay.authorizationUrl };
@@ -184,7 +202,8 @@ export async function startTopup(user, { amount }, idempotencyKey) {
 
 function topupView(t) {
   return {
-    topupId: t.id, amount: Number(t.amount), status: t.status, reference: t.payment_reference,
+    topupId: t.id, amount: Number(t.amount), fee: Number(t.fee || 0), credit: Number(t.credit_amount ?? t.amount),
+    status: t.status, reference: t.payment_reference,
     message: {
       INITIALIZED: 'Starting secure payment…', PENDING: 'Waiting for payment confirmation…', SUCCESS: 'Your wallet has been funded.',
       FAILED: 'Payment failed. No money was added.', ABANDONED: 'Payment was not completed.',
@@ -213,25 +232,27 @@ export async function resolveRecipient(user, walletCode) {
   if (!acct || acct.owner?.account_status === 'closed') throw AppError.notFound('No ACHIEVER Wallet has this ID', 'WALLET_NOT_FOUND');
   if (acct.user_id === user.id) throw AppError.badRequest('This is your own wallet', 'SELF_TRANSFER');
   if (acct.status !== 'active') throw AppError.unprocessable('This wallet cannot receive money right now', 'RECIPIENT_UNAVAILABLE');
-  return { walletId: maskWalletCode(acct.wallet_code), name: maskName(acct.owner?.full_name), verified: true };
+  return { walletId: acct.wallet_code, name: maskName(acct.owner?.full_name), verified: true, legacyId: code.startsWith('ACHW-') || undefined };
 }
 
-const transferHash = (t) => transactionAuth.hashFor('wallet_transfer', [t.id, t.sender_user_id, t.sender_wallet_id, t.recipient_wallet_id, t.amount, t.fee]);
-const transferTarget = (t) => ({ purpose: 'wallet_transfer', id: t.id, hash: transferHash(t), amount: Number(t.amount) + Number(t.fee) });
+const totalOf = (t) => Number(t.total_debit ?? Number(t.amount) + Number(t.fee));
+const transferHash = (t) => transactionAuth.hashFor('wallet_transfer', [t.id, t.sender_user_id, t.sender_wallet_id, t.recipient_wallet_id, t.amount, t.fee, totalOf(t), t.recipient_amount]);
+const transferTarget = (t) => ({ purpose: 'wallet_transfer', id: t.id, hash: transferHash(t), amount: totalOf(t) });
 
 async function transferReview(t, recipient, user) {
   const newRecipient = !(await walletRepo.hasSentTo(user.id, t.recipient_wallet_id));
   const options = await transferApprovalOptions(user, t, newRecipient);
   return {
     transferId: t.id, reference: t.reference, status: t.status, amount: Number(t.amount), fee: Number(t.fee),
-    total: Number(t.amount) + Number(t.fee), note: t.note, recipient, expiresAt: t.expires_at,
+    total: totalOf(t), recipientAmount: Number(t.recipient_amount ?? t.amount), feeBearingMode: t.fee_snapshot?.fee_bearing_mode ?? 'FEE_ADDED',
+    note: t.note, recipient, expiresAt: t.expires_at,
     newRecipient, approval: options,
   };
 }
 
 /** A first transfer of a large amount to a new wallet always needs the step-up (explained to the user). */
 async function transferApprovalOptions(user, t, newRecipient) {
-  const amount = Number(t.amount) + Number(t.fee);
+  const amount = totalOf(t);
   const options = await transactionAuth.approvalOptions(user, { amount, purpose: 'wallet_transfer' });
   const newLarge = await settingsService.getInt('wallet.new_recipient_step_up_kobo', 2_000_000);
   if (newRecipient && amount >= newLarge && options.methods.includes('pin')) {
@@ -265,13 +286,14 @@ export async function startTransfer(user, { walletCode, amount, note }, idempote
   }
   const recent = await walletRepo.countTransfersSince(user.id, new Date(Date.now() - 3600_000).toISOString());
   if (recent >= cfg.hourly) throw AppError.tooMany('You have made many transfers in the last hour. Please wait a while and try again.', 'TRANSFER_VELOCITY');
-  if (Number(from.balance) - Number(from.held) < amount + cfg.fee) {
-    throw AppError.unprocessable('Your ACHIEVER Wallet balance is not enough for this transfer.', 'INSUFFICIENT_FUNDS');
+  const preview = await feeService.preview('wallet_transfer', amount);
+  if (Number(from.balance) - Number(from.held) < preview.totalDebit) {
+    throw AppError.unprocessable(`Insufficient balance. You need ${naira(preview.totalDebit)} (amount + ${naira(preview.fee)} fee).`, 'INSUFFICIENT_FUNDS');
   }
 
   const t = await walletRepo.insertTransfer({
     reference: newPaymentReference('ACH-TRF'), sender_user_id: user.id, sender_wallet_id: from.id, recipient_wallet_id: to.id,
-    amount, fee: cfg.fee, note: note || null, status: 'AWAITING_AUTHORIZATION', idempotency_key: idempotencyKey || null,
+    amount, note: note || null, status: 'AWAITING_AUTHORIZATION', idempotency_key: idempotencyKey || null,   // fee priced by the database
   });
   await auditService.record({ actorId: user.id, action: 'wallet.transfer.initiated', resourceType: 'wallet_transfer', resourceId: t.id, metadata: { amount } });
   return transferReview(t, recipient, user);
@@ -290,7 +312,7 @@ export async function authorizeTransfer(user, id, { method, pin, deviceKeyId }, 
   const options = await transferApprovalOptions(user, t, !(await walletRepo.hasSentTo(user.id, t.recipient_wallet_id)));
   if (!options.methods.includes(method)) throw AppError.forbidden(options.reason || 'Choose another approval method', 'TX_STEP_UP_REQUIRED');
   return transactionAuth.createChallenge(user, {
-    target: transferTarget(t), method, pin, deviceKeyId, describe: `a ${naira(Number(t.amount) + Number(t.fee))} wallet transfer`,
+    target: transferTarget(t), method, pin, deviceKeyId, describe: `a ${naira(totalOf(t))} wallet transfer`,
   }, req);
 }
 
@@ -312,7 +334,7 @@ export async function confirmTransfer(user, id, { challengeId, code, signature }
   await auditService.record({ actorId: user.id, action: 'wallet.transfer.authorized', resourceType: 'wallet_transfer', resourceId: t.id, metadata: { method: auth.method, outcome: result.outcome }, req });
   const done = await walletRepo.findTransfer(t.id);
   return {
-    transferId: done.id, reference: done.reference, status: done.status, amount: Number(done.amount), fee: Number(done.fee),
+    transferId: done.id, reference: done.reference, status: done.status, amount: Number(done.amount), fee: Number(done.fee), total: totalOf(done),
     transactionId: done.transaction_id,
     message: done.status === 'PENDING_REVIEW'
       ? 'This transfer is being reviewed for your protection. The amount is held in your wallet until it is approved.'
@@ -332,12 +354,20 @@ async function paymentTarget(user, { kind, contributionId, planId, amount }) {
     const c = await osusuRepo.findContribution(contributionId);
     if (!c || c.user_id !== user.id) throw AppError.notFound('Contribution not found');
     if (c.status === 'paid') throw AppError.conflict('This contribution is already paid', 'ALREADY_PAID');
-    return { id: c.id, amount: Number(c.amount), describe: `${c.group?.name || 'OSUSU'} contribution`, hashParts: ['osusu', c.id, user.id, c.amount] };
+    const q = await feeService.preview('osusu_contribution', Number(c.amount));
+    return { id: c.id, amount: Number(c.amount), fee: q.fee, total: q.totalDebit, describe: `${c.group?.name || 'OSUSU'} contribution`, hashParts: ['osusu', c.id, user.id, c.amount, q.fee] };
   }
   const plan = await collectorRepo.findPlan(planId);
   if (!plan || plan.saver_id !== user.id) throw AppError.notFound('Savings plan not found');
   if (!Number.isSafeInteger(amount) || amount < 10_000) throw AppError.badRequest('The minimum deposit is ₦100', 'AMOUNT_TOO_LOW');
-  return { id: plan.id, amount, describe: `${plan.plan_name} savings deposit`, hashParts: ['collector', plan.id, user.id, amount] };
+  const q = await feeService.preview('collector_savings', amount);
+  return { id: plan.id, amount, fee: q.fee, total: q.totalDebit, describe: `${plan.plan_name} savings deposit`, hashParts: ['collector', plan.id, user.id, amount, q.fee] };
+}
+
+/** Fee preview for a wallet payment (the same numbers are used when it is paid). */
+export async function previewPayment(user, input) {
+  const p = await paymentTarget(user, input);
+  return { amount: p.amount, fee: p.fee, total: p.total };
 }
 
 export async function authorizePayment(user, input, req) {
@@ -345,28 +375,28 @@ export async function authorizePayment(user, input, req) {
   await riskService.assertNotRestricted(user.id);
   const p = await paymentTarget(user, input);
   const acct = await myAccount(user);
-  if (Number(acct.balance) - Number(acct.held) < p.amount) {
-    throw AppError.unprocessable('Your ACHIEVER Wallet balance is not enough for this payment.', 'INSUFFICIENT_FUNDS');
+  if (Number(acct.balance) - Number(acct.held) < p.total) {
+    throw AppError.unprocessable(`Insufficient balance. You need ${naira(p.total)}${p.fee ? ` (including a ${naira(p.fee)} fee)` : ''}.`, 'INSUFFICIENT_FUNDS');
   }
-  const options = await transactionAuth.approvalOptions(user, { amount: p.amount, purpose: 'wallet_payment' });
+  const options = await transactionAuth.approvalOptions(user, { amount: p.total, purpose: 'wallet_payment' });
   if (!options.methods.includes(input.method)) throw AppError.forbidden(options.reason || 'Choose another approval method', 'TX_STEP_UP_REQUIRED');
   const challenge = await transactionAuth.createChallenge(user, {
-    target: { purpose: 'wallet_payment', id: p.id, hash: transactionAuth.hashFor('wallet_payment', p.hashParts), amount: p.amount },
-    method: input.method, pin: input.pin, deviceKeyId: input.deviceKeyId, describe: `a ${naira(p.amount)} ${p.describe}`,
+    target: { purpose: 'wallet_payment', id: p.id, hash: transactionAuth.hashFor('wallet_payment', p.hashParts), amount: p.total },
+    method: input.method, pin: input.pin, deviceKeyId: input.deviceKeyId, describe: `a ${naira(p.total)} ${p.describe}`,
   }, req);
-  return { ...challenge, amount: p.amount, approval: options };
+  return { ...challenge, amount: p.amount, fee: p.fee, total: p.total, approval: options };
 }
 
 export async function confirmPayment(user, input, req) {
   const p = await paymentTarget(user, input);
   const auth = await transactionAuth.consumeChallenge(user, input,
-    { purpose: 'wallet_payment', id: p.id, hash: transactionAuth.hashFor('wallet_payment', p.hashParts), amount: p.amount }, req);
+    { purpose: 'wallet_payment', id: p.id, hash: transactionAuth.hashFor('wallet_payment', p.hashParts), amount: p.total }, req);
   const result = input.kind === 'osusu'
     ? await walletRepo.payOsusuContribution(user.id, p.id)
     : await walletRepo.payCollectorSavings(user.id, p.id, p.amount);
   notificationService.kickDispatcher();
   await auditService.record({ actorId: user.id, action: `wallet.pay.${input.kind}`, resourceType: input.kind === 'osusu' ? 'osusu_contribution' : 'collector_saver', resourceId: p.id, metadata: { method: auth.method, amount: p.amount }, req });
-  return { paid: true, amount: p.amount, walletTransactionId: result.wallet_transaction_id, transactionId: result.transaction_id };
+  return { paid: true, amount: p.amount, fee: Number(result.fee ?? p.fee), walletTransactionId: result.wallet_transaction_id, transactionId: result.transaction_id };
 }
 
 // Automatic payments (mandates) -----------------------------------------------------------------------

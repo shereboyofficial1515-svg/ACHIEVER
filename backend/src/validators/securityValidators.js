@@ -44,7 +44,7 @@ export const flagDecision = z.object({
   reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(1000),
 });
 export const rewardTransition = z.object({
-  action: z.enum(['start_review', 'approve', 'reject', 'mark_paid', 'reverse']),
+  action: z.enum(['start_review', 'approve', 'reject', 'mark_paid', 'pay_wallet', 'reverse']),
   reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(1000),
   paymentReference: z.string().trim().max(120).optional(),
 }).refine((v) => v.action !== 'mark_paid' || Boolean(v.paymentReference), { message: 'Enter the payment reference', path: ['paymentReference'] });

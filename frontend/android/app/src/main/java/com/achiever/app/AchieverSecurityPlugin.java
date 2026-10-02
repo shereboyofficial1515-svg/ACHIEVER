@@ -215,6 +215,22 @@ public class AchieverSecurityPlugin extends Plugin {
         call.resolve();
     }
 
+    /**
+     * A short key-press vibration for the secure keypad. Uses the view's haptic
+     * feedback (no VIBRATE permission) and respects the phone's own touch-feedback setting.
+     */
+    @PluginMethod
+    public void haptic(PluginCall call) {
+        String kind = call.getString("kind", "tap");
+        getActivity().runOnUiThread(() -> {
+            int effect = "confirm".equals(kind) && Build.VERSION.SDK_INT >= 30 ? android.view.HapticFeedbackConstants.CONFIRM
+                : "reject".equals(kind) && Build.VERSION.SDK_INT >= 30 ? android.view.HapticFeedbackConstants.REJECT
+                : android.view.HapticFeedbackConstants.KEYBOARD_TAP;
+            bridge.getWebView().performHapticFeedback(effect);
+            call.resolve();
+        });
+    }
+
     /** Hides the screen from screenshots and the recent-apps preview (tokens, PINs, approvals). */
     @PluginMethod
     public void setSecureScreen(PluginCall call) {

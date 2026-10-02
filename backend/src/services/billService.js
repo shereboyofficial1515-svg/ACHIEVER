@@ -2,6 +2,7 @@ import { env } from '../config/env.js';
 import { getBillProvider } from '../integrations/bills/index.js';
 import * as billRepo from '../repositories/billRepository.js';
 import * as txRepo from '../repositories/transactionSecurityRepository.js';
+import * as walletRepo from '../repositories/walletRepository.js';
 import * as auditService from './auditService.js';
 import * as kycService from './kycService.js';
 import * as notificationService from './notificationService.js';
@@ -345,9 +346,28 @@ async function openQuote(user, id) {
 }
 
 // Approval ---------------------------------------------------------------------------------------------
-export async function startAuthorization(user, id, { method, pin, deviceKeyId }, req) {
-  const bill = await openQuote(user, id);
-  return transactionAuth.createChallenge(user, { bill, method, pin, deviceKeyId, describe: describe(bill) }, req);
+export async function startAuthorization(user, id, { method, pin, deviceKeyId, fundingSource = 'paystack' }, req) {
+  let bill = await openQuote(user, id);
+  if (fundingSource !== bill.funding_source) {
+    // The payment method is part of what is approved (it is in the challenge hash).
+    bill = await billRepo.update(bill.id, { funding_source: fundingSource }, { fromStatus: 'awaiting_authorization' });
+    if (!bill) throw AppError.conflict('This purchase has already been approved or cancelled', 'BILL_NOT_AWAITING_APPROVAL');
+  }
+  if (fundingSource === 'wallet') await assertWalletCanPay(user, bill);
+  const options = await transactionAuth.approvalOptions(user, { amount: Number(bill.total_amount), purpose: 'bill_payment' });
+  if (!options.methods.includes(method)) throw AppError.forbidden(options.reason || 'Choose another approval method', 'TX_STEP_UP_REQUIRED');
+  const challenge = await transactionAuth.createChallenge(user, { bill, method, pin, deviceKeyId, describe: describe(bill) }, req);
+  return { ...challenge, fundingSource, approval: options };
+}
+
+async function assertWalletCanPay(user, bill) {
+  const { summary } = await import('./walletService.js');
+  const w = await summary(user);
+  if (!w.enabled) throw AppError.unavailable('ACHIEVER Wallet is temporarily unavailable. Pay with Paystack instead.', 'WALLET_DISABLED');
+  if (w.status !== 'active') throw AppError.forbidden('Your wallet cannot make payments right now. Contact support.', 'WALLET_NOT_ACTIVE');
+  if (w.available < Number(bill.total_amount)) {
+    throw AppError.unprocessable('Your ACHIEVER Wallet balance is not enough for this purchase. Add money or pay with Paystack.', 'INSUFFICIENT_FUNDS');
+  }
 }
 
 /**
@@ -363,8 +383,23 @@ export async function confirm(user, id, { challengeId, code, signature }, req) {
   }, { fromStatus: 'awaiting_authorization' });
   if (!updated) throw AppError.conflict('This purchase has already been approved', 'BILL_NOT_AWAITING_APPROVAL');
   await txRepo.insertEvent({ user_id: user.id, type: 'transaction_authorized', session_id: user.sessionId ?? null, ip_address: req?.ip || null, metadata: { bill_id: bill.id, method: auth.method } });
-  await auditService.record({ actorId: user.id, action: 'bill.authorized', resourceType: 'bill_payment', resourceId: bill.id, metadata: { method: auth.method }, req });
+  await auditService.record({ actorId: user.id, action: 'bill.authorized', resourceType: 'bill_payment', resourceId: bill.id, metadata: { method: auth.method, funding: updated.funding_source }, req });
+  if (updated.funding_source === 'wallet') return payFromWallet(updated);
   return checkout(user, updated);
+}
+
+/** Debit the wallet (balance and daily limit re-checked under lock), then deliver. */
+async function payFromWallet(bill) {
+  try {
+    await walletRepo.payBill(bill.id);
+  } catch (err) {
+    // Nothing was debited: the purchase is cancelled so it cannot be paid twice by mistake.
+    await billRepo.update(bill.id, { status: 'cancelled' }, { fromStatus: 'awaiting_payment' }).catch(() => {});
+    throw err;
+  }
+  notificationService.kickDispatcher();
+  setImmediate(() => fulfil(bill.id).catch((err) => logger.error({ err: err.message }, 'bill fulfilment error')));
+  return { billId: bill.id, reference: bill.reference, paidFromWallet: true, status: 'PROCESSING' };
 }
 
 async function checkout(user, bill) {
@@ -379,6 +414,7 @@ async function checkout(user, bill) {
 export async function resumeCheckout(user, id) {
   const bill = await ownedBill(user, id);
   if (bill.status !== 'awaiting_payment') throw AppError.conflict('This purchase is not waiting for payment', 'BILL_NOT_AWAITING_PAYMENT');
+  if (bill.funding_source === 'wallet') throw AppError.conflict('This purchase is paid from your wallet', 'BILL_WALLET_FUNDED');
   return checkout(user, bill);
 }
 
@@ -574,7 +610,7 @@ function format(b, { admin = false } = {}) {
     commission: admin && b.commission_amount != null ? Number(b.commission_amount) : undefined,
     commissionRate: admin && b.commission_rate != null ? Number(b.commission_rate) : undefined,
     netRevenue: admin && b.net_revenue != null ? Number(b.net_revenue) : undefined,
-    fundingSource: admin ? 'Paystack (card / transfer / USSD)' : undefined,
+    fundingSource: b.funding_source === 'wallet' ? 'ACHIEVER Wallet' : 'Paystack (card / transfer / USSD)',
     lastError: admin ? b.last_error : undefined,
     lastProviderCode: admin ? b.last_provider_code : undefined,
   };
@@ -591,7 +627,7 @@ export async function get(user, id) {
   return {
     ...format(bill),
     history: events.map((e) => ({ status: PUBLIC_STATUS[e.to_status] || e.to_status, at: e.created_at })),
-    canResumePayment: bill.status === 'awaiting_payment',
+    canResumePayment: bill.status === 'awaiting_payment' && bill.funding_source !== 'wallet',
   };
 }
 

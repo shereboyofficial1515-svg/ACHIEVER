@@ -2,14 +2,14 @@ import { db, one, run } from '../integrations/supabase/db.js';
 
 // Transaction PIN ---------------------------------------------------------------------------------
 export async function findCredential(userId) {
-  return one(db.from('transaction_credentials').select('user_id, pin_hash, failed_attempts, locked_until, created_at, changed_at')
+  return one(db.from('transaction_credentials').select('user_id, pin_hash, failed_attempts, locked_until, lock_count, last_locked_at, reset_required, created_at, changed_at')
     .eq('user_id', userId).maybeSingle());
 }
 
 export async function upsertCredential(userId, pinHash) {
   const now = new Date().toISOString();
   return one(db.from('transaction_credentials')
-    .upsert({ user_id: userId, pin_hash: pinHash, failed_attempts: 0, locked_until: null, changed_at: now }, { onConflict: 'user_id' })
+    .upsert({ user_id: userId, pin_hash: pinHash, failed_attempts: 0, locked_until: null, lock_count: 0, reset_required: false, changed_at: now }, { onConflict: 'user_id' })
     .select('user_id, created_at, changed_at').maybeSingle());
 }
 

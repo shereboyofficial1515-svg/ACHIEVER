@@ -6,8 +6,11 @@ No bill is bought on a single tap. The flow is: **Review → Confirm Purchase �
 
 | Where | Approval |
 |---|---|
-| Web, or Android without biometrics | **Transaction PIN** (6 digits, separate from the sign-in password), then a **6-digit code emailed** to the account owner |
+| Below `security.email_code_threshold_kobo` (default ₦50,000) | **Transaction PIN** alone (6 digits, separate from the sign-in password), entered on the ACHIEVER secure keypad |
+| At or above the threshold, automatic payments, or a first larger transfer to a new wallet | **Transaction PIN**, then a **6-digit code emailed** to the account owner |
 | Android with biometrics on | The phone's Keystore key signs the server's challenge after a fingerprint, face or screen-lock check |
+
+The same approval covers bill purchases, ACHIEVER Wallet transfers, wallet payments (OSUSU / collector savings) and automatic-payment mandates (challenge purposes `bill_payment`, `wallet_transfer`, `wallet_payment`, `wallet_mandate`). The server decides which methods are allowed (`approvalOptions`); asking for PIN alone above the threshold returns `TX_STEP_UP_REQUIRED` before the PIN is checked. See `docs/WALLET.md`.
 
 The challenge (`transaction_auth_challenges`) is:
 - single use;
@@ -21,10 +24,10 @@ Emailed codes are stored only as an HMAC and allow 5 attempts. Up to 10 challeng
 - Stored as `scrypt(HMAC(server key, PIN), random salt)`, so a leaked database alone can't be brute-forced offline.
 - Never logged or returned to the client.
 - Weak PINs (123456, 111111 and similar) are refused.
-- 5 wrong entries lock it for 30 minutes (both configurable), and a security notification is sent.
+- 5 wrong entries lock it for 30 minutes (both configurable); each further lock in a row doubles the duration (max 24 h). After 3 locks in a row (`security.transaction_pin_review_after`) the PIN must be reset. A warning is sent when 2 attempts remain, and a security notification on every lock.
 - Creating or changing it needs the sign-in password and an emailed security code (challenge action `transaction_pin_change`) behind a confirmation dialog.
 
-The server never accepts a client flag such as `isBiometric=true`. The confirm endpoint accepts only an emailed code or a signature it can verify.
+The server never accepts a client flag such as `isBiometric=true`. The confirm endpoint accepts only an emailed code, a signature it can verify, or a PIN-only challenge that the server itself verified (unknown fields are rejected).
 
 ## Android biometrics
 

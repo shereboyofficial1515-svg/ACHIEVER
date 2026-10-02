@@ -202,6 +202,13 @@ export async function flushNativeCookies() {
   await m.flushCookies().catch(() => {});
 }
 
+/** Key-press feedback for the secure keypad (Android only; no-op elsewhere). */
+export async function hapticFeedback(kind = 'tap') {
+  if (!isNative()) return;
+  const m = await nativeModule();
+  await m.haptic(kind).catch(() => {});
+}
+
 /** Hide the screen from screenshots / recent apps while sensitive data is shown (Android). */
 export async function setSecureScreen(enabled) {
   if (!isNative()) return;

@@ -297,3 +297,22 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 
 /* Offline / connection banner */
 .net-banner { position: sticky; top: 0; z-index: 70; display: flex; align-items: center; gap: var(--s-2); justify-content: center; padding: 8px var(--s-4); font-size: var(--fs-sm); background: var(--color-warning-bg); color: var(--color-warning-text); border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+
+/* Secure keypad (PIN / OTP / amount) -------------------------------------------------------- */
+.secure-keypad { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); width: 100%; max-width: 340px; margin: 0 auto; user-select: none; -webkit-user-select: none; }
+.keypad-label { margin: 0; font-weight: 600; text-align: center; }
+.keypad-hint { margin: 0; text-align: center; }
+.keypad-slots { display: flex; gap: var(--s-2); justify-content: center; }
+.keypad-slot { width: 42px; height: 50px; border-radius: var(--radius); border: 1.5px solid var(--color-border); background: var(--color-surface); display: grid; place-items: center; font-size: var(--fs-xl); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-text-primary); transition: border-color .15s ease; }
+.keypad-slot.is-current { border-color: var(--color-green-primary); }
+.keypad-slots.is-secret .keypad-slot.is-filled::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-primary); }
+.keypad-amount { display: flex; align-items: baseline; gap: 4px; font-size: 2.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-text-primary); min-height: 52px; }
+.keypad-currency { font-size: var(--fs-xl); color: var(--color-text-secondary); }
+.keypad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); width: 100%; }
+.keypad-key { min-height: 56px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-surface-elevated, var(--color-surface)); color: var(--color-text-primary); font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background .1s ease, transform .05s ease; }
+.keypad-key:active:not(:disabled) { background: var(--color-surface-hover); transform: scale(0.97); }
+.keypad-key:disabled { opacity: .45; cursor: default; }
+.keypad-key-alt { background: transparent; border-color: transparent; color: var(--color-text-secondary); }
+.keypad-key-blank { border: 0; background: transparent; cursor: default; }
+.secure-keypad.is-disabled .keypad-grid { opacity: .6; }
+@media (max-width: 360px) { .keypad-slot { width: 36px; height: 46px; } .keypad-key { min-height: 50px; } }

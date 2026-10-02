@@ -129,6 +129,7 @@ export const biometricSign = (alias, payload, prompt = {}) => Security.sign({ al
 export const biometricUnlock = (prompt = {}) => Security.authenticate(prompt);
 export const setSecureScreen = (enabled) => Security.setSecureScreen({ enabled });
 export const flushCookies = () => Security.flushCookies();
+export const haptic = (kind) => Security.haptic({ kind });
 
 // Push notifications (Firebase Cloud Messaging) ------------------------------------------------
 export async function pushPermission() {

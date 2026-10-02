@@ -38,6 +38,11 @@ const BillReceipt = lazy(() => import('./pages/bills/BillReceipt.jsx'));
 const BillPurchase = lazy(() => import('./pages/bills/BillPurchase.jsx'));
 const BillHistory = lazy(() => import('./pages/bills/BillHistory.jsx'));
 const Referrals = lazy(() => import('./pages/referrals/Referrals.jsx'));
+const Wallet = lazy(() => import('./pages/wallet/Wallet.jsx'));
+const AddMoney = lazy(() => import('./pages/wallet/AddMoney.jsx'));
+const SendMoney = lazy(() => import('./pages/wallet/SendMoney.jsx'));
+const WalletReceipt = lazy(() => import('./pages/wallet/WalletReceipt.jsx'));
+const AutoPay = lazy(() => import('./pages/wallet/AutoPay.jsx'));
 const ReferralTerms = lazy(() => import('./pages/public/ReferralTerms.jsx'));
 const Messages = lazy(() => import('./pages/messages/Messages.jsx'));
 const Meetings = lazy(() => import('./pages/app/Meetings.jsx'));
@@ -118,6 +123,11 @@ export default function App() {
             <Route path="bills/history/:id" element={<BillReceipt />} />
             <Route path="bills/:id" element={<LegacyBillRedirect />} />
             <Route path="referrals" element={<Referrals />} />
+            <Route path="wallet" element={<Wallet />} />
+            <Route path="wallet/add" element={<AddMoney />} />
+            <Route path="wallet/send" element={<SendMoney />} />
+            <Route path="wallet/autopay" element={<AutoPay />} />
+            <Route path="wallet/transactions/:id" element={<WalletReceipt />} />
             <Route path="messages" element={<Messages />} />
             <Route path="messages/:conversationId" element={<Messages />} />
             <Route path="meetings" element={<Meetings />} />

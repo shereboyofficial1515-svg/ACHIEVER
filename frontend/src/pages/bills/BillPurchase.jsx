@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Check, CheckCircle2, RefreshCw, Search, Smartphone } from 'lucide-react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Check, CheckCircle2, CreditCard, RefreshCw, Search, Smartphone, Wallet } from 'lucide-react';
 import {
   Alert, Button, Card, Input, KeyValue, MoneyInput, PageHeader, Select, fieldErrors,
 } from '../../components/ui/index.js';
@@ -119,6 +119,37 @@ function VerifiedCustomer({ v }) {
   );
 }
 
+/** Pay from the ACHIEVER Wallet (instant, refunds return to the wallet) or with Paystack. */
+function PaymentMethodChoice({ value, onChange, total, wallet, disabled }) {
+  const available = Number(wallet?.available ?? 0);
+  const walletOk = Boolean(wallet?.enabled && wallet?.status === 'active' && available >= total);
+  useEffect(() => { if (value === 'wallet' && !walletOk) onChange('paystack'); }, [walletOk]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="pay-method" role="radiogroup" aria-label="Payment method">
+      <p className="flow-title" style={{ margin: 0 }}>Payment method</p>
+      {wallet && (
+        <button type="button" role="radio" aria-checked={value === 'wallet'} className="pay-method-option" disabled={disabled || !walletOk} onClick={() => onChange('wallet')}>
+          <Wallet size={22} aria-hidden />
+          <span className="grow">
+            <strong>ACHIEVER Wallet</strong>
+            <span className="xsmall muted" style={{ display: 'block' }}>
+              {walletOk ? `Available: ${naira(available)}` : wallet.status !== 'active' ? 'Wallet unavailable' : `Not enough balance (${naira(available)})`}
+            </span>
+          </span>
+        </button>
+      )}
+      <button type="button" role="radio" aria-checked={value === 'paystack'} className="pay-method-option" disabled={disabled} onClick={() => onChange('paystack')}>
+        <CreditCard size={22} aria-hidden />
+        <span className="grow">
+          <strong>Paystack</strong>
+          <span className="xsmall muted" style={{ display: 'block' }}>Card, bank transfer or USSD</span>
+        </span>
+      </button>
+      {wallet && !walletOk && wallet.status === 'active' && <Link className="xsmall" to="/app/wallet/add">Add money to your wallet</Link>}
+    </div>
+  );
+}
+
 /** Details → summary → "Review … Purchase" → approve (PIN + email code, or biometric) → Paystack → receipt. */
 export default function BillPurchase() {
   const { category } = useParams();
@@ -133,6 +164,8 @@ export default function BillPurchase() {
   const [verified, setVerified] = useState(null);
   const [review, setReview] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [funding, setFunding] = useState('paystack');
+  const wallet = useAsync(() => api.get('/wallet').catch(() => ({ data: null })), [review?.billId]);
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
   const quoteKey = useMemo(() => newIdempotencyKey(), [serviceId, form, verified]); // a new key only when the details change
@@ -249,8 +282,14 @@ export default function BillPurchase() {
                 ['Amount', naira(review.amount)],
                 ['ACHIEVER fee', review.fee ? naira(review.fee) : '₦0.00 (no fee)'],
                 ['Total', <strong key="t" className="money">{naira(review.total)}</strong>],
-                ['Payment method', 'Paystack: card, bank transfer or USSD'],
               ].filter(Boolean)}
+            />
+            <PaymentMethodChoice
+              value={funding}
+              onChange={setFunding}
+              total={review.total}
+              wallet={wallet.data}
+              disabled={approving}
             />
             {!approving ? (
               <div className="row-wrap">
@@ -260,6 +299,8 @@ export default function BillPurchase() {
             ) : (
               <TransactionApproval
                 review={review}
+                extra={{ fundingSource: funding }}
+                confirmLabel="Confirming purchase"
                 onCancel={cancelReview}
                 onApproved={(checkout) => {
                   if (checkout?.authorizationUrl) window.location.assign(checkout.authorizationUrl);

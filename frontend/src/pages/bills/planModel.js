@@ -12,7 +12,7 @@ const SPECIAL = /\b(xtra|xtradata|xtratalk|special|social|night|weekend|router|m
 
 function normaliseValidity(raw) {
   const m = String(raw || '').match(VALIDITY);
-  if (!m) return { text: raw || null, days: null };
+  if (!m) return { text: null, days: null }; // no duration in the VTpass data: show none rather than repeat the name
   const n = Number(m[1]);
   const unit = m[2].toLowerCase();
   if (unit.startsWith('h')) return { text: n === 24 ? '1 day' : `${n} hours`, days: n / 24 };
@@ -29,6 +29,12 @@ function periodOf(days) {
   return null; // longer plans get no period chip (VTpass does not label them)
 }
 
+/** Remove only the plan's own price ("N100", "₦100", "100 Naira"); other amounts (e.g. a "600 Naira" bundle value) stay. */
+function stripOwnPrice(text, kobo) {
+  const nairaValue = Math.round(Number(kobo) / 100);
+  return text.replace(PRICE, (m) => (Number(m.replace(/[^\d.]/g, '')) === nairaValue ? '' : m));
+}
+
 export function normalisePlan(p, { providerName = '', category = 'data' } = {}) {
   const name = String(p.name || '').trim();
   const vol = category === 'data' ? name.match(VOLUME) : null;
@@ -39,13 +45,14 @@ export function normalisePlan(p, { providerName = '', category = 'data' } = {}) 
     title = `${vol[1]} ${vol[2].toUpperCase()}`;
   } else {
     // Packages (TV, exam PINs) and unusual data plans: the provider's own name, minus the price.
-    title = name.replace(PRICE, '').replace(/\s*[-–]\s*$/, '').replace(/\s{2,}/g, ' ').trim() || name;
+    title = stripOwnPrice(name, p.amount).replace(/\s*[-–]\s*$/, '').replace(/^\s*[-–]\s*/, '').replace(/\s{2,}/g, ' ').trim() || name;
   }
   // A short secondary line from the leftover words of the VTpass name (no repetition of volume/validity/price).
   const rest = vol
-    ? name.replace(PRICE, '').replace(VOLUME, '').replace(VALIDITY, '').replace(BRANDS, '').replace(/[-–()]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+    ? stripOwnPrice(name, p.amount).replace(PRICE, '').replace(VOLUME, '').replace(VALIDITY, '').replace(BRANDS, '').replace(/[-–()]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
     : '';
-  const kind = category === 'data' ? `${providerName ? `${providerName} ` : ''}${type === 'Regular' ? '' : `${type} `}Data`.trim() : null;
+  // "Airtel Data" only on real data bundles (not on voice/other bundles VTpass lists under data).
+  const kind = category === 'data' && vol ? `${providerName ? `${providerName} ` : ''}${type === 'Regular' ? '' : `${type} `}Data`.trim() : null;
   return {
     code: p.code,
     price: Number(p.amount),

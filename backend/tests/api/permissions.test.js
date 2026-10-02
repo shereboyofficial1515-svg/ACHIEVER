@@ -131,6 +131,21 @@ describe('least-privilege admin roles', () => {
     expect(res.body.error.code).toBe('PERMISSION_DENIED');
   });
 
+  it('fees can only be changed by fee managers, and bank payouts only by payout staff', async () => {
+    const { send } = await adminAgent('adm-support');
+    for (const [method, path, body] of [
+      ['post', '/api/admin/fees', { service: 'bank_transfer', feeType: 'FIXED', fixedAmount: 0, feeBearingMode: 'FEE_ADDED', reason: 'make it free' }],
+      ['post', '/api/admin/fees/00000000-0000-0000-0000-000000000001/decide', { approve: true, reason: 'approve it' }],
+      ['post', '/api/admin/wallets/bank-transfers/00000000-0000-0000-0000-000000000001/mark-paid', { manualReference: 'BANK-REF-1' }],
+      ['post', '/api/admin/wallets/bank-transfers/00000000-0000-0000-0000-000000000001/refund', { reason: 'refund it now' }],
+    ]) {
+      const res = await send(method, path, body);
+      expect(res.status, path).toBe(403);
+    }
+    const res = await adminGet('/api/admin/fees', 'adm-support');
+    expect(res.status).toBe(403);
+  });
+
   it('read-only admins cannot modify anything', async () => {
     const { send } = await adminAgent('adm-readonly');
     for (const [method, path, body] of [

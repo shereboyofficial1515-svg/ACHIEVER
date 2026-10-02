@@ -10,6 +10,7 @@ import * as paymentService from './paymentService.js';
 import * as providerHealth from './providerHealthService.js';
 import * as refundService from './refundService.js';
 import * as settingsService from './settingsService.js';
+import * as feeService from './feeService.js';
 import * as transactionAuth from './transactionAuthService.js';
 import { CATEGORIES, CATEGORY_LABELS, serviceRules, validityOf } from './vtpass/catalog.js';
 import { environment, isConfigured } from './vtpass/client.js';
@@ -83,9 +84,11 @@ export async function overview() {
   const provider = getBillProvider('airtime');
   const all = provider && isConfigured() ? await provider.catalog.services().catch(() => []) : [];
   const categories = [];
+  const fees = await feeService.schedule().catch(() => ({}));   // Admin → Fees & Charges
   for (const key of CATEGORIES) {
     const block = await categoryBlock(key, cfg, all);
-    categories.push({ key, label: CATEGORY_LABELS[key], available: !block, reason: block, fee: Number(cfg.fees[key] || 0) });
+    const f = fees[`bill_${key}`] || {};
+    categories.push({ key, label: CATEGORY_LABELS[key], available: !block, reason: block, fee: f.fixed ?? null, feeRule: f.rule ?? null });
   }
   return {
     configured: Boolean(provider && isConfigured()),
@@ -284,7 +287,7 @@ export async function quote(user, input, idempotencyKey = null) {
   const max = Math.min(cfg.maxAmount, Number(service.max_amount || Infinity));
   if (!Number.isSafeInteger(amount) || amount < min) throw AppError.badRequest(`The minimum amount is ₦${(min / 100).toLocaleString('en-NG')}`, 'AMOUNT_TOO_LOW');
   if (amount > max) throw AppError.badRequest(`The maximum amount is ₦${(max / 100).toLocaleString('en-NG')}`, 'AMOUNT_TOO_HIGH');
-  const fee = Math.max(0, Number(cfg.fees[input.category] || 0));
+  // The fee is set by the database from the fee engine (bill_<category>) and snapshotted on the bill.
 
   const bill = await billRepo.insert({
     reference: newPaymentReference('ACH-BILL'),
@@ -298,7 +301,7 @@ export async function quote(user, input, idempotencyKey = null) {
     verified_customer: verified,
     phone: phone,
     amount,
-    fee,
+    fee: 0,
     quantity,
     subscription_type: subscriptionType,
     provider: provider.name,

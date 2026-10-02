@@ -28,7 +28,20 @@ r.post('/transfers/:id/authorize', paymentLimiter, validate({ params: idParam, b
 r.post('/transfers/:id/confirm', paymentLimiter, idempotent, validate({ params: idParam, body: s.confirm }), w.confirmTransfer);
 r.post('/transfers/:id/cancel', validate({ params: idParam }), w.cancelTransfer);
 
+// Fees shown before every confirmation (calculated by the server's fee engine)
+r.get('/fees/quote', validate({ query: s.feeQuote }), w.feeQuote);
+
+// Send to a Nigerian bank account: verify account -> review (fee) -> approve -> debit once -> provider
+r.post('/bank/resolve', paymentLimiter, validate({ body: s.bankResolve }), w.bankResolve);
+r.post('/bank-transfers', paymentLimiter, idempotent, validate({ body: s.bankTransfer }), w.bankStart);
+r.get('/bank-transfers', validate({ query: s.bankTransferList }), w.bankList);
+r.get('/bank-transfers/:id', validate({ params: idParam }), w.bankGet);
+r.post('/bank-transfers/:id/authorize', paymentLimiter, validate({ params: idParam, body: s.approve }), w.bankAuthorize);
+r.post('/bank-transfers/:id/confirm', paymentLimiter, idempotent, validate({ params: idParam, body: s.confirm }), w.bankConfirm);
+r.post('/bank-transfers/:id/cancel', validate({ params: idParam }), w.bankCancel);
+
 // Pay OSUSU contributions / collector savings from the wallet
+r.post('/payments/preview', paymentLimiter, validate({ body: s.payPreview }), w.previewPayment);
 r.post('/payments/authorize', paymentLimiter, validate({ body: s.payAuthorize }), w.authorizePayment);
 r.post('/payments/confirm', paymentLimiter, idempotent, validate({ body: s.payConfirm }), w.confirmPayment);
 

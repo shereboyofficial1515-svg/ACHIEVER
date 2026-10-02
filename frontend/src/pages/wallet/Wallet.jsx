@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, Copy, Eye, EyeOff, Plus, Send, ShieldAlert } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, Copy, Eye, EyeOff, Plus, ShieldAlert } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, EmptyState, PageHeader, SkeletonList } from '../../components/ui/index.js';
 import PullToRefresh, { reloadAll } from '../../components/PullToRefresh.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -13,7 +13,7 @@ export function TxRow({ t }) {
   const Icon = iconFor(t);
   const credit = t.direction === 'credit';
   return (
-    <Link to={`/app/wallet/transactions/${t.id}`} className="wallet-tx">
+    <Link to={t.bankTransferId && t.type === 'bank_transfer' ? `/app/wallet/bank-transfers/${t.bankTransferId}` : `/app/wallet/transactions/${t.id}`} className="wallet-tx">
       <span className={`wallet-tx-icon${credit ? ' is-credit' : ''}`}><Icon size={18} aria-hidden /></span>
       <div className="wallet-tx-main">
         <p style={{ fontWeight: 600 }}>{t.label}</p>
@@ -41,7 +41,7 @@ export default function Wallet() {
   const copyId = async () => {
     try {
       await navigator.clipboard.writeText(w.walletId);
-      toast.success('Wallet ID copied');
+      toast.success('Wallet account number copied');
     } catch {
       toast.error('Could not copy');
     }
@@ -56,7 +56,8 @@ export default function Wallet() {
             <>
               {w.status !== 'active' && <Alert tone="warning" icon={ShieldAlert}>{w.statusReason}</Alert>}
               {!w.enabled && <Alert tone="info">ACHIEVER Wallet is temporarily unavailable. Your balance is safe.</Alert>}
-              <section className="wallet-hero" aria-label="Wallet balance">
+              <section className="wallet-hero" aria-label="ACHIEVER Wallet">
+                <span className="wallet-hero-title">ACHIEVER WALLET</span>
                 <span className="xsmall">Available balance</span>
                 <div className="wallet-balance-row">
                   <p className="wallet-balance" aria-live="polite">{hidden ? '₦ ••••••' : naira(w.available)}</p>
@@ -65,18 +66,25 @@ export default function Wallet() {
                   </button>
                 </div>
                 {w.held > 0 && !hidden && <span className="xsmall">{naira(w.held)} on hold for a transfer under review</span>}
-                <button type="button" className="wallet-id" onClick={copyId} aria-label={`Wallet ID ${w.walletId}. Copy`}>
-                  {w.walletId} <Copy size={14} aria-hidden />
-                </button>
+                <div className="wallet-account">
+                  <span className="xsmall">Wallet account number</span>
+                  <div className="wallet-account-row">
+                    <span className="wallet-account-number" aria-label={`Wallet account number ${w.walletId.split('').join(' ')}`}>{w.walletId}</span>
+                    <button type="button" className="wallet-copy" onClick={copyId} aria-label="Copy wallet account number">
+                      <Copy size={14} aria-hidden /> Copy
+                    </button>
+                  </div>
+                  <span className="xsmall">ACHIEVER Wallet account · not a bank account</span>
+                </div>
               </section>
               <div className="wallet-actions">
                 <Link to="/app/wallet/add" className="wallet-action"><Plus size={22} aria-hidden />Add money</Link>
-                {w.transfersEnabled
-                  ? <Link to="/app/wallet/send" className="wallet-action"><Send size={22} aria-hidden />Send</Link>
-                  : <span className="wallet-action" aria-disabled="true" style={{ opacity: 0.5 }}><Send size={22} aria-hidden />Send</span>}
+                {w.transfersEnabled || w.bankTransfersEnabled
+                  ? <Link to="/app/wallet/transfer" className="wallet-action"><ArrowLeftRight size={22} aria-hidden />Transfer</Link>
+                  : <span className="wallet-action" aria-disabled="true" style={{ opacity: 0.5 }}><ArrowLeftRight size={22} aria-hidden />Transfer</span>}
                 <Link to="/app/wallet/autopay" className="wallet-action"><CalendarClock size={22} aria-hidden />Auto-pay</Link>
               </div>
-              <p className="wallet-note">{w.notice} Your wallet ID identifies your wallet inside ACHIEVER only.</p>
+              <p className="wallet-note">{w.notice} Your wallet account number identifies your wallet inside ACHIEVER only; to receive money from a bank, add money with Paystack.</p>
             </>
           )}
         </AsyncContent>

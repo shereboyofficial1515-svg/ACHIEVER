@@ -16,6 +16,7 @@ import * as callRepo from '../src/repositories/callRepository.js';
 import * as meetingRepo from '../src/repositories/meetingRepository.js';
 import * as billRepo from '../src/repositories/billRepository.js';
 import * as walletRepo from '../src/repositories/walletRepository.js';
+import * as feeRepo from '../src/repositories/feeRepository.js';
 import * as verificationRepo from '../src/repositories/verificationRepository.js';
 import * as supportRepo from '../src/repositories/supportRepository.js';
 import * as inviteRepo from '../src/repositories/inviteRepository.js';
@@ -197,6 +198,16 @@ const checks = {
   'wallet.searchAccountsByCode': () => walletRepo.searchAccounts({ q: 'ACHW-GG', status: 'active', ...P }),
   'wallet.listAccountTransactions': () => walletRepo.listAccountTransactions(ID),
   'wallet.listAdjustments': () => walletRepo.listAdjustments('PENDING'),
+  'wallet.findBankTransfer': () => walletRepo.findBankTransfer(ID),
+  'wallet.findBankTransferByReference': () => walletRepo.findBankTransferByReference('ACH-WBT-X'),
+  'wallet.listBankTransfers': () => walletRepo.listBankTransfers({ ...P, status: 'PENDING', search: 'a' }),
+  'wallet.listOpenBankTransfers': () => walletRepo.listOpenBankTransfers({ olderThan: new Date().toISOString() }),
+  'wallet.hasPaidAccount': () => walletRepo.hasPaidAccount(ID, '058', '0123456789'),
+  'wallet.recipientCodeFor': () => walletRepo.recipientCodeFor(ID, '058', '0123456789'),
+  'fees.listAll': () => feeRepo.listAll(),
+  'fees.history': () => feeRepo.history('bank_transfer'),
+  'rpc.fee_quote': () => feeRepo.quote('bank_transfer', 100000),
+  'rpc.fee_revenue_report': () => feeRepo.revenue(null, null),
 };
 
 let failed = 0;

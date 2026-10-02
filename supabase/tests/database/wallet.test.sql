@@ -31,9 +31,9 @@ grant select on wl to authenticated;
 -- ---------------------------------------------------------------------
 -- Wallet accounts
 -- ---------------------------------------------------------------------
-select ok((select wallet_code from wallet_accounts where id = (select w1 from wl)) ~ '^ACHW-[23456789A-HJ-NP-Z]{8}$', 'wallet ID has the ACHW-XXXXXXXX format');
+select ok((select wallet_code from wallet_accounts where id = (select w1 from wl)) ~ '^ACH[23456789A-HJ-NP-Z]{16}$', 'wallet account number is ACH + 16 characters');
 select is(ensure_wallet('40000000-0000-0000-0000-0000000000a1'), (select w1 from wl), 'one wallet per user (ensure_wallet is idempotent)');
-select is((select count(*)::int from wallet_accounts where kind <> 'user'), 7, 'system accounts exist');
+select is((select count(*)::int from wallet_accounts where kind <> 'user'), 8, 'system accounts exist');
 select is((select balance from wallet_accounts where id = (select w1 from wl)), 0::bigint, 'a new wallet starts at zero');
 
 -- ---------------------------------------------------------------------
@@ -136,6 +136,8 @@ update app_settings set value = '50000000' where key = 'wallet.transfer_review_t
 -- ---------------------------------------------------------------------
 -- Bills paid from the wallet (refunds return to the wallet)
 -- ---------------------------------------------------------------------
+insert into fee_configurations (service, version, fee_type, fixed_amount, status, effective_from, reason, approved_at)
+select 'bill_' || c, 100, 'FIXED', 0, 'APPROVED', now(), 'Wallet test: no bill fee', now() from unnest(array['airtime','data']) c;
 insert into bill_payments (id, reference, user_id, category, service_id, service_name, customer_identifier, phone, amount, fee, status, provider,
                            provider_request_id, funding_source)
 values ('43000000-0000-0000-0000-000000000001', 'ACH-BILL-W1', '40000000-0000-0000-0000-0000000000a2', 'airtime', 'mtn', 'MTN Airtime',

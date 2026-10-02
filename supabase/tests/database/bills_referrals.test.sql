@@ -154,6 +154,10 @@ reset role;
 -- ---------------------------------------------------------------------
 -- Bill transaction engine
 -- ---------------------------------------------------------------------
+-- Fees come from the fee engine (admin-approved versions), never from the inserted row.
+insert into fee_configurations (service, version, fee_type, fixed_amount, status, effective_from, reason, approved_at)
+values ('bill_airtime', 2, 'FIXED', 5000, 'APPROVED', now(), 'Test fee for airtime', now()),
+       ('bill_data', 2, 'FIXED', 1000, 'APPROVED', now(), 'Test fee for data', now());
 insert into bill_payments (id, reference, user_id, category, service_id, service_name, customer_identifier, phone, amount, fee, status, provider,
                            provider_request_id, idempotency_key)
 values ('22000000-0000-0000-0000-000000000001', 'ACH-BILL-T1', '20000000-0000-0000-0000-0000000000a0', 'airtime', 'mtn', 'MTN Airtime',

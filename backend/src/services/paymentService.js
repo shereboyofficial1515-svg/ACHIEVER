@@ -192,7 +192,12 @@ export async function processWebhook(webhookId, event) {
       case 'transfer.success':
       case 'transfer.failed':
       case 'transfer.reversed':
-        await (await payoutService()).handleTransferEvent(event.event, data);
+        // Wallet → bank transfers have their own references; everything else is a group/collector payout.
+        if (String(data.reference || '').startsWith('ACH-WBT-')) {
+          await (await import('./bankTransferService.js')).handleTransferEvent(event.event, data);
+        } else {
+          await (await payoutService()).handleTransferEvent(event.event, data);
+        }
         break;
       case 'refund.processed':
       case 'refund.failed':

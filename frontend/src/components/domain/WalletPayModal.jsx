@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Alert, KeyValue, Modal } from '../ui/index.js';
 import TransactionApproval from './TransactionApproval.jsx';
+import FeeBreakdown from './FeeBreakdown.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { naira } from '../../utils/format.js';
@@ -13,21 +14,24 @@ import { naira } from '../../utils/format.js';
  */
 export default function WalletPayModal({ open, payment, amount, title, recipient, onClose, onPaid }) {
   const wallet = useAsync(() => (open ? api.get('/wallet') : Promise.resolve({ data: null })), [open]);
+  const preview = useAsync(() => (open && payment ? api.post('/wallet/payments/preview', payment) : Promise.resolve({ data: null })), [open, payment?.contributionId, payment?.planId]);
   const w = wallet.data;
-  const enough = w && w.status === 'active' && w.available >= amount;
+  const total = preview.data?.total ?? null;
+  const enough = w && total != null && w.status === 'active' && w.available >= total;
   return (
     <Modal open={open} onClose={onClose} title="Pay from ACHIEVER Wallet">
       <div className="stack">
-        <KeyValue items={[['Recipient', recipient], ['Purpose', title], ['Amount', naira(amount)], ['Fee', '₦0.00 (no fee)'], ['Paid with', 'ACHIEVER Wallet'], w && ['Available balance', naira(w.available)]].filter(Boolean)} />
-        {w && !enough && (
+        <KeyValue items={[['Recipient', recipient], ['Purpose', title], ['Paid with', 'ACHIEVER Wallet'], w && ['Available balance', naira(w.available)]].filter(Boolean)} />
+        <FeeBreakdown amount={amount} fee={preview.data?.fee} total={total} loading={preview.loading} />
+        {w && total != null && !enough && (
           <Alert tone="warning">
-            {w.status !== 'active' ? 'Your wallet cannot make payments right now.' : 'Your wallet balance is not enough for this payment.'}{' '}
+            {w.status !== 'active' ? 'Your wallet cannot make payments right now.' : 'Insufficient balance for this payment and its fee.'}{' '}
             <Link to="/app/wallet/add">Add money</Link>
           </Alert>
         )}
         {open && enough && (
           <TransactionApproval
-            amount={amount}
+            amount={total}
             title={title}
             subtitle={recipient}
             authorizeUrl="/wallet/payments/authorize"

@@ -1,4 +1,6 @@
-import { ArrowDownLeft, ArrowUpRight, Gift, Receipt, RotateCcw, SlidersHorizontal, Users, Wallet } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowDownLeft, ArrowUpRight, Gift, Landmark, Receipt, RotateCcw, SlidersHorizontal, Users, Wallet } from 'lucide-react';
+import { api } from '../../services/api.js';
 
 export const TX_FILTERS = [
   { value: '', label: 'All' },
@@ -12,12 +14,23 @@ export const TX_FILTERS = [
 ];
 
 export const TX_ICON = {
-  topup: Wallet, transfer: ArrowUpRight, bill_payment: Receipt, osusu_contribution: Users, collector_savings: Users,
+  topup: Wallet, transfer: ArrowUpRight, bank_transfer: Landmark, bill_payment: Receipt, osusu_contribution: Users, collector_savings: Users,
   refund: RotateCcw, reversal: RotateCcw, referral_reward: Gift, adjustment: SlidersHorizontal, fee: SlidersHorizontal,
 };
 export const iconFor = (t) => (t.type === 'transfer' && t.direction === 'credit' ? ArrowDownLeft : TX_ICON[t.type] || Wallet);
 
 export const STATUS_LABEL = { success: 'Successful', pending: 'Pending', failed: 'Failed', reversed: 'Reversed' };
+
+export const BANK_STATUS = {
+  INITIATED: { label: 'Awaiting approval', tone: 'neutral' },
+  PENDING: { label: 'Queued', tone: 'warning' },
+  PROCESSING: { label: 'Processing', tone: 'info' },
+  SUCCESS: { label: 'Successful', tone: 'success' },
+  FAILED: { label: 'Failed · refunded', tone: 'danger' },
+  REVERSED: { label: 'Reversed · refunded', tone: 'warning' },
+  REFUNDED: { label: 'Refunded', tone: 'neutral' },
+  CANCELLED: { label: 'Cancelled', tone: 'neutral' },
+};
 
 const HIDE_KEY = 'achiever.wallet.hideBalance';
 export function balanceHidden() {
@@ -32,4 +45,25 @@ export function amountToKobo(value) {
   if (!value) return 0;
   const [w, d = ''] = value.split('.');
   return Number(w || 0) * 100 + Number((d + '00').slice(0, 2));
+}
+
+/**
+ * Live fee preview from the server's fee engine (debounced). The server repeats
+ * the calculation when the transaction is created; this is only what the member
+ * sees while typing.
+ */
+export function useFeeQuote(service, amount) {
+  const [quote, setQuote] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    if (!amount || amount <= 0) { setQuote(null); setError(null); return undefined; }
+    let live = true;
+    const t = setTimeout(() => {
+      api.get('/wallet/fees/quote', { service, amount })
+        .then(({ data }) => { if (live) { setQuote(data); setError(null); } })
+        .catch((err) => { if (live) { setQuote(null); setError(err); } });
+    }, 350);
+    return () => { live = false; clearTimeout(t); };
+  }, [service, amount]);
+  return { quote, error };
 }

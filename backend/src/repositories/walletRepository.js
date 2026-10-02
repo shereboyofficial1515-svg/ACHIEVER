@@ -46,7 +46,7 @@ export async function listTransactions({ userId, type, page = 1, pageSize = 20, 
   if (type && TYPE_GROUPS[type]) q = q.in('type', TYPE_GROUPS[type]);
   if (from) q = q.gte('created_at', from);
   if (to) q = q.lt('created_at', to);
-  const [a, b] = toRange({ page, pageSize });
+  const { from: a, to: b } = toRange({ page, pageSize });
   return runPaged(q.range(a, b));
 }
 
@@ -217,7 +217,7 @@ export async function searchAccounts({ q, status, page = 1, pageSize = 20 }) {
     if (/^ACHW-/i.test(q)) query = query.ilike('wallet_code', term);
     else query = query.or(`full_name.ilike.${term},email.ilike.${term}`, { referencedTable: 'owner' });
   }
-  const [a, b] = toRange({ page, pageSize });
+  const { from: a, to: b } = toRange({ page, pageSize });
   return runPaged(query.range(a, b));
 }
 

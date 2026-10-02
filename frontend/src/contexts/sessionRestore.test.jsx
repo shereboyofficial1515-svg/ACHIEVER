@@ -43,6 +43,16 @@ describe('session restore on app start', () => {
     expect(await mount()).toBe('unreachable');
   });
 
+  it('rate limiting or a non-API response is not a sign-out (and never crashes)', async () => {
+    localStorage.setItem('achiever.signedIn', '1');
+    me.mockRejectedValueOnce(err(429, 'RATE_LIMITED'));
+    expect(await mount()).toBe('unreachable');
+    cleanup();
+    me.mockResolvedValueOnce({ data: undefined });   // e.g. an HTML page returned with 200
+    expect(await mount()).toBe('unreachable');
+    expect(localStorage.getItem('achiever.signedIn')).toBe('1');
+  });
+
   it('only a real authentication failure shows sign-in', async () => {
     localStorage.setItem('achiever.signedIn', '1');
     me.mockRejectedValue(err(401, 'SESSION_EXPIRED'));

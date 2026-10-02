@@ -15,6 +15,7 @@ import * as messageRepo from '../src/repositories/messageRepository.js';
 import * as callRepo from '../src/repositories/callRepository.js';
 import * as meetingRepo from '../src/repositories/meetingRepository.js';
 import * as billRepo from '../src/repositories/billRepository.js';
+import * as walletRepo from '../src/repositories/walletRepository.js';
 import * as verificationRepo from '../src/repositories/verificationRepository.js';
 import * as supportRepo from '../src/repositories/supportRepository.js';
 import * as inviteRepo from '../src/repositories/inviteRepository.js';
@@ -176,6 +177,26 @@ const checks = {
   'compliance.userTrustProfile': () => complianceRepo.userTrustProfile(ID),
   'compliance.memberStats': () => complianceRepo.memberStats(ID, ID),
   'rpc.compliance_overview': () => complianceRepo.complianceOverview(),
+  'wallet.findAccount': () => walletRepo.findAccount(ID),
+  'wallet.findAccountByUser': () => walletRepo.findAccountByUser(ID),
+  'wallet.findAccountByCode': () => walletRepo.findAccountByCode('ACHW-AAAAAAAA'),
+  'wallet.listTransactions': () => walletRepo.listTransactions({ userId: ID, type: 'transfer', ...P }),
+  'wallet.findTransaction': () => walletRepo.findTransaction(ID),
+  'wallet.ledgerFor': () => walletRepo.ledgerFor(ID),
+  'wallet.sumOutgoingToday': () => walletRepo.sumOutgoingToday(ID, new Date().toISOString()),
+  'wallet.countTransfersSince': () => walletRepo.countTransfersSince(ID, new Date().toISOString()),
+  'wallet.hasSentTo': () => walletRepo.hasSentTo(ID, ID),
+  'wallet.findTopup': () => walletRepo.findTopup(ID),
+  'wallet.listTopups': () => walletRepo.listTopups(ID),
+  'wallet.findTransfer': () => walletRepo.findTransfer(ID),
+  'wallet.listTransfersForReview': () => walletRepo.listTransfersForReview(),
+  'wallet.findMandate': () => walletRepo.findMandate(ID),
+  'wallet.listMandates': () => walletRepo.listMandates(ID),
+  'wallet.stats': () => walletRepo.stats(),
+  'wallet.searchAccounts': () => walletRepo.searchAccounts({ q: 'ada', ...P }),
+  'wallet.searchAccountsByCode': () => walletRepo.searchAccounts({ q: 'ACHW-GG', status: 'active', ...P }),
+  'wallet.listAccountTransactions': () => walletRepo.listAccountTransactions(ID),
+  'wallet.listAdjustments': () => walletRepo.listAdjustments('PENDING'),
 };
 
 let failed = 0;

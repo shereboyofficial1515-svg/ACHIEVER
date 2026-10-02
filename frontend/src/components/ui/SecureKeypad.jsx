@@ -125,7 +125,7 @@ export default function SecureKeypad({
   const last = layout[9];
 
   return (
-    <div className={`secure-keypad keypad-${type}${disabled ? ' is-disabled' : ''}`} role="group" aria-labelledby={labelId} aria-label={labelId ? undefined : label}>
+    <div className={`secure-keypad secure-keypad--${type}${disabled ? ' is-disabled' : ''}`} role="group" aria-labelledby={labelId} aria-label={labelId ? undefined : label}>
       {label && <p id={labelId} className="keypad-label">{label}</p>}
       {display}
       <p className="sr-only" role="status" aria-live="polite">{announce}</p>

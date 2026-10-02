@@ -10,7 +10,10 @@ const hint = {
   get: () => { try { return localStorage.getItem(HINT) === '1'; } catch { return false; } },
   set: (on) => { try { if (on) localStorage.setItem(HINT, '1'); else localStorage.removeItem(HINT); } catch { /* storage unavailable */ } },
 };
-const isNetworkError = (err) => err && (err.status === 0 || err.status >= 502 || ['NETWORK_ERROR', 'SERVICE_UNAVAILABLE'].includes(err.code));
+// Temporary problems are never a sign-out: offline, gateway errors, rate limiting (429),
+// or a response that is not the API's (e.g. an HTML page from a misconfigured proxy).
+const isNetworkError = (err) => err && (err.status === 0 || err.status === 429 || err.status >= 502
+  || ['NETWORK_ERROR', 'SERVICE_UNAVAILABLE', 'RATE_LIMITED', 'BAD_RESPONSE'].includes(err.code));
 
 const AuthContext = createContext(null);
 
@@ -27,6 +30,7 @@ export function AuthProvider({ children }) {
   const loadMe = useCallback(async ({ quiet = false } = {}) => {
     try {
       const { data } = await api.get('/auth/me');
+      if (!data?.id) throw Object.assign(new Error('Unexpected response from the server'), { status: 0, code: 'BAD_RESPONSE' });
       setUser(data);
       setStatus('authenticated');
       hint.set(true);

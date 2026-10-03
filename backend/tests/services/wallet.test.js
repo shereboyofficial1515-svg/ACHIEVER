@@ -31,6 +31,7 @@ vi.mock('../../src/repositories/walletRepository.js', () => ({
     return a ? { ...a, owner: { full_name: a.name, account_status: 'active' } } : null;
   }),
   sumOutgoingToday: vi.fn(async () => state.sentToday ?? 0),
+  findTransaction: vi.fn(async (id) => (state.txs || {})[id] || null),
   countTransfersSince: vi.fn(async () => 0),
   hasSentTo: vi.fn(async (_u, w) => state.sent.has(w)),
   insertTransfer: vi.fn(async (row) => { const q = quoteFor('wallet_transfer', row.amount); const t = { id: crypto.randomUUID(), authorized_at: null, expires_at: new Date(Date.now() + 900_000).toISOString(), ...row, fee: q.fee, total_debit: q.total_debit, recipient_amount: q.recipient_amount, fee_snapshot: q }; state.transfers.set(t.id, t); return { ...t }; }),
@@ -129,6 +130,18 @@ describe('wallet identity and masking', () => {
     expect(s.walletId).toBe('ACHAAAA2345ABCDEFGH');
     expect(s.notice).toMatch(/not a bank account/i);
     expect(s.available).toBe(10_000_000);
+  });
+});
+
+describe('transfer receipt', () => {
+  const tx = (description) => ({ id: 't-1', reference: 'ACH-WTX-1', type: 'transfer', user_id: ME, counterparty_user_id: OTHER, amount: 1000, fee: 0, status: 'success', description, metadata: {}, created_at: 'now' });
+  it("shows the full recipient and only the sender's own note (no repeated default text)", async () => {
+    state.txs = { 't-1': tx('Wallet transfer') };
+    const r = await wallet.receipt(user, 't-1');
+    expect(r.note).toBeNull();
+    expect(r.counterparty).toMatchObject({ displayName: 'Adaeze Okafor', walletId: 'ACHBCDE6789ABCDEFGH' });
+    state.txs = { 't-1': tx('Transfer: Lunch money') };
+    expect((await wallet.receipt(user, 't-1')).note).toBe('Lunch money');
   });
 });
 

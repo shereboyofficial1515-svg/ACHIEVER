@@ -29,7 +29,7 @@ export default function WalletReceipt() {
               <KeyValue
                 items={[
                   ['Status', STATUS_LABEL[t.status] || t.status],
-                  ['Description', t.description],
+                  t.type !== 'transfer' && ['Description', t.description],   // transfers show the person and any note instead
                   t.note && ['Note', t.note],
                   t.direction === 'debit' && ['Amount', naira(t.principal ?? t.amount)],
                   t.direction === 'debit' && ['Fee', t.fee ? naira(t.fee) : '₦0.00'],

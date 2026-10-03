@@ -533,7 +533,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   const typers = Object.values(typing);
   let subtitle;
   if (typers.length) subtitle = typers.length === 1 ? (isGroup ? `${typers[0].name} is typing…` : 'typing…') : typers.length === 2 ? `${typers[0].name} and ${typers[1].name} are typing…` : `${typers.length} people are typing…`;
-  else if (isGroup) subtitle = `${conv.memberCount} members${perms.canSeeOnline ? ` · ${conv.onlineCount} online` : ''}`;
+  else if (isGroup) subtitle = `${conv.memberCount} member${conv.memberCount === 1 ? "" : "s"}${perms.canSeeOnline ? ` · ${conv.onlineCount} online` : ''}`;
   else if (other?.online) subtitle = 'Online';
   else if (other?.lastSeenAt) subtitle = `Last seen ${relativeTime(other.lastSeenAt)}`;
   else subtitle = '';

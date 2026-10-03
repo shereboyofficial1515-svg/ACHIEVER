@@ -73,7 +73,7 @@ export default function GroupInfo() {
             <UserAvatar name={c.title} src={g?.imageUrl} size={104} />
             <h1 className="profile-name">{c.title}</h1>
             <p className="small muted">
-              {c.type === 'group' ? 'Group' : 'Chat'} · {c.memberCount} members{perms.canSeeOnline ? ` · ${c.onlineCount} online` : ''}
+              {c.type === 'group' ? 'Group' : 'Chat'} · {c.memberCount} member{c.memberCount === 1 ? "" : "s"}{perms.canSeeOnline ? ` · ${c.onlineCount} online` : ''}
             </p>
             {c.me?.mutedUntil && <span className="badge badge-neutral"><BellOff size={12} aria-hidden /> Muted</span>}
             {c.description && <p className="info-description">{c.description}</p>}
@@ -119,7 +119,7 @@ export default function GroupInfo() {
             </div>
           </Card>
 
-          <Card title={<span id="members"><UsersRound size={16} aria-hidden /> {c.memberCount} members</span>}>
+          <Card title={<span id="members"><UsersRound size={16} aria-hidden /> {c.memberCount} member{c.memberCount === 1 ? "" : "s"}</span>}>
             {!perms.canSeeMembers && <p className="xsmall muted">The group admin has limited the member list to admins.</p>}
             {c.members.length > 6 && (
               <input className="input" type="search" placeholder="Search members" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search members" style={{ marginBottom: 8 }} />

@@ -78,8 +78,21 @@ export async function markRead(conversationId, userId) {
 const MESSAGE_COLUMNS =
   'id, conversation_id, sender_id, kind, body, metadata, created_at, edited_at, deleted_at, reply_to_id, ' +
   'attachments:message_attachments(id, file_name, mime_type, size_bytes), ' +
-  'reply:messages!messages_reply_to_id_fkey(id, sender_id, kind, body, deleted_at), ' +
   'reactions:message_reactions(user_id, emoji)';
+
+/**
+ * The quoted message of a reply. Loaded with a second query: PostgREST cannot embed a table
+ * in itself through one foreign key (both directions match, so the request fails).
+ */
+async function withReplies(rows) {
+  const list = rows.filter(Boolean);
+  const ids = [...new Set(list.map((r) => r.reply_to_id).filter(Boolean))];
+  if (!ids.length) return rows;
+  const quoted = await run(db.from('messages').select('id, sender_id, kind, body, deleted_at').in('id', ids));
+  const byId = new Map(quoted.map((q) => [q.id, q]));
+  for (const r of list) r.reply = r.reply_to_id ? byId.get(r.reply_to_id) || null : null;
+  return rows;
+}
 
 /**
  * Messages for one member: deleted messages come back as tombstones (no body),
@@ -92,7 +105,7 @@ export async function listMessages(conversationId, { before, after, limit, viewe
   if (before) q = q.lt('created_at', before);
   if (after) q = q.gte('created_at', after);
   if (clearedAt) q = q.gt('created_at', clearedAt);
-  const rows = await run(q);
+  const rows = await withReplies(await run(q));
   if (!viewerId || !rows.length) return rows;
   const hidden = await run(db.from('message_hidden').select('message_id').eq('user_id', viewerId).in('message_id', rows.map((r) => r.id)));
   const skip = new Set(hidden.map((h) => h.message_id));
@@ -100,7 +113,9 @@ export async function listMessages(conversationId, { before, after, limit, viewe
 }
 
 export async function updateMessage(id, patch) {
-  return one(db.from('messages').update(patch).eq('id', id).select(MESSAGE_COLUMNS).maybeSingle());
+  const row = await one(db.from('messages').update(patch).eq('id', id).select(MESSAGE_COLUMNS).maybeSingle());
+  await withReplies([row]);
+  return row;
 }
 
 export async function updateMember(conversationId, userId, patch) {
@@ -180,7 +195,9 @@ export async function listLinkMessages(conversationId, { before, limit = 30 }) {
 }
 
 export async function findMessage(id) {
-  return one(db.from('messages').select(MESSAGE_COLUMNS).eq('id', id).maybeSingle());
+  const row = await one(db.from('messages').select(MESSAGE_COLUMNS).eq('id', id).maybeSingle());
+  await withReplies([row]);
+  return row;
 }
 
 export async function postMessage({ conversationId, senderId, kind, body, metadata = {}, attachments = [], replyTo = null }) {

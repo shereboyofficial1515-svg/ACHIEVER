@@ -101,7 +101,7 @@ export default function Messages() {
                     {c.lastMessageKind === 'announcement' && <Megaphone size={13} aria-label="Announcement" />}
                     {c.lastMessage === 'Voice message' && <Mic size={13} aria-hidden />}
                     {c.lastMessage && c.lastSenderId === user.id && c.lastMessageKind !== 'system' ? 'You: ' : ''}
-                    {c.lastMessage || (c.type === 'group' ? `${c.memberCount} members` : 'Start the conversation')}
+                    {c.lastMessage || (c.type === 'group' ? `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}` : 'Start the conversation')}
                   </span>
                   {c.unreadCount > 0 && <span className={`unread${c.mutedUntil ? ' is-muted' : ''}`}>{c.unreadCount}</span>}
                 </span>

@@ -52,12 +52,20 @@ async function conversationMembers(conversationId) {
   return ids;
 }
 
+/** Send an event to the members of a conversation connected to this instance (optionally not to one user). */
+export async function publishToConversation(conversationId, event, payload, exceptUserId = null) {
+  const members = await conversationMembers(conversationId);
+  publishToUsers(members.filter((id) => id !== exceptUserId && clients.has(id)), event, payload);
+}
+
 async function onMessage(row) {
   const members = await conversationMembers(row.conversation_id);
   const local = members.filter((id) => clients.has(id));
   if (!local.length) return;
-  const full = await messageRepo.findMessage(row.id);
-  if (full) publishToUsers(local, 'message.new', formatMessage(full));
+  const [full, muted] = await Promise.all([messageRepo.findMessage(row.id), messageRepo.mutedMemberIds(row.conversation_id, local).catch(() => [])]);
+  if (!full) return;
+  const message = formatMessage(full);
+  for (const id of local) publishToUser(id, 'message.new', muted.includes(id) ? { ...message, muted: true } : message);
 }
 
 function onNotification(row) {

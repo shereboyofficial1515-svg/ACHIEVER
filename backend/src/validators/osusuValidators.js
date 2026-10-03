@@ -12,6 +12,7 @@ const groupFields = {
   payoutOrderMethod: z.enum(['join_order', 'random', 'manual']),
   requiresApproval: z.boolean(),
   meetingSchedule: optionalText(200),
+  rules: optionalText(4000),
 };
 
 export const createGroup = z.object({

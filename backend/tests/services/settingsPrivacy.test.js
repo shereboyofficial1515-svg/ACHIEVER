@@ -11,7 +11,7 @@ vi.mock('../../src/repositories/userRepository.js', () => ({
   findById: vi.fn(), findByEmail: vi.fn(), update: vi.fn(), openObligations: vi.fn(), listUserPreferences: vi.fn(),
   getUserPreferences: vi.fn(), upsertUserPreferences: vi.fn(),
 }));
-vi.mock('../../src/repositories/messageRepository.js', () => ({ findMembership: vi.fn(), findConversation: vi.fn(), listMembers: vi.fn() }));
+vi.mock('../../src/repositories/messageRepository.js', () => ({ findMembership: vi.fn(), findConversation: vi.fn(), listMembers: vi.fn(), listPins: vi.fn(async () => []) }));
 vi.mock('../../src/services/sessionService.js', () => ({ revokeAll: vi.fn() }));
 vi.mock('../../src/services/notificationService.js', () => ({ notify: vi.fn(), kickDispatcher: vi.fn() }));
 vi.mock('../../src/services/auditService.js', () => ({ record: vi.fn() }));

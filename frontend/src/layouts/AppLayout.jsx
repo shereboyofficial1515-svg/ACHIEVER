@@ -48,6 +48,12 @@ export default function AppLayout() {
   const [drawer, setDrawer] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const location = useLocation();
+  // An open conversation is a full-screen chat: no bottom navigation over the composer.
+  const inChat = /^\/app\/messages\/[^/]+\/?$/.test(location.pathname);
+  useEffect(() => {
+    document.body.classList.toggle('in-chat', inChat);
+    return () => document.body.classList.remove('in-chat');
+  }, [inChat]);
   const navigate = useNavigate();
   const nav = useMemo(() => buildNavigation(has, can), [has, can]);
 
@@ -58,8 +64,12 @@ export default function AppLayout() {
     if (user?.emailVerified) refreshMessages();
   }, [user?.emailVerified, location.pathname]);
   useRealtimeEvent('message.new', (m) => {
-    if (m.senderId === user?.id || location.pathname.includes(m.conversationId)) return;
+    if (m.senderId === user?.id) return;
+    // The app received it: senders who share receipts see "delivered" (two grey ticks).
+    api.post(`/messages/conversations/${m.conversationId}/delivered`).catch(() => {});
+    if (location.pathname.includes(m.conversationId)) return;
     setUnreadMessages((n) => n + 1);
+    if (m.muted) return;   // muted chat: count it, but no sound or pop-up
     // Settings → Messages: sound and preview are the user's choice.
     if (prefs.messages.messageSound) playMessageSound();
     toast.info(prefs.messages.messagePreview && m.body ? `${m.senderName || 'New message'}: ${m.body.slice(0, 80)}` : 'You have a new message');
@@ -135,7 +145,7 @@ export default function AppLayout() {
           <span className="topbar-title">{current?.label || 'ACHIEVER'}</span>
           <div className="actions">
             <IconButton icon={Bell} label="Notifications" count={unreadNotifications} onClick={() => navigate('/app/notifications')} />
-            <Link to="/app/settings" aria-label="Your profile and settings">
+            <Link to="/app/profile" aria-label="My profile">
               <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={34} />
             </Link>
           </div>
@@ -157,7 +167,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <nav className="bottom-nav" aria-label="Primary">
+      {!inChat && <nav className="bottom-nav" aria-label="Primary">
         {nav.bottom.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? 'active' : '')}>
             <item.icon size={21} aria-hidden />
@@ -165,7 +175,7 @@ export default function AppLayout() {
             {item.badgeKey && badges[item.badgeKey] > 0 && <span className="badge-dot" />}
           </NavLink>
         ))}
-      </nav>
+      </nav>}
     </div>
   );
 }

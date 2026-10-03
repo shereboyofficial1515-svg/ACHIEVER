@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { Camera, Landmark, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Camera, Copy, Landmark, Lock, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
 import {
-  Alert, AsyncContent, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, Select, StatusBadge, Textarea,
+  Alert, AsyncContent, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea,
   UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
@@ -477,6 +477,81 @@ export function Deactivate() {
 }
 
 /** The old Profile page now lives in Settings. */
+/** My Profile: a first-class page (nav + header avatar), not buried in Settings. */
 export default function Profile() {
-  return <Navigate to="/app/settings/profile" replace />;
+  const { user } = useAuth();
+  const toast = useToast();
+  const trust = useAsync(() => api.get(`/users/${user.id}/trust`), [user.id]);
+  const wallet = useAsync(() => api.get('/wallet').catch(() => ({ data: null })), []);
+  const t = trust.data;
+  const verifiedCount = t ? Object.values(t.verification || {}).filter(Boolean).length : 0;
+  const copy = async (text) => {
+    try { await navigator.clipboard.writeText(text); toast.success('Wallet account number copied'); } catch { toast.error('Could not copy'); }
+  };
+  return (
+    <div className="stack-lg profile-page">
+      <section className="profile-hero" aria-label="My profile">
+        <UserAvatar name={user.fullName} src={user.avatarUrl} size={96} />
+        <h1 className="profile-name">{user.fullName}</h1>
+        <p className="small muted">
+          {t ? `Member since ${formatDate(t.memberSince)}` : ' '}{t?.location ? ` · ${t.location}` : ''}
+        </p>
+        <div className="profile-badges">
+          {user.emailVerified && <span className="badge badge-success"><ShieldCheck size={13} aria-hidden /> Verified email</span>}
+          {t?.verification?.identity && <span className="badge badge-success"><ShieldCheck size={13} aria-hidden /> ID verified</span>}
+          {t && <span className="badge badge-neutral">{verifiedCount} of 4 checks</span>}
+          <span className={`badge badge-${user.status === 'active' ? 'success' : 'warning'}`}>{user.status === 'active' ? 'Account active' : `Account ${String(user.status || '').replace('_', ' ')}`}</span>
+        </div>
+        <div className="row-wrap profile-actions">
+          <Button to="/app/profile/edit">Edit profile</Button>
+          <Button to="/app/settings/privacy" variant="secondary" icon={Lock}>Privacy</Button>
+          <Button to="/app/settings/security" variant="secondary" icon={ShieldCheck}>Security</Button>
+        </div>
+      </section>
+
+      {wallet.data?.walletId && (
+        <Card title="ACHIEVER Wallet">
+          <div className="row-between">
+            <div>
+              <p className="xsmall muted" style={{ margin: 0 }}>Wallet account number (not a bank account)</p>
+              <p className="mono" style={{ margin: 0, fontWeight: 700, overflowWrap: 'anywhere' }}>{wallet.data.walletId}</p>
+            </div>
+            <Button variant="secondary" size="sm" icon={Copy} onClick={() => copy(wallet.data.walletId)}>Copy</Button>
+          </div>
+        </Card>
+      )}
+
+      {t && (
+        <Card title="What other members see">
+          <KeyValue items={[
+            ['Name', user.fullName],
+            ['Location', t.location || 'Hidden'],
+            ['Completed OSUSU groups', t.completedGroups],
+            ['Paid on time', t.onTimeRate === null ? '—' : `${t.onTimeRate}%`],
+          ]} />
+          <p className="xsmall muted">Your email, phone number, address, ID documents and balances are never shown to other members.</p>
+        </Card>
+      )}
+
+      <Card title="More">
+        <div className="profile-links">
+          <Link to="/app/settings/notifications">Notifications</Link>
+          <Link to="/app/settings/messages">Messages & chats</Link>
+          <Link to="/app/settings/payment">Payment accounts</Link>
+          <Link to="/app/settings/devices">Devices & sessions</Link>
+          <Link to="/app/settings">All settings</Link>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/** Edit profile (moved here from Settings → Profile). */
+export function ProfileEdit() {
+  return (
+    <div className="stack-lg">
+      <PageHeader back={{ to: '/app/profile', label: 'My profile' }} title="Edit profile" />
+      <Details />
+    </div>
+  );
 }

@@ -41,7 +41,11 @@ async function create(user, row, contextName, req) {
 }
 
 export async function inviteToGroup(user, groupId, { email, phone }, req) {
-  const { group } = await osusuService.groupAccess(user, groupId, { adminOnly: true });
+  const { group, isAdmin } = await osusuService.groupAccess(user, groupId);
+  // Organiser, or every member when the organiser allows member invitations (Group Settings).
+  if (!isAdmin && !(await (await import('./messageService.js')).canInviteToGroup(user.id, groupId))) {
+    throw AppError.forbidden('Only the group admin can invite people to this group', 'NOT_ALLOWED');
+  }
   if (group.status !== 'recruiting') throw AppError.conflict('Invitations can only be sent while the group is recruiting', 'GROUP_NOT_RECRUITING');
   return create(user, { kind: 'osusu_group', group_id: groupId, email: email ?? null, phone: phone ?? null }, group.name, req);
 }

@@ -4,7 +4,7 @@ import { likePattern, toRange } from '../utils/pagination.js';
 const GROUP_COLUMNS =
   'id, name, description, image_path, admin_id, contribution_amount, currency, frequency, max_members, start_date, ' +
   'grace_period_days, payout_order_method, requires_approval, meeting_schedule, join_code, status, current_cycle, ' +
-  'total_cycles, started_at, completed_at, cancelled_at, created_at';
+  'total_cycles, started_at, completed_at, cancelled_at, created_at, rules';
 
 // Groups ---------------------------------------------------------------------
 export async function insertGroup(row) {

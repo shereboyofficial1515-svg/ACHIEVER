@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { MessageSquare, PenSquare } from 'lucide-react';
+import { BellOff, Megaphone, MessageSquare, Mic, PenSquare } from 'lucide-react';
 import { AsyncContent, EmptyState, Modal, SkeletonList, UserAvatar } from '../../components/ui/index.js';
 import ChatWindow from '../../components/domain/ChatWindow.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -50,13 +50,16 @@ export default function Messages() {
       (convs.data || [])
         .map((c) =>
           c.id === m.conversationId
-            ? { ...c, lastMessage: m.kind === 'attachment' ? 'Attachment' : m.body, lastMessageAt: m.createdAt, unreadCount: m.senderId !== user.id && m.conversationId !== conversationId ? c.unreadCount + 1 : c.unreadCount }
+            ? { ...c, lastMessage: m.kind === 'attachment' ? (m.metadata?.voice ? 'Voice message' : m.body || 'Attachment') : m.body, lastMessageKind: m.kind, lastSenderId: m.senderId, lastMessageAt: m.createdAt, unreadCount: m.senderId !== user.id && m.conversationId !== conversationId ? c.unreadCount + 1 : c.unreadCount }
             : c,
         )
         .sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt)),
     );
     if (!(convs.data || []).some((c) => c.id === m.conversationId)) convs.reload();
   });
+  // Edits, deletes, mute and group changes: refresh the previews.
+  useRealtimeEvent('message.updated', () => convs.reload());
+  useRealtimeEvent('conversation.updated', () => convs.reload());
 
   const visible = useMemo(
     () => (convs.data || []).filter((c) => !filter || c.title?.toLowerCase().includes(filter.toLowerCase())),
@@ -87,15 +90,20 @@ export default function Messages() {
         >
           {visible.map((c) => (
             <button key={c.id} type="button" className={`conv-item ${c.id === conversationId ? 'active' : ''}`} onClick={() => open(c.id)}>
-              <UserAvatar name={c.title} src={c.otherUser?.avatarUrl} online={c.otherUser ? c.otherUser.online : undefined} size={42} />
+              <UserAvatar name={c.title} src={c.otherUser?.avatarUrl || c.imageUrl} online={c.otherUser ? c.otherUser.online : undefined} size={42} />
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="row-between">
-                  <strong className="truncate">{c.title}</strong>
+                  <strong className="truncate">{c.title}{c.mutedUntil && <BellOff size={13} className="muted conv-muted" aria-label="Muted" />}</strong>
                   <span className="xsmall muted nowrap">{relativeTime(c.lastMessageAt)}</span>
                 </span>
                 <span className="row-between">
-                  <span className="preview truncate">{c.lastMessage || (c.type === 'group' ? `${c.memberCount} members` : 'Start the conversation')}</span>
-                  {c.unreadCount > 0 && <span className="unread">{c.unreadCount}</span>}
+                  <span className="preview truncate">
+                    {c.lastMessageKind === 'announcement' && <Megaphone size={13} aria-label="Announcement" />}
+                    {c.lastMessage === 'Voice message' && <Mic size={13} aria-hidden />}
+                    {c.lastMessage && c.lastSenderId === user.id && c.lastMessageKind !== 'system' ? 'You: ' : ''}
+                    {c.lastMessage || (c.type === 'group' ? `${c.memberCount} members` : 'Start the conversation')}
+                  </span>
+                  {c.unreadCount > 0 && <span className={`unread${c.mutedUntil ? ' is-muted' : ''}`}>{c.unreadCount}</span>}
                 </span>
               </span>
             </button>

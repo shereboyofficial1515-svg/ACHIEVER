@@ -106,7 +106,7 @@ function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, h
           aria-label={`${mine ? 'You' : senderName}: ${m.deleted ? 'deleted message' : m.body || 'attachment'}`}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(m); } }}>
           {announcement && !m.deleted && <span className="announcement-label"><Megaphone size={14} aria-hidden /> Group announcement{isGroup ? ` · ${mine ? 'You' : senderName}` : ''}</span>}
-          {m.replyTo && (
+          {m.replyTo && !m.deleted && (
             <button type="button" className="reply-quote" onClick={(e) => { e.stopPropagation(); onJump(m.replyTo.id); }}>
               <strong>{nameOf(m.replyTo.senderId)}</strong>
               <span>{m.replyTo.deleted ? 'This message was deleted' : m.replyTo.body || 'Attachment'}</span>
@@ -295,6 +295,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   useRealtimeEvent('message.updated', (m) => {
     if (m.conversationId !== conversationId) return;
     setMessages((list) => list.map((x) => (x.id === m.id ? m : x)));
+    if (conv?.pinned?.some((p) => p.messageId === m.id)) loadConv().catch(() => {});
   });
   useRealtimeEvent('conversation.updated', (e) => { if (e.conversationId === conversationId) loadConv().catch(() => {}); });
   useRealtimeEvent('conversation.receipt', (r) => {
@@ -341,6 +342,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
       try {
         const { data } = await api.patch(`/messages/messages/${editing.id}`, { body });
         setMessages((list) => list.map((x) => (x.id === data.id ? data : x)));
+        if (conv.pinned?.some((p) => p.messageId === data.id)) loadConv().catch(() => {});
         setEditing(null);
         setDraft('');
       } catch (err) {
@@ -452,7 +454,8 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     try {
       await api.post(`/messages/messages/${m.id}/delete`, { scope });
       if (scope === 'me') setMessages((list) => list.filter((x) => x.id !== m.id));
-      else setMessages((list) => list.map((x) => (x.id === m.id ? { ...x, deleted: true, body: null, attachments: [], reactions: [] } : x)));
+      else setMessages((list) => list.map((x) => (x.id === m.id ? { ...x, deleted: true, body: null, replyTo: null, attachments: [], reactions: [] } : x)));
+      if (conv.pinned?.some((p) => p.messageId === m.id)) loadConv().catch(() => {});
     } catch (err) {
       toast.error(err);
     }

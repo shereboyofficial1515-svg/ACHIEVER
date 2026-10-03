@@ -32,14 +32,40 @@ async function applyStatusBar(theme) {
   }
 }
 
+/**
+ * The screen "above" this one, for when there is no in-app history to go back to
+ * (opened from a notification or deep link): Group info → chat → Messages → Home.
+ */
+export function parentPath(pathname) {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (ROOT_PATHS.has(path) || !path.startsWith('/app/')) return null;
+  const chatSub = /^(\/app\/messages\/[^/]+)\/(info|settings|media)$/.exec(path);
+  if (chatSub) return path.endsWith('/settings') ? `${chatSub[1]}/info` : chatSub[1];
+  if (path.startsWith('/app/contacts/')) return '/app/messages';   // a person's profile is opened from chats
+  const parts = path.split('/').filter(Boolean);   // ['app', 'messages', ':id', ...]
+  return parts.length > 2 ? `/${parts.slice(0, -1).join('/')}` : '/app';
+}
+
 function handleBack() {
-  // 1) close a dialog or drawer, 2) go back a screen, 3) at a root screen, leave the app (it stays signed in).
+  // 1) close a dialog or drawer, 2) go back a screen, 3) go up to the parent screen,
+  // 4) at a root screen, leave the app (it stays signed in).
   if (closeTopOverlay()) return;
-  if (!ROOT_PATHS.has(window.location.pathname) && canGoBackInApp()) {
+  if (ROOT_PATHS.has(window.location.pathname)) {
+    App.minimizeApp().catch(() => App.exitApp());
+    return;
+  }
+  if (canGoBackInApp()) {
     window.history.back();
     return;
   }
-  App.minimizeApp().catch(() => App.exitApp());
+  const parent = parentPath(window.location.pathname);
+  if (!parent) {
+    App.minimizeApp().catch(() => App.exitApp());
+    return;
+  }
+  // Replace this entry with its parent and let React Router render it.
+  window.history.replaceState({ usr: null, key: 'up', idx: 0 }, '', parent);
+  window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
 }
 
 export async function init() {

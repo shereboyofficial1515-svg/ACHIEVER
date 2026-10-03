@@ -3,7 +3,7 @@ import { api } from '../services/api.js';
 import { useAuth } from './AuthContext.jsx';
 
 const RealtimeContext = createContext(null);
-const EVENTS = ['ready', 'message.new', 'notification.new', 'call.incoming', 'call.updated'];
+const EVENTS = ['ready', 'message.new', 'message.updated', 'conversation.updated', 'conversation.receipt', 'typing', 'notification.new', 'call.incoming', 'call.updated'];
 
 /**
  * One Server-Sent Events connection per signed-in tab. The session cookie

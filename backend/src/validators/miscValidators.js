@@ -94,10 +94,44 @@ export const listNotifications = paging.extend({ unreadOnly: z.enum(['true', 'fa
 export const conversationParam = z.object({ conversationId: uuid });
 export const listMessages = z.object({
   before: z.string().datetime({ offset: true }).optional(),
+  after: z.string().datetime({ offset: true }).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(40),
 });
-export const sendMessage = z.object({ body: text(1, 4000) });
+export const sendMessage = z.object({
+  body: text(1, 4000),
+  replyTo: uuid.optional().nullable(),
+  announcement: z.boolean().optional(),
+});
 export const attachmentCaption = z.object({ caption: optionalText(500) });
+export const messageParam = z.object({ messageId: uuid });
+export const convMessageParam = z.object({ conversationId: uuid, messageId: uuid });
+export const convMemberParam = z.object({ conversationId: uuid, memberId: uuid });
+export const editMessage = z.object({ body: text(1, 4000) });
+export const deleteMessage = z.object({ scope: z.enum(['me', 'everyone']) });
+export const reactMessage = z.object({ emoji: z.enum(['👍', '❤️', '😂', '😮', '😢', '🙏']).nullable() });
+export const pinMessage = z.object({ pinned: z.boolean() });
+export const searchMessages = z.object({ q: z.string().trim().min(2).max(100) });
+export const mediaQuery = z.object({
+  type: z.enum(['media', 'docs', 'links', 'audio']).default('media'),
+  before: z.string().datetime({ offset: true }).optional(),
+});
+export const muteChat = z.object({ until: z.string().datetime({ offset: true }).nullable() });
+export const reportChat = z.object({ messageId: uuid.optional().nullable(), reason: text(5, 1000) });
+export const blockUser = z.object({ blocked: z.boolean() });
+export const userParam = z.object({ userId: uuid });
+export const groupChatSettings = z.object({
+  description: optionalText(500),
+  settings: z.object({
+    send: z.enum(['all', 'admins']).optional(),
+    pin: z.enum(['admins', 'selected']).optional(),
+    change_picture: z.enum(['admins', 'selected']).optional(),
+    invite: z.enum(['all', 'admins']).optional(),
+    member_list: z.enum(['all', 'admins']).optional(),
+    show_online: z.enum(['all', 'admins']).optional(),
+  }).strict().optional(),
+  reason: optionalText(300),
+}).strict();
+export const memberPermissions = z.object({ canPin: z.boolean().optional(), canChangePicture: z.boolean().optional() }).strict();
 export const openDirect = z.object({ userId: uuid });
 
 // Calls & meetings -------------------------------------------------------------------

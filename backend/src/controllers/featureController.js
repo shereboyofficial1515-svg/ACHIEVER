@@ -35,9 +35,29 @@ export const updatePreferences = asyncHandler(async (req, res) => ok(res, await 
 export const listConversations = asyncHandler(async (req, res) => ok(res, await messageService.listConversations(req.user.id)));
 export const getConversation = asyncHandler(async (req, res) => ok(res, await messageService.getConversation(req.user.id, v(req).params.conversationId)));
 export const listMessages = asyncHandler(async (req, res) => ok(res, await messageService.listMessages(req.user.id, v(req).params.conversationId, v(req).query)));
-export const sendMessage = asyncHandler(async (req, res) => created(res, await messageService.sendText(req.user.id, v(req).params.conversationId, req.body.body), 'Sent'));
-export const sendAttachment = asyncHandler(async (req, res) =>
-  created(res, await messageService.sendAttachment(req.user.id, v(req).params.conversationId, req.file, req.body?.caption), 'Sent'));
+export const sendMessage = asyncHandler(async (req, res) =>
+  created(res, await messageService.sendText(req.user.id, v(req).params.conversationId, req.body.body, { replyTo: req.body.replyTo || null, announcement: Boolean(req.body.announcement) }), 'Sent'));
+export const sendAttachment = asyncHandler(async (req, res) => {
+  const replyTo = /^[0-9a-f-]{36}$/i.test(req.body?.replyTo || '') ? req.body.replyTo : null;
+  return created(res, await messageService.sendAttachment(req.user.id, v(req).params.conversationId, req.file, req.body?.caption, { replyTo, voice: req.body?.voice === 'true' }), 'Sent');
+});
+export const messagesAround = asyncHandler(async (req, res) => ok(res, await messageService.messagesAround(req.user.id, v(req).params.conversationId, v(req).params.messageId)));
+export const editMessage = asyncHandler(async (req, res) => ok(res, await messageService.editMessage(req.user.id, v(req).params.messageId, req.body.body), 'Edited'));
+export const deleteMessage = asyncHandler(async (req, res) => ok(res, await messageService.deleteMessage(req.user, v(req).params.messageId, req.body.scope, req), 'Deleted'));
+export const reactMessage = asyncHandler(async (req, res) => ok(res, await messageService.react(req.user.id, v(req).params.messageId, req.body.emoji)));
+export const pinMessage = asyncHandler(async (req, res) => ok(res, await messageService.setPinned(req.user, v(req).params.conversationId, v(req).params.messageId, req.body.pinned, req)));
+export const typing = asyncHandler(async (req, res) => { await messageService.typing(req.user, v(req).params.conversationId); return ok(res, {}); });
+export const delivered = asyncHandler(async (req, res) => { await messageService.markDelivered(req.user.id, v(req).params.conversationId); return ok(res, {}); });
+export const searchMessages = asyncHandler(async (req, res) => ok(res, await messageService.search(req.user.id, v(req).params.conversationId, v(req).query.q)));
+export const chatMedia = asyncHandler(async (req, res) => ok(res, await messageService.media(req.user.id, v(req).params.conversationId, v(req).query)));
+export const muteChat = asyncHandler(async (req, res) => ok(res, await messageService.setMute(req.user.id, v(req).params.conversationId, req.body.until)));
+export const clearChat = asyncHandler(async (req, res) => ok(res, await messageService.clearChat(req.user.id, v(req).params.conversationId), 'Chat cleared'));
+export const reportChat = asyncHandler(async (req, res) => created(res, await messageService.report(req.user, v(req).params.conversationId, req.body, req), 'Report sent to ACHIEVER support'));
+export const blockUser = asyncHandler(async (req, res) => ok(res, await messageService.setBlocked(req.user, v(req).params.userId, req.body.blocked, req)));
+export const personProfile = asyncHandler(async (req, res) => ok(res, await messageService.personProfile(req.user, v(req).params.userId)));
+export const groupChatSettings = asyncHandler(async (req, res) => ok(res, await messageService.updateGroupChat(req.user, v(req).params.conversationId, req.body, req), 'Group settings saved'));
+export const memberPermissions = asyncHandler(async (req, res) =>
+  ok(res, await messageService.setMemberPermissions(req.user, v(req).params.conversationId, v(req).params.memberId, req.body, req), 'Permissions saved'));
 export const attachmentUrl = asyncHandler(async (req, res) => ok(res, { url: await messageService.attachmentUrl(req.user.id, v(req).params.id) }));
 export const markConversationRead = asyncHandler(async (req, res) => {
   await messageService.markRead(req.user.id, v(req).params.conversationId);

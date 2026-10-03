@@ -48,6 +48,11 @@ const BankTransfer = lazy(() => import('./pages/wallet/BankTransfer.jsx'));
 const BankTransferReceipt = lazy(() => import('./pages/wallet/BankTransferReceipt.jsx'));
 const ReferralTerms = lazy(() => import('./pages/public/ReferralTerms.jsx'));
 const Messages = lazy(() => import('./pages/messages/Messages.jsx'));
+const GroupInfo = lazy(() => import('./pages/messages/GroupInfo.jsx'));
+const GroupChatSettings = lazy(() => import('./pages/messages/GroupChatSettings.jsx'));
+const ChatMedia = lazy(() => import('./pages/messages/ChatMedia.jsx'));
+const PersonProfile = lazy(() => import('./pages/messages/PersonProfile.jsx'));
+const ProfileEdit = lazy(() => import('./pages/app/Profile.jsx').then((m) => ({ default: m.ProfileEdit })));
 const Meetings = lazy(() => import('./pages/app/Meetings.jsx'));
 const Support = lazy(() => import('./pages/support/Support.jsx'));
 const TicketDetail = lazy(() => import('./pages/support/TicketDetail.jsx'));
@@ -106,6 +111,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="profile/edit" element={<ProfileEdit />} />
             <Route path="settings" element={<Settings />} />
             <Route path="settings/:section" element={<Settings />} />
             <Route path="notifications" element={<Notifications />} />
@@ -136,6 +142,10 @@ export default function App() {
             <Route path="wallet/transactions/:id" element={<WalletReceipt />} />
             <Route path="messages" element={<Messages />} />
             <Route path="messages/:conversationId" element={<Messages />} />
+            <Route path="messages/:conversationId/info" element={<GroupInfo />} />
+            <Route path="messages/:conversationId/settings" element={<GroupChatSettings />} />
+            <Route path="messages/:conversationId/media" element={<ChatMedia />} />
+            <Route path="contacts/:userId" element={<PersonProfile />} />
             <Route path="meetings" element={<Meetings />} />
             <Route path="help" element={<HelpCenter />} />
             <Route path="help/:articleId" element={<HelpCenter />} />

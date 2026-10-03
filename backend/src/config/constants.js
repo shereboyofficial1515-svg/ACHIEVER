@@ -76,7 +76,15 @@ export const INVITE_TTL_DAYS = 14;
 export const UPLOAD_LIMITS = Object.freeze({
   avatar: { maxBytes: 2 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'image/webp'] },
   groupImage: { maxBytes: 3 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'image/webp'] },
-  attachment: { maxBytes: 10 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] },
+  attachment: {
+    maxBytes: 10 * 1024 * 1024,
+    mimes: [
+      'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
+      'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'video/mp4', 'video/webm',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+  },
   verificationDocument: { maxBytes: 5 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'application/pdf'] },
   evidence: { maxBytes: 10 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] },
 });

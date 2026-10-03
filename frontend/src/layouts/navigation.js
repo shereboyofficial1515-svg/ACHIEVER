@@ -1,5 +1,5 @@
 import {
-  BookOpen, Bell, CalendarDays, FileText, Gift, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Receipt, Settings, UsersRound, Wallet, Zap,
+  BookOpen, Bell, CalendarDays, FileText, Gift, HandCoins, Home, LifeBuoy, MessageSquare, PiggyBank, Receipt, Settings, UserRound, UsersRound, Wallet, Zap,
 } from 'lucide-react';
 
 /** Navigation adapts to the roles and permissions the SERVER reports for the user. */
@@ -22,6 +22,7 @@ export function buildNavigation(has) {
     { to: '/app/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
     { to: '/app/help', label: 'Help Center', icon: BookOpen },
     { to: '/app/support', label: 'Disputes & support', icon: LifeBuoy },
+    { to: '/app/profile', label: 'My profile', short: 'Profile', icon: UserRound },
     { to: '/app/settings', label: 'Settings', short: 'Settings', icon: Settings },
   ].filter(Boolean);
 
@@ -31,13 +32,13 @@ export function buildNavigation(has) {
   // Five most relevant destinations for the phone bottom bar.
   let bottom;
   if (osusu && saver && !collector) {
-    bottom = ['/app', '/app/osusu', '/app/savings', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/osusu', '/app/savings', '/app/messages', '/app/profile'];
   } else if (collector) {
-    bottom = ['/app', '/app/collector', '/app/wallet', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/collector', '/app/wallet', '/app/messages', '/app/profile'];
   } else if (saver) {
-    bottom = ['/app', '/app/savings', '/app/wallet', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/savings', '/app/wallet', '/app/messages', '/app/profile'];
   } else {
-    bottom = ['/app', '/app/osusu', '/app/wallet', '/app/messages', '/app/settings'];
+    bottom = ['/app', '/app/osusu', '/app/wallet', '/app/messages', '/app/profile'];
   }
   const bottomItems = bottom.map((to) => main.find((m) => m.to === to)).filter(Boolean);
 

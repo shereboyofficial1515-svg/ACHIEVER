@@ -162,6 +162,22 @@ export async function create(user, input, req) {
   return format(ticket, user);
 }
 
+/** A member reports a message, a person or a group chat: it becomes a case in the support queue. */
+export async function reportAbuse(user, { subject, description, respondentUserId = null, relatedGroupId = null, details = {} }) {
+  const ticket = await supportRepo.insertTicket({
+    reference: newPaymentReference('ACH-TKT').slice(0, 30),
+    user_id: user.id,
+    category: 'abuse_report',
+    subject: subject.slice(0, 150),
+    description: description.slice(0, 4000),
+    priority: 'normal',
+    related_group_id: relatedGroupId,
+    respondent_user_id: respondentUserId,
+  });
+  await caseEvent(ticket.id, user.id, 'created', { category: 'abuse_report', ...details });
+  return { reference: ticket.reference };
+}
+
 export async function listMine(user, filters) {
   const result = await supportRepo.listTickets({ ...filters, partyId: user.id });
   return { items: result.rows.map((t) => format(t, user)), meta: pageMeta(filters, result.total) };

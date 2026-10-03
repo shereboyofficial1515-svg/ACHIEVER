@@ -34,6 +34,7 @@ function formatGroup(g) {
     payoutOrderMethod: g.payout_order_method,
     requiresApproval: g.requires_approval,
     meetingSchedule: g.meeting_schedule,
+    rules: g.rules ?? null,
     status: g.status,
     currentCycle: g.current_cycle,
     totalCycles: g.total_cycles,
@@ -139,7 +140,7 @@ export async function getGroup(user, groupId) {
 
 export async function updateGroup(user, groupId, patch, req) {
   const { group } = await access(user, groupId, { adminOnly: true });
-  const allowedWhileActive = ['description', 'meetingSchedule'];
+  const allowedWhileActive = ['description', 'meetingSchedule', 'rules'];   // never the financial terms
   if (group.status !== 'recruiting') {
     const blocked = Object.keys(patch).filter((k) => !allowedWhileActive.includes(k));
     if (blocked.length) throw AppError.conflict('Financial terms are locked once the group has started', 'TERMS_LOCKED');
@@ -151,7 +152,7 @@ export async function updateGroup(user, groupId, patch, req) {
   const map = {
     name: 'name', description: 'description', contributionAmount: 'contribution_amount', frequency: 'frequency',
     maxMembers: 'max_members', startDate: 'start_date', gracePeriodDays: 'grace_period_days',
-    payoutOrderMethod: 'payout_order_method', requiresApproval: 'requires_approval', meetingSchedule: 'meeting_schedule',
+    payoutOrderMethod: 'payout_order_method', requiresApproval: 'requires_approval', meetingSchedule: 'meeting_schedule', rules: 'rules',
   };
   const row = {};
   for (const [k, v] of Object.entries(patch)) if (map[k]) row[map[k]] = v;
@@ -161,7 +162,11 @@ export async function updateGroup(user, groupId, patch, req) {
 }
 
 export async function uploadGroupImage(user, groupId, file, req) {
-  const { group } = await access(user, groupId, { adminOnly: true });
+  const { group, isAdmin } = await access(user, groupId);
+  // The organiser, or members the organiser selected when the group allows it (checked on the server).
+  if (!isAdmin && !(await (await import('./messageService.js')).canChangeGroupPicture(user.id, groupId))) {
+    throw AppError.forbidden('Only the group admin can change the group picture', 'NOT_ALLOWED');
+  }
   const path = storageService.objectPath(groupId, file.detectedExt);
   await storageService.upload(BUCKETS.groupImages, path, file);
   await osusuRepo.updateGroup(groupId, { image_path: path });

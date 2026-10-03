@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Accessibility, Bell, Palette, KeyRound, Landmark, Lock, Mail, MessageSquare, MonitorSmartphone, Phone, ShieldCheck, Trash2, User,
+  Accessibility, Bell, Palette, KeyRound, Landmark, Lock, Mail, MessageSquare, MonitorSmartphone, Phone, ShieldCheck, Trash2,
 } from 'lucide-react';
 import {
   Alert, AsyncContent, Button, Card, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea, fieldErrors,
@@ -11,7 +11,7 @@ import CriticalGate from '../../components/domain/CriticalGate.jsx';
 import { BiometricSection, KeypadSection, PushSection, TransactionPinSection } from '../../components/domain/SecuritySettings.jsx';
 import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { useVerificationMethods } from '../../components/domain/PhoneVerification.jsx';
-import { Activity, Deactivate, Details, PayoutAccount, Sessions } from '../app/Profile.jsx';
+import { Activity, Deactivate, PayoutAccount, Sessions } from '../app/Profile.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { usePreferences } from '../../contexts/PreferencesContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -21,7 +21,6 @@ import { api } from '../../services/api.js';
 import { formatDateTime } from '../../utils/format.js';
 
 const SECTIONS = [
-  { key: 'profile', label: 'Profile', icon: User },
   { key: 'security', label: 'Security', icon: ShieldCheck },
   { key: 'password', label: 'Password', icon: KeyRound },
   { key: 'email', label: 'Email', icon: Mail },
@@ -454,7 +453,7 @@ function PrivacySection() {
         <div className="setting-row">
           <div className="grow">
             <strong className="small">Public trust profile</strong>
-            <p className="xsmall muted">Members see your display name, verification badges and on-time record only — never your contact details, address or balances. Location display is set in Settings → Profile.</p>
+            <p className="xsmall muted">Members see your display name, verification badges and on-time record only — never your contact details, address or balances. Location display is set in My profile → Edit profile.</p>
           </div>
           <Button size="sm" variant="secondary" to={`/app/people/${user.id}`}>View</Button>
         </div>
@@ -554,8 +553,9 @@ function DeletionSection() {
 }
 
 export default function Settings() {
-  const { section = 'profile' } = useParams();
-  if (!SECTIONS.some((s) => s.key === section)) return <Navigate to="/app/settings/profile" replace />;
+  const { section = 'security' } = useParams();
+  if (section === 'profile') return <Navigate to="/app/profile/edit" replace />;   // Profile is its own page now
+  if (!SECTIONS.some((s) => s.key === section)) return <Navigate to="/app/settings/security" replace />;
   const current = SECTIONS.find((s) => s.key === section);
   return (
     <div className="stack-lg">
@@ -569,7 +569,6 @@ export default function Settings() {
           ))}
         </nav>
         <div className="stack-lg" style={{ minWidth: 0 }}>
-          {section === 'profile' && <Details />}
           {section === 'security' && <SecuritySection />}
           {section === 'password' && <PasswordSection />}
           {section === 'email' && <ContactSection kind="email" key="email" />}

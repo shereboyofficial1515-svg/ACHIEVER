@@ -231,7 +231,7 @@ export function formatMessage(m) {
     editedAt: deleted ? null : m.edited_at ?? null,
     metadata: deleted ? {} : m.metadata,
     createdAt: m.created_at,
-    replyTo: m.reply ? { id: m.reply.id, senderId: m.reply.sender_id, kind: m.reply.kind, body: m.reply.deleted_at ? null : m.reply.body, deleted: Boolean(m.reply.deleted_at) } : null,
+    replyTo: !deleted && m.reply ? { id: m.reply.id, senderId: m.reply.sender_id, kind: m.reply.kind, body: m.reply.deleted_at ? null : m.reply.body, deleted: Boolean(m.reply.deleted_at) } : null,
     reactions: deleted ? [] : (m.reactions || []).map((r) => ({ userId: r.user_id, emoji: r.emoji })),
     attachments: deleted ? [] : (m.attachments || []).map((a) => ({ id: a.id, fileName: a.file_name, mimeType: a.mime_type, sizeBytes: a.size_bytes })),
   };

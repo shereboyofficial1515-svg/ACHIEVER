@@ -10,6 +10,8 @@ import * as auditService from './auditService.js';
 import * as notificationService from './notificationService.js';
 import * as riskService from './riskService.js';
 import * as feeService from './feeService.js';
+import { publicUrl } from './storageService.js';
+import { BUCKETS } from '../config/constants.js';
 import { AppError } from '../utils/AppError.js';
 import { newPaymentReference } from '../utils/crypto.js';
 import { pageMeta } from '../utils/pagination.js';
@@ -35,11 +37,20 @@ export const TYPE_LABELS = {
 };
 const CREDIT_TYPES = new Set(['topup', 'refund', 'referral_reward']);
 
-/** "Adaeze Okafor" -> "Ad**** O*****" (enough to recognise, not to harvest). */
-export function maskName(name) {
-  return String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 3)
-    .map((w, i) => (i === 0 ? w.slice(0, 2) : w.slice(0, 1)) + '*'.repeat(Math.max(2, w.length - (i === 0 ? 2 : 1))))
-    .join(' ') || 'ACHIEVER member';
+/**
+ * The other party of an INTERNAL ACHIEVER transfer, as members see them:
+ * full display name (profiles.full_name, unmasked), public avatar and wallet
+ * account number. Nothing else (no email, phone, KYC or address).
+ */
+export function walletParty(acct) {
+  const displayName = String(acct?.owner?.full_name || '').trim() || 'ACHIEVER member';
+  return {
+    displayName,
+    name: displayName,
+    avatarUrl: publicUrl(BUCKETS.avatars, acct?.owner?.avatar_path) ?? null,
+    walletId: acct?.wallet_code ?? null,
+    verified: true,
+  };
 }
 
 const CODE_CHARS = '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]';
@@ -164,7 +175,7 @@ export async function receipt(user, id) {
     const otherId = f.direction === 'credit' ? t.user_id : t.counterparty_user_id;
     const other = await walletRepo.findAccountByUser(otherId);
     const named = other ? await walletRepo.findAccountByCode(other.wallet_code) : null;
-    counterparty = { name: maskName(named?.owner?.full_name), walletId: other?.wallet_code ?? null };
+    counterparty = walletParty(named ?? other);
   }
   return { ...f, counterparty, note: t.type === 'transfer' ? t.description.replace(/^Transfer: /, '') : null, completedAt: t.completed_at };
 }
@@ -224,7 +235,7 @@ export async function topupStatus(user, id) {
 }
 
 // Transfers -------------------------------------------------------------------------------------------
-/** Shows only a masked name and masked wallet ID, so the sender can confirm without exposing data. */
+/** Internal transfers show the recipient's full display name, avatar and wallet account number (never masked). */
 export async function resolveRecipient(user, walletCode) {
   const code = normaliseWalletCode(walletCode);
   if (!code) throw AppError.badRequest('Enter a valid ACHIEVER Wallet ID (ACHW-XXXXXXXX)', 'INVALID_WALLET_ID');
@@ -232,7 +243,7 @@ export async function resolveRecipient(user, walletCode) {
   if (!acct || acct.owner?.account_status === 'closed') throw AppError.notFound('No ACHIEVER Wallet has this ID', 'WALLET_NOT_FOUND');
   if (acct.user_id === user.id) throw AppError.badRequest('This is your own wallet', 'SELF_TRANSFER');
   if (acct.status !== 'active') throw AppError.unprocessable('This wallet cannot receive money right now', 'RECIPIENT_UNAVAILABLE');
-  return { walletId: acct.wallet_code, name: maskName(acct.owner?.full_name), verified: true, legacyId: code.startsWith('ACHW-') || undefined };
+  return { ...walletParty(acct), legacyId: code.startsWith('ACHW-') || undefined };
 }
 
 const totalOf = (t) => Number(t.total_debit ?? Number(t.amount) + Number(t.fee));

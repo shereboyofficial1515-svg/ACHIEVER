@@ -28,7 +28,7 @@ export async function findAccountByUser(userId) {
 export async function findAccountByCode(code) {
   const id = await rpc('resolve_wallet_code', { p_code: code });
   if (!id) return null;
-  return one(db.from('wallet_accounts').select(`${ACCOUNT}, owner:profiles!wallet_accounts_user_id_fkey(id, full_name, account_status)`)
+  return one(db.from('wallet_accounts').select(`${ACCOUNT}, owner:profiles!wallet_accounts_user_id_fkey(id, full_name, avatar_path, account_status)`)
     .eq('id', id).eq('kind', 'user').maybeSingle());
 }
 

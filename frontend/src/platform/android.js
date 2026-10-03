@@ -130,6 +130,7 @@ export const biometricUnlock = (prompt = {}) => Security.authenticate(prompt);
 export const setSecureScreen = (enabled) => Security.setSecureScreen({ enabled });
 export const flushCookies = () => Security.flushCookies();
 export const haptic = (kind) => Security.haptic({ kind });
+export const shareFile = (opts) => Security.shareFile(opts);
 
 // Push notifications (Firebase Cloud Messaging) ------------------------------------------------
 export async function pushPermission() {

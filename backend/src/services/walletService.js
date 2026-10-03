@@ -177,7 +177,9 @@ export async function receipt(user, id) {
     const named = other ? await walletRepo.findAccountByCode(other.wallet_code) : null;
     counterparty = walletParty(named ?? other);
   }
-  return { ...f, counterparty, note: t.type === 'transfer' ? t.description.replace(/^Transfer: /, '') : null, completedAt: t.completed_at };
+  // A transfer's note is only what the sender typed ("Transfer: <note>"); the default "Wallet transfer" is not a note.
+  const note = t.type === 'transfer' && /^Transfer: /.test(t.description) ? t.description.replace(/^Transfer: /, '') : null;
+  return { ...f, counterparty, note, completedAt: t.completed_at };
 }
 
 // Top-up (Paystack) -----------------------------------------------------------------------------------

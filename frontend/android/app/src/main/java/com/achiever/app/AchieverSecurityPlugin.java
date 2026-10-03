@@ -231,6 +231,53 @@ public class AchieverSecurityPlugin extends Plugin {
         });
     }
 
+    /**
+     * Share a generated receipt (PNG or PDF) through the Android share sheet.
+     * The file is written to the app's private cache, checked (exists, not
+     * empty), and offered to other apps through the FileProvider with a
+     * read-only grant. Old receipt files are removed on the next share.
+     */
+    @PluginMethod
+    public void shareFile(PluginCall call) {
+        String data = call.getString("data");
+        String filename = call.getString("filename", "ACHIEVER-Receipt");
+        String mimeType = call.getString("mimeType", "application/octet-stream");
+        String title = call.getString("title", "Share receipt");
+        if (data == null || data.isEmpty() || !filename.matches("[A-Za-z0-9._-]{1,120}")
+                || !("image/png".equals(mimeType) || "application/pdf".equals(mimeType))) {
+            call.reject("Invalid file", "INVALID_FILE");
+            return;
+        }
+        try {
+            java.io.File dir = new java.io.File(getContext().getCacheDir(), "receipts");
+            if (!dir.exists() && !dir.mkdirs()) { call.reject("Could not prepare storage", "STORAGE_ERROR"); return; }
+            long cutoff = System.currentTimeMillis() - 60L * 60L * 1000L;
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) if (f.lastModified() < cutoff) f.delete();
+
+            byte[] bytes = Base64.decode(data, Base64.DEFAULT);
+            java.io.File file = new java.io.File(dir, filename);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) { out.write(bytes); }
+            if (!file.exists() || file.length() == 0) { call.reject("The receipt file was not created", "FILE_EMPTY"); return; }
+
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
+            android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            send.setType(mimeType);
+            send.putExtra(android.content.Intent.EXTRA_STREAM, uri);
+            send.putExtra(android.content.Intent.EXTRA_SUBJECT, title);
+            send.setClipData(android.content.ClipData.newRawUri(filename, uri));
+            send.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            android.content.Intent chooser = android.content.Intent.createChooser(send, title);
+            chooser.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(chooser);
+            JSObject ret = new JSObject();
+            ret.put("size", file.length());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not share the receipt", "SHARE_FAILED");
+        }
+    }
+
     /** Hides the screen from screenshots and the recent-apps preview (tokens, PINs, approvals). */
     @PluginMethod
     public void setSecureScreen(PluginCall call) {

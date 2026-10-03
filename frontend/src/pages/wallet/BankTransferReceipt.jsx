@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, Clock, RotateCcw, Share2 } from 'lucide-react';
-import { AsyncContent, Button, Card, KeyValue, PageHeader } from '../../components/ui/index.js';
+import { CheckCircle2, Clock, RotateCcw } from 'lucide-react';
+import { AsyncContent, Card, KeyValue, PageHeader } from '../../components/ui/index.js';
 import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
-import { shareContent } from '../../platform/index.js';
+import ReceiptShare from '../../components/domain/ReceiptShare.jsx';
+import { bankReceiptModel } from '../../services/receiptExport.js';
 import { formatDateTime, naira } from '../../utils/format.js';
 import { BANK_STATUS } from './walletShared.js';
 
@@ -46,13 +47,7 @@ export default function BankTransferReceipt() {
                 t.completedAt && ['Completed', formatDateTime(t.completedAt)],
               ].filter(Boolean)} />
               <FeeBreakdown amount={t.amount} fee={t.fee} total={t.totalDebit} recipientAmount={t.recipientAmount} mode={t.feeBearingMode} />
-              <Button icon={Share2} variant="secondary" onClick={() => shareContent({
-                title: 'ACHIEVER bank transfer',
-                text: `Bank transfer ${naira(t.recipientAmount)} to ${t.accountName} (${t.bankName} ${t.accountNumber}) · ${s.label} · Ref ${t.reference}`,
-              })}
-              >
-                Share receipt
-              </Button>
+              <ReceiptShare model={bankReceiptModel(t)} />
             </div>
           </Card>
         )}

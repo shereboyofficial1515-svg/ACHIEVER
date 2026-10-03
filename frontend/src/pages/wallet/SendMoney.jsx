@@ -5,6 +5,7 @@ import { Alert, Button, Card, Input, KeyValue, PageHeader } from '../../componen
 import SecureKeypad from '../../components/ui/SecureKeypad.jsx';
 import TransactionApproval from '../../components/domain/TransactionApproval.jsx';
 import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
+import RecipientCard from '../../components/domain/RecipientCard.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useSingleFlight } from '../../hooks/useSingleFlight.js';
 import { api, newIdempotencyKey } from '../../services/api.js';
@@ -74,8 +75,10 @@ export default function SendMoney() {
         <Card>
           <div className="stack" style={{ alignItems: 'center', textAlign: 'center' }}>
             {held ? <Clock size={48} className="text-sky" aria-hidden /> : <CheckCircle2 size={48} className="text-green" aria-hidden />}
+            <p className="xsmall muted" style={{ margin: 0 }}>{held ? 'Under review' : 'Money Sent'}</p>
             <p className="wallet-balance" style={{ fontSize: '1.75rem' }}>{naira(done.amount)}</p>
-            <p className="muted">{held ? done.message : `Sent to ${recipient?.name} (${recipient?.walletId})`}</p>
+            {held && <p className="muted">{done.message}</p>}
+            <div style={{ width: '100%', textAlign: 'left' }}><RecipientCard party={recipient} label="To" /></div>
             <KeyValue items={[['Reference', <span key="r" className="mono">{done.reference}</span>], ['Fee', done.fee ? naira(done.fee) : '₦0.00'], ['Total debit', naira(done.total ?? done.amount + done.fee)]]} />
             {done.transactionId && <Button to={`/app/wallet/transactions/${done.transactionId}`} variant="secondary" block>View receipt</Button>}
             <Button onClick={() => navigate('/app/wallet')} block>Back to wallet</Button>
@@ -111,15 +114,11 @@ export default function SendMoney() {
       {step === 'amount' && recipient && (
         <Card>
           <div className="stack">
-            <div className="wallet-recipient">
-              <UserCheck size={22} className="text-green" aria-hidden />
-              <div className="grow">
-                <strong>{recipient.name}</strong>
-                <p className="xsmall muted mono" style={{ margin: 0 }}>{recipient.walletId}</p>
-                <p className="xsmall muted" style={{ margin: 0 }}>Verified ACHIEVER Wallet{recipient.legacyId ? ' (old wallet ID — this is their new number)' : ''}</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => { setStep('recipient'); setRecipient(null); }}>Change</Button>
-            </div>
+            <RecipientCard
+              party={recipient}
+              action={<Button variant="ghost" size="sm" onClick={() => { setStep('recipient'); setRecipient(null); }}>Change</Button>}
+            />
+            {recipient.legacyId && <p className="xsmall muted" style={{ margin: 0 }}>You entered an old wallet ID; this is the same wallet’s current number.</p>}
             <SecureKeypad id="send-amount" type="amount" label="Amount to send" value={value} onChange={setValue} disabled={pending} />
             {w && <p className="xsmall muted" style={{ textAlign: 'center', margin: 0 }}>Available: {naira(w.available)} · Daily limit left: {naira(w.limits.transferDailyRemaining)}</p>}
             {kobo > 0 && <FeeBreakdown amount={kobo} fee={quote?.fee} total={quote?.totalDebit} recipientAmount={quote?.recipientAmount} mode={quote?.feeBearingMode} loading={!quote} />}
@@ -134,10 +133,11 @@ export default function SendMoney() {
       {step === 'review' && review && (
         <Card className="review-card">
           <div className="stack">
+            <p className="flow-title" style={{ margin: 0 }}>Confirm Transfer</p>
+            <RecipientCard party={review.recipient} label="To" />
             <KeyValue
               items={[
                 ['Transfer type', 'ACHIEVER transfer (internal)'],
-                ['To', <span key="to"><strong>{review.recipient?.name}</strong><br /><span className="xsmall muted mono">{review.recipient?.walletId}</span></span>],
                 review.note && ['Note', review.note],
                 ['From', 'Your ACHIEVER Wallet'],
               ].filter(Boolean)}
@@ -153,7 +153,7 @@ export default function SendMoney() {
               <TransactionApproval
                 amount={review.total}
                 title="Wallet transfer"
-                subtitle={`To ${review.recipient?.name} · ${review.recipient?.walletId}`}
+                subtitle={`To ${review.recipient?.displayName || review.recipient?.name} · ${review.recipient?.walletId}`}
                 authorizeUrl={`/wallet/transfers/${review.transferId}/authorize`}
                 confirmUrl={`/wallet/transfers/${review.transferId}/confirm`}
                 options={review.approval}

@@ -202,6 +202,47 @@ export async function flushNativeCookies() {
   await m.flushCookies().catch(() => {});
 }
 
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1] || '');
+  r.onerror = () => reject(r.error);
+  r.readAsDataURL(blob);
+});
+
+/**
+ * Share a generated file (receipt PNG / PDF).
+ *   Android: written to the app cache and offered through the native share sheet.
+ *   Web: Web Share API with files when supported, otherwise a download.
+ * Returns 'shared' | 'downloaded' | 'cancelled'. Throws if it could not be shared.
+ */
+export async function shareGeneratedFile(blob, filename, { title = 'ACHIEVER receipt' } = {}) {
+  if (!blob || !blob.size) throw new Error('EMPTY_FILE');
+  if (isNative()) {
+    const m = await nativeModule();
+    const res = await m.shareFile({ data: await blobToBase64(blob), filename, mimeType: blob.type, title });
+    if (!res?.size) throw new Error('EMPTY_FILE');
+    return 'shared';
+  }
+  const file = new File([blob], filename, { type: blob.type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title });
+      return 'shared';
+    } catch (err) {
+      if (err?.name === 'AbortError') return 'cancelled';   // the person closed the share sheet
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return 'downloaded';
+}
+
 /** Key-press feedback for the secure keypad (Android only; no-op elsewhere). */
 export async function hapticFeedback(kind = 'tap') {
   if (!isNative()) return;

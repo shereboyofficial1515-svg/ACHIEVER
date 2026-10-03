@@ -110,10 +110,11 @@ describe('wallet identity and masking', () => {
     expect(wallet.normaliseWalletCode('ACH12345')).toBeNull();                         // too short
   });
 
-  it('recipient verification shows only a masked name and masked wallet ID', async () => {
+  it('internal recipient: full display name (never masked), avatar and wallet number only', async () => {
     const r = await wallet.resolveRecipient(user, 'ACHBCDE6789ABCDEFGH');
-    expect(r).toMatchObject({ walletId: 'ACHBCDE6789ABCDEFGH', name: 'Ad**** O*****', verified: true });
-    expect(JSON.stringify(r)).not.toMatch(/Adaeze|Okafor/);
+    expect(r).toMatchObject({ walletId: 'ACHBCDE6789ABCDEFGH', displayName: 'Adaeze Okafor', name: 'Adaeze Okafor', verified: true, avatarUrl: null });
+    expect(JSON.stringify(r)).not.toMatch(/\*/);
+    expect(Object.keys(r).sort()).toEqual(['avatarUrl', 'displayName', 'legacyId', 'name', 'verified', 'walletId']);
     // An old ACHW- ID finds the same wallet and shows its new account number.
     expect(await wallet.resolveRecipient(user, 'ACHW-BCDE6789')).toMatchObject({ walletId: 'ACHBCDE6789ABCDEFGH', legacyId: true });
   });
@@ -156,7 +157,7 @@ describe('internal transfer: review -> approve -> execute', () => {
   it('small transfer: PIN approval, executed exactly once', async () => {
     state.sent.add('w-other');
     const review = await wallet.startTransfer(user, { walletCode: 'ACHBCDE6789ABCDEFGH', amount: 200_000, note: 'Lunch' });
-    expect(review).toMatchObject({ amount: 200_000, total: 200_000, recipient: { name: 'Ad**** O*****' } });
+    expect(review).toMatchObject({ amount: 200_000, total: 200_000, recipient: { displayName: 'Adaeze Okafor' } });
     expect(review.approval.methods).toContain('pin');
     expect(state.executed).toHaveLength(0);   // nothing moves at review
 

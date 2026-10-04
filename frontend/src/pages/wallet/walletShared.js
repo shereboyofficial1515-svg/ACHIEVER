@@ -23,11 +23,11 @@ export const STATUS_LABEL = { success: 'Successful', pending: 'Pending', failed:
 
 export const BANK_STATUS = {
   INITIATED: { label: 'Awaiting approval', tone: 'neutral' },
-  PENDING: { label: 'Queued', tone: 'warning' },
+  PENDING: { label: 'Processing', tone: 'info' },
   PROCESSING: { label: 'Processing', tone: 'info' },
   SUCCESS: { label: 'Successful', tone: 'success' },
-  FAILED: { label: 'Failed · refunded', tone: 'danger' },
-  REVERSED: { label: 'Reversed · refunded', tone: 'warning' },
+  FAILED: { label: 'Failed', tone: 'danger' },
+  REVERSED: { label: 'Reversed', tone: 'warning' },
   REFUNDED: { label: 'Refunded', tone: 'neutral' },
   CANCELLED: { label: 'Cancelled', tone: 'neutral' },
 };

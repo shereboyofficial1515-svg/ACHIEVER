@@ -25,7 +25,9 @@ vi.mock('../../src/repositories/walletRepository.js', () => ({
     return { ...t };
   }),
   findBankTransfer: vi.fn(async (id) => (state.transfers.get(id) ? { ...state.transfers.get(id) } : null)),
-  findBankTransferByKey: vi.fn(async () => null),
+  findBankTransferByKey: vi.fn(async (_u, key) => [...state.transfers.values()].find((t) => t.idempotency_key === key) || null),
+  findRecentOpenBankTransfer: vi.fn(async (_u, { bankCode, accountNumber, amount, excludeId }) => [...state.transfers.values()]
+    .find((t) => t.id !== excludeId && t.bank_code === bankCode && t.account_number === accountNumber && Number(t.amount) === amount && ['PENDING', 'PROCESSING'].includes(t.status)) || null),
   findBankTransferByReference: vi.fn(async (ref) => [...state.transfers.values()].find((t) => t.reference === ref) || null),
   updateBankTransfer: vi.fn(async (id, patch, { fromStatus } = {}) => { const t = state.transfers.get(id); if (fromStatus && t.status !== fromStatus) return null; return { ...Object.assign(t, patch) }; }),
   markBankTransferAuthorized: vi.fn(async (id, { method }) => { const t = state.transfers.get(id); if (t.status !== 'INITIATED' || t.authorized_at) return null; return { ...Object.assign(t, { authorized_at: 'now', auth_method: method }) }; }),
@@ -35,7 +37,7 @@ vi.mock('../../src/repositories/walletRepository.js', () => ({
     const t = state.transfers.get(id);
     if (t.status !== 'INITIATED') return { outcome: 'already_debited' };
     if (state.wallet.balance < t.total_debit) throw Object.assign(new Error('Insufficient balance.'), { status: 409, code: 'INSUFFICIENT_FUNDS' });
-    state.wallet.balance -= t.total_debit; state.debits.push(id); t.status = 'PENDING'; return { outcome: 'debited' };
+    state.wallet.balance -= t.total_debit; state.debits.push(id); t.status = 'PENDING'; t.debit_transaction_id = `wtx-${id}`; return { outcome: 'debited' };
   }),
   bankTransferProcessing: vi.fn(async (id, code, status) => { const t = state.transfers.get(id); if (t.status === 'PENDING') Object.assign(t, { status: 'PROCESSING', transfer_code: code, provider_status: status }); }),
   completeBankTransfer: vi.fn(async (id, o) => { const t = state.transfers.get(id); if (['PENDING', 'PROCESSING'].includes(t.status)) Object.assign(t, { status: 'SUCCESS', provider_cost: o.providerCost }); return { outcome: 'success' }; }),
@@ -71,7 +73,8 @@ vi.mock('../../src/repositories/riskRepository.js', () => ({ insert: vi.fn(async
 vi.mock('../../src/services/settingsService.js', () => ({
   getInt: vi.fn(async (k, d) => state.settings[k] ?? d), getBool: vi.fn(async (k, d) => state.settings[k] ?? d), get: vi.fn(async (k, d) => d),
 }));
-vi.mock('../../src/services/notificationService.js', () => ({ notify: vi.fn(async () => null), kickDispatcher: vi.fn() }));
+const notified = [];
+vi.mock('../../src/services/notificationService.js', () => ({ notify: vi.fn(async (u, n) => { notified.push({ u, ...n }); return null; }), kickDispatcher: vi.fn() }));
 vi.mock('../../src/services/auditService.js', () => ({ record: vi.fn(async () => null) }));
 vi.mock('../../src/services/riskService.js', () => ({ assertNotRestricted: vi.fn(async () => {}) }));
 const emailed = [];
@@ -93,7 +96,7 @@ async function approvedTransfer(body = input) {
 
 beforeEach(async () => {
   state.transfers.clear(); state.challenges.clear(); state.credentials.clear(); state.paid.clear();
-  state.events.length = 0; state.calls.length = 0; state.debits.length = 0; emailed.length = 0;
+  state.events.length = 0; state.calls.length = 0; state.debits.length = 0; emailed.length = 0; notified.length = 0;
   state.settings = {}; state.nextStatus = undefined; state.verifyStatus = undefined;
   state.wallet = { id: 'w-me', user_id: ME, status: 'active', balance: 5_000_000, held: 0 };
   Object.values(paystackFake).forEach((f) => f.mockClear());
@@ -192,6 +195,53 @@ describe('provider outcomes', () => {
     await bank.processOpen();
     expect(state.calls.at(-1).reference).toBe(b.review.reference);
     expect(state.transfers.get(b.review.id).status).toBe('PROCESSING');
+  });
+
+  it('submitted ≠ successful: the member is told it is processing (may take up to 1 hour), with a real timeline', async () => {
+    state.nextStatus = 'pending';
+    const { done } = await approvedTransfer();
+    expect(done.status).toBe('PROCESSING');
+    expect(done.message).toMatch(/may take up to 1 hour/);
+    const sent = notified.filter((n) => n.type?.startsWith('bank_transfer'));
+    expect(sent).toEqual([expect.objectContaining({ type: 'bank_transfer_processing', title: 'Bank transfer processing', dedupeKey: `wbt_submitted:${done.id}` })]);
+    expect(sent[0].body).toMatch(/submitted to ADAEZE OKAFOR .* may take up to 1 hour/);
+    expect(done.timeline.map((x) => [x.key, x.state])).toEqual([['initiated', 'done'], ['approved', 'done'], ['submitted', 'done'], ['processing', 'current'], ['completed', 'todo']]);
+    expect(done.timeline.find((x) => x.key === 'submitted').at).toBeNull();   // no invented times
+  });
+
+  it('a failed transfer is not announced as processing; its timeline ends with the refund', async () => {
+    state.paid.add('058:0123456789');
+    paystackFake.initiateTransfer.mockRejectedValueOnce(Object.assign(new Error('Your balance is not enough to fulfil this request'), { providerStatus: 400 }));
+    const review = await bank.start(user, input);
+    const ch = await bank.authorize(user, review.id, { method: 'pin', pin: PIN }, {});
+    const done = await bank.confirm(user, review.id, { challengeId: ch.challengeId }, {});
+    expect(done.status).toBe('FAILED');
+    expect(notified.filter((n) => n.type === 'bank_transfer_processing')).toEqual([]);
+    expect(done.timeline.at(-1)).toMatchObject({ key: 'failed', state: 'done' });
+    expect(state.wallet.balance).toBe(5_000_000);
+  });
+
+  it('the same request again (double tap / refresh) returns the same transfer, never a second one', async () => {
+    const a = await bank.start(user, input, 'idem-1');
+    const b = await bank.start(user, input, 'idem-1');
+    expect(b.id).toBe(a.id);
+    expect(state.transfers.size).toBe(1);
+  });
+
+  it('an identical transfer still processing is flagged before sending again', async () => {
+    const { done } = await approvedTransfer();
+    const again = await bank.start(user, input, 'idem-2');
+    expect(again.possibleDuplicate).toMatchObject({ id: done.id, status: 'PROCESSING' });
+    const other = await bank.start(user, { ...input, amount: 1_000_000 }, 'idem-3');
+    expect(other.possibleDuplicate).toBeNull();
+  });
+
+  it('a duplicate webhook does not credit or debit twice', async () => {
+    const { review } = await approvedTransfer();
+    await bank.handleTransferEvent('transfer.reversed', { reference: review.reference });
+    await bank.handleTransferEvent('transfer.reversed', { reference: review.reference });
+    expect(state.wallet.balance).toBe(5_000_000);
+    expect(bank.timeline(state.transfers.get(review.id)).at(-1)).toMatchObject({ key: 'reversed' });
   });
 
   it('the requery job settles PROCESSING transfers from the provider status', async () => {

@@ -303,6 +303,16 @@ export async function listBankTransfers({ userId, status, page = 1, pageSize = 2
 }
 
 /** Open transfers the job should push or check with the provider. */
+/** The same transfer still in progress (same account and amount, last 2 hours): warn before sending it again. */
+export async function findRecentOpenBankTransfer(userId, { bankCode, accountNumber, amount, excludeId = null }) {
+  let q = db.from('wallet_bank_transfers').select('id, reference, status, created_at')
+    .eq('user_id', userId).eq('bank_code', bankCode).eq('account_number', accountNumber).eq('amount', amount)
+    .in('status', ['PENDING', 'PROCESSING']).gt('created_at', new Date(Date.now() - 2 * 3600_000).toISOString())
+    .order('created_at', { ascending: false }).limit(1);
+  if (excludeId) q = q.neq('id', excludeId);
+  return one(q.maybeSingle());
+}
+
 export async function listOpenBankTransfers({ olderThan, limit = 50 }) {
   return run(db.from('wallet_bank_transfers').select(BANK).in('status', ['PENDING', 'PROCESSING']).eq('execution_mode', 'paystack_transfer')
     .lt('updated_at', olderThan).order('updated_at').limit(limit));

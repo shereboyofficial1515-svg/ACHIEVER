@@ -36,10 +36,10 @@ export const listConversations = asyncHandler(async (req, res) => ok(res, await 
 export const getConversation = asyncHandler(async (req, res) => ok(res, await messageService.getConversation(req.user.id, v(req).params.conversationId)));
 export const listMessages = asyncHandler(async (req, res) => ok(res, await messageService.listMessages(req.user.id, v(req).params.conversationId, v(req).query)));
 export const sendMessage = asyncHandler(async (req, res) =>
-  created(res, await messageService.sendText(req.user.id, v(req).params.conversationId, req.body.body, { replyTo: req.body.replyTo || null, announcement: Boolean(req.body.announcement) }), 'Sent'));
+  created(res, await messageService.sendText(req.user.id, v(req).params.conversationId, req.body.body, { replyTo: req.body.replyTo || null, announcement: Boolean(req.body.announcement), sender: req.user }), 'Sent'));
 export const sendAttachment = asyncHandler(async (req, res) => {
   const replyTo = /^[0-9a-f-]{36}$/i.test(req.body?.replyTo || '') ? req.body.replyTo : null;
-  return created(res, await messageService.sendAttachment(req.user.id, v(req).params.conversationId, req.file, req.body?.caption, { replyTo, voice: req.body?.voice === 'true' }), 'Sent');
+  return created(res, await messageService.sendAttachment(req.user.id, v(req).params.conversationId, req.file, req.body?.caption, { replyTo, voice: req.body?.voice === 'true', sender: req.user }), 'Sent');
 });
 export const messagesAround = asyncHandler(async (req, res) => ok(res, await messageService.messagesAround(req.user.id, v(req).params.conversationId, v(req).params.messageId)));
 export const editMessage = asyncHandler(async (req, res) => ok(res, await messageService.editMessage(req.user.id, v(req).params.messageId, req.body.body), 'Edited'));

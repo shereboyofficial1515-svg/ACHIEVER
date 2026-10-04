@@ -313,6 +313,10 @@ export const userSettings = z.object({
   }).strict().optional(),
   messages: z.object({
     messageSound: z.boolean().optional(),
+    incomingSound: z.boolean().optional(),
+    outgoingSound: z.boolean().optional(),
+    notificationSound: z.boolean().optional(),
+    sleepMode: z.boolean().optional(),
     callRingtone: z.boolean().optional(),
     messagePreview: z.boolean().optional(),
     autoLoadImages: z.boolean().optional(),

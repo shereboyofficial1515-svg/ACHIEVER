@@ -86,6 +86,7 @@ export function lockScreenText(item) {
 }
 
 function route(data = {}) {
+  if (data.conversation_id) return `/app/messages/${data.conversation_id}`;
   if (data.bill_payment_id) return `/app/bills/history/${data.bill_payment_id}`;
   if (data.referral_id || data.reward_id) return '/app/referrals';
   if (data.group_id) return `/app/osusu/${data.group_id}`;
@@ -127,7 +128,11 @@ export async function send(item, { fetchImpl = fetch } = {}) {
           token: deviceToken,
           notification: text,
           data: { notification_id: String(item.id), category: String(item.category), route: route(item.data) },
-          android: { priority: item.category === 'security' ? 'high' : 'normal', notification: { channel_id: item.category === 'security' ? 'security' : 'general' } },
+          android: {
+            priority: item.category === 'security' || (item.category === 'messages' && !item.quiet) ? 'high' : 'normal',
+            // Sleep mode: messages arrive on the silent channel; security alerts always use their own channel.
+            notification: { channel_id: item.category === 'security' ? 'security' : item.category === 'messages' ? (item.quiet ? 'quiet' : 'messages') : 'general' },
+          },
         },
       }),
     }).catch(() => null);

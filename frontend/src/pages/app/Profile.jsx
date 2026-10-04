@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Camera, Copy, Landmark, Lock, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
 import {
-  Alert, AsyncContent, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea,
+  Alert, AsyncContent, BankSelect, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea,
   UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
@@ -316,12 +316,12 @@ export function PayoutAccount() {
             ) : (
               <form className="stack" onSubmit={save}>
                 {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-                <Select
-                  label="Bank"
-                  placeholder={banks.loading ? 'Loading banks...' : 'Select your bank'}
+                <BankSelect
+                  banks={banks.data || []}
+                  loading={banks.loading}
+                  placeholder="Select your bank"
                   value={form.bankCode}
-                  onChange={(e) => setForm({ ...form, bankCode: e.target.value })}
-                  options={(banks.data || []).map((b) => ({ value: b.code, label: b.name }))}
+                  onChange={(code) => setForm({ ...form, bankCode: code })}
                   error={fe.bankCode || (banks.error ? 'Could not load banks' : undefined)}
                 />
                 <Input label="Account number (NUBAN)" inputMode="numeric" maxLength={10} value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value.replace(/\D/g, '') })} error={fe.accountNumber} />

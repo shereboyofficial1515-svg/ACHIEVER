@@ -170,6 +170,53 @@ async function request(method, path, { body, params, raw = false, retry = true, 
   return raw ? res : { data: payload?.data, meta: payload?.meta, message: payload?.message };
 }
 
+function uploadXhr(path, file, extra, { onProgress, signal }, retry) {
+  return ensureCsrf().then((token) => new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('file', file);
+    for (const [k, v] of Object.entries(extra)) if (v) form.append(k, v);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/api${path}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-CSRF-Token', token);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.min(99, Math.round((e.loaded / e.total) * 100))); };
+    const abort = () => xhr.abort();
+    signal?.addEventListener('abort', abort);
+    xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled'), { name: 'AbortError' }));
+    xhr.onerror = () => reject(unavailable(0));
+    xhr.onload = async () => {
+      signal?.removeEventListener('abort', abort);
+      let payload = null;
+      try { payload = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve({ data: payload?.data, message: payload?.message });
+        return;
+      }
+      const error = fromResponse(xhr.status, payload);
+      try {
+        if (retry && error.code === 'CSRF_INVALID') {
+          await ensureCsrf(true);
+          resolve(await uploadXhr(path, file, extra, { onProgress, signal }, false));
+          return;
+        }
+        if (retry && xhr.status === 401 && ['TOKEN_EXPIRED', 'UNAUTHENTICATED'].includes(error.code)) {
+          if (await refreshSession()) {
+            resolve(await uploadXhr(path, file, extra, { onProgress, signal }, false));
+            return;
+          }
+          onSessionEnded();
+        }
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      reject(error);
+    };
+    xhr.send(form);
+  }));
+}
+
 export const api = {
   get: (path, params, opts) => request('GET', path, { params, ...opts }),
   post: (path, body, opts) => request('POST', path, { body, ...opts }),
@@ -182,6 +229,12 @@ export const api = {
     for (const [k, v] of Object.entries(extra)) if (v) form.append(k, v);
     return request('POST', path, { body: form });
   },
+  /**
+   * Upload with progress (XMLHttpRequest: fetch cannot report upload progress) and cancel.
+   *   onProgress(0..100), signal: AbortController.signal
+   * Same cookies, CSRF and session refresh rules as every other request.
+   */
+  uploadWithProgress: (path, file, extra = {}, { onProgress, signal } = {}) => uploadXhr(path, file, extra, { onProgress, signal }, true),
   /** Download a CSV (or other file) returned by the API. */
   download: async (path, params, fallbackName = 'report.csv') => {
     const res = await request('GET', path, { params, raw: true });

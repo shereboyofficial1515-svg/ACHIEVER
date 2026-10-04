@@ -16,8 +16,8 @@ import { likePattern } from '../utils/pagination.js';
  * what others see (online status, last seen, read receipts).
  */
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;   // presence heartbeat is every 60 s while the app is open
-const EDIT_WINDOW_MS = 15 * 60 * 1000;
-const DELETE_FOR_EVERYONE_MS = 60 * 60 * 1000;
+export const EDIT_WINDOW_MS = 10 * 60 * 1000;                 // edit your own message: 10 minutes
+export const DELETE_FOR_EVERYONE_MS = 2 * 24 * 60 * 60 * 1000;  // delete for everyone: 2 days
 
 export const DEFAULT_CHAT_SETTINGS = Object.freeze({
   send: 'all', announce: 'admins', pin: 'admins', change_picture: 'admins', edit_info: 'admins',
@@ -31,6 +31,58 @@ function isOnline(lastSeen) {
 
 let hubPromise;
 const hub = () => (hubPromise ??= import('./realtimeHub.js'));
+/**
+ * A new message: deliver it to connected members now, then push it to members who are
+ * not in the app. Neither step can fail the send (the message is already saved).
+ */
+async function deliver(message, sender) {
+  try {
+    await (await hub()).publishMessage(message);
+  } catch { /* clients also catch up when they reconnect */ }
+  pushNewMessage(message, sender).catch(() => {});
+}
+
+const ATTACHMENT_TEXT = (m) => {
+  if (m.metadata?.voice) return 'Sent a voice message';
+  const mime = m.attachments?.[0]?.mimeType || '';
+  if (mime.startsWith('image/')) return 'Sent a photo';
+  if (mime.startsWith('video/')) return 'Sent a video';
+  return 'Sent a document';
+};
+
+/** Push for members who are not in the app; respects mute, message previews and sleep mode. */
+async function pushNewMessage(message, sender) {
+  const push = await import('./pushService.js');
+  if (!push.isConfigured()) return;
+  const [conv, memberIds, h] = await Promise.all([
+    messageRepo.findConversation(message.conversationId),
+    messageRepo.activeMemberIds(message.conversationId),
+    hub(),
+  ]);
+  const candidates = memberIds.filter((id) => id !== message.senderId && !h.isConnected(id));
+  if (!candidates.length) return;
+  const muted = await messageRepo.mutedMemberIds(message.conversationId, candidates).catch(() => []);
+  const targets = candidates.filter((id) => !muted.includes(id));
+  if (!targets.length) return;
+  const prefs = await preferencesService.flagsFor(targets);
+  const senderName = sender?.fullName?.split(' ')[0] || 'Someone';
+  const group = conv?.type === 'group';
+  const text = message.kind === 'attachment' ? (message.body || ATTACHMENT_TEXT(message)) : message.body || '';
+  for (const userId of targets) {
+    const f = prefs(userId);
+    const preview = f.messagePreview ? `${group ? `${senderName}: ` : ''}${text}`.slice(0, 160) : 'You have a new message';
+    await push.send({
+      id: message.id,
+      user_id: userId,
+      category: 'messages',
+      title: group ? (conv.title || 'Group chat') : senderName,
+      body: preview,
+      data: { conversation_id: message.conversationId },
+      quiet: f.sleepMode,
+    }).catch(() => {});
+  }
+}
+
 async function broadcast(conversationId, event, payload) {
   try {
     (await hub()).publishToConversation(conversationId, event, payload);
@@ -257,17 +309,19 @@ export async function messagesAround(userId, conversationId, messageId) {
 }
 
 // Sending -----------------------------------------------------------------------------------
-export async function sendText(userId, conversationId, body, { replyTo = null, announcement = false } = {}) {
+export async function sendText(userId, conversationId, body, { replyTo = null, announcement = false, sender = null } = {}) {
   const text = cleanText(body);
   if (!text) throw AppError.badRequest('Message cannot be empty', 'EMPTY_MESSAGE');
   const id = await messageRepo.postMessage({ conversationId, senderId: userId, kind: announcement ? 'announcement' : 'text', body: text, replyTo });
   if (announcement) {
     await auditService.record({ actorId: userId, action: 'chat.announcement', resourceType: 'conversation', resourceId: conversationId, metadata: { messageId: id } });
   }
-  return formatMessage(await messageRepo.findMessage(id));
+  const message = formatMessage(await messageRepo.findMessage(id));
+  await deliver(message, sender);
+  return message;
 }
 
-export async function sendAttachment(userId, conversationId, file, caption, { replyTo = null, voice = false } = {}) {
+export async function sendAttachment(userId, conversationId, file, caption, { replyTo = null, voice = false, sender = null } = {}) {
   await assertMember(userId, conversationId);
   const path = storageService.objectPath(conversationId, file.detectedExt);
   await storageService.upload(BUCKETS.attachments, path, file);
@@ -281,7 +335,9 @@ export async function sendAttachment(userId, conversationId, file, caption, { re
       metadata: voice && (file.detectedMime.startsWith('audio/') || file.detectedMime === 'video/webm') ? { voice: true } : {},
       attachments: [{ storage_path: path, file_name: safeFileName(file.originalname), mime_type: file.detectedMime, size_bytes: file.size }],
     });
-    return formatMessage(await messageRepo.findMessage(id));
+    const message = formatMessage(await messageRepo.findMessage(id));
+    await deliver(message, sender);
+    return message;
   } catch (err) {
     await storageService.remove(BUCKETS.attachments, path);
     throw err;
@@ -309,17 +365,21 @@ export async function editMessage(userId, messageId, body) {
   const { m } = await ownMessage(userId, messageId);
   if (m.sender_id !== userId) throw AppError.forbidden('You can only edit your own messages', 'NOT_YOUR_MESSAGE');
   if (m.deleted_at || !['text', 'announcement'].includes(m.kind)) throw AppError.conflict('This message cannot be edited', 'NOT_EDITABLE');
-  if (Date.now() - new Date(m.created_at).getTime() > EDIT_WINDOW_MS) throw AppError.conflict('Messages can be edited for 15 minutes after sending', 'EDIT_WINDOW_PASSED');
+  if (Date.now() - new Date(m.created_at).getTime() > EDIT_WINDOW_MS) throw AppError.conflict('Messages can be edited for 10 minutes after sending', 'EDIT_WINDOW_PASSED');
   const text = cleanText(body);
   if (!text) throw AppError.badRequest('Message cannot be empty', 'EMPTY_MESSAGE');
+  if (text === m.body) return formatMessage(m);
   const updated = formatMessage(await messageRepo.updateMessage(messageId, { body: text, edited_at: new Date().toISOString() }));
+  // Edit history (same message id): the previous text is kept in the append-only audit log.
+  await auditService.record({ actorId: userId, action: 'chat.message.edited', resourceType: 'message', resourceId: messageId, metadata: { conversationId: m.conversation_id, previousBody: String(m.body || '').slice(0, 4000) } });
   await broadcast(m.conversation_id, 'message.updated', updated);
   return updated;
 }
 
 /**
  * Delete for me: hidden only for you. Delete for everyone: your own message
- * within an hour, or any message by a group admin (moderation, audited).
+ * within 2 days, or any message by a group admin (moderation). Deleting for everyone
+ * replaces the message with a tombstone; the original text stays in the audit log.
  */
 export async function deleteMessage(user, messageId, scope, req) {
   const { m, me } = await ownMessage(user.id, messageId);
@@ -333,14 +393,19 @@ export async function deleteMessage(user, messageId, scope, req) {
   const moderator = conv.type === 'group' && me.role === 'admin' && !own;
   if (!own && !moderator) throw AppError.forbidden('You can only delete your own messages for everyone', 'NOT_YOUR_MESSAGE');
   if (own && Date.now() - new Date(m.created_at).getTime() > DELETE_FOR_EVERYONE_MS) {
-    throw AppError.conflict('Messages can be deleted for everyone for one hour after sending. You can still delete it for yourself.', 'DELETE_WINDOW_PASSED');
+    throw AppError.conflict('Messages can be deleted for everyone for 2 days after sending. You can still delete it for yourself.', 'DELETE_WINDOW_PASSED');
   }
   if (!['text', 'attachment', 'announcement'].includes(m.kind)) throw AppError.conflict('This message cannot be deleted', 'NOT_DELETABLE');
   const updated = formatMessage(await messageRepo.updateMessage(messageId, { deleted_at: new Date().toISOString(), deleted_by: user.id, body: null }));
   await messageRepo.unpin(m.conversation_id, messageId).catch(() => {});
-  if (moderator) {
-    await auditService.record({ actorId: user.id, action: 'chat.message.moderated_delete', resourceType: 'message', resourceId: messageId, metadata: { conversationId: m.conversation_id, senderId: m.sender_id }, req });
-  }
+  await auditService.record({
+    actorId: user.id,
+    action: moderator ? 'chat.message.moderated_delete' : 'chat.message.deleted',
+    resourceType: 'message',
+    resourceId: messageId,
+    metadata: { conversationId: m.conversation_id, senderId: m.sender_id, previousBody: String(m.body || '').slice(0, 4000), attachments: (m.attachments || []).length },
+    req,
+  });
   await broadcast(m.conversation_id, 'message.updated', updated);
   return { deleted: 'everyone' };
 }

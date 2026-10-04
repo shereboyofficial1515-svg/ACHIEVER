@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BadgeCheck, Landmark } from 'lucide-react';
-import { Alert, Button, Card, Input, KeyValue, PageHeader, Select } from '../../components/ui/index.js';
+import { Alert, BankSelect, Button, Card, Input, KeyValue, PageHeader } from '../../components/ui/index.js';
 import SecureKeypad from '../../components/ui/SecureKeypad.jsx';
 import TransactionApproval from '../../components/domain/TransactionApproval.jsx';
 import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
@@ -22,7 +22,6 @@ export default function BankTransfer() {
   const banks = useAsync(() => api.get('/payments/banks'), []);
   const [step, setStep] = useState('account');
   const [bankCode, setBankCode] = useState('');
-  const [bankFilter, setBankFilter] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [account, setAccount] = useState(null);
   const [value, setValue] = useState('');
@@ -35,9 +34,6 @@ export default function BankTransfer() {
   const { quote, error: quoteError } = useFeeQuote('bank_transfer', step === 'amount' ? kobo : 0);
   const key = useMemo(() => newIdempotencyKey(), [bankCode, accountNumber, kobo, narration]);
   const w = wallet.data;
-  const bankOptions = (banks.data || [])
-    .filter((b) => !bankFilter || b.name.toLowerCase().includes(bankFilter.toLowerCase()))
-    .map((b) => ({ value: b.code, label: b.name }));
 
   const verify = (e) => {
     e?.preventDefault();
@@ -80,13 +76,12 @@ export default function BankTransfer() {
       {step === 'account' && (
         <Card>
           <form className="stack" onSubmit={verify} noValidate>
-            <Input label="Find your bank" type="search" value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} placeholder="Type to filter banks" />
-            <Select
-              label="Bank"
+            <BankSelect
+              banks={banks.data || []}
+              loading={banks.loading}
               value={bankCode}
-              onChange={(e) => { setBankCode(e.target.value); setAccount(null); }}
-              placeholder={banks.loading ? 'Loading banks…' : 'Select bank'}
-              options={bankOptions}
+              onChange={(code) => { setBankCode(code); setAccount(null); }}
+              error={banks.error ? 'Could not load banks. Please try again.' : undefined}
             />
             <Input
               label="Account number"

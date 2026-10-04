@@ -105,6 +105,7 @@ export async function init() {
   App.addListener('appStateChange', ({ isActive }) => {
     if (!isActive) {
       hiddenAt = Date.now();
+      window.dispatchEvent(new CustomEvent('achiever:app-paused'));
       return;
     }
     const away = hiddenAt ? Date.now() - hiddenAt : 0;
@@ -172,6 +173,9 @@ export async function registerPush(onToken) {
   if (perm.receive !== 'granted') return { available: true, granted: false };
   await PushNotifications.removeAllListeners();
   await PushNotifications.createChannel({ id: 'general', name: 'Updates', description: 'Payments, reminders and referrals', importance: 3 }).catch(() => {});
+  await PushNotifications.createChannel({ id: 'messages', name: 'Messages', description: 'New chat messages', importance: 4 }).catch(() => {});
+  // Sleep mode: messages still arrive, without sound or vibration.
+  await PushNotifications.createChannel({ id: 'quiet', name: 'Messages (sleep mode)', description: 'Chat messages while sleep mode is on', importance: 2, vibration: false }).catch(() => {});
   await PushNotifications.createChannel({ id: 'security', name: 'Security alerts', description: 'Sign-ins and account security', importance: 4 }).catch(() => {});
   // Token refresh: Firebase may issue a new token at any time; each one is re-registered.
   PushNotifications.addListener('registration', ({ value }) => onToken(value));

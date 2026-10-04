@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Messaging rules in the API (the database enforces send / announce / block again: messaging.test.sql).
-const state = { receipts: true, messages: new Map(), members: new Map(), conv: null, hidden: [], pins: [], audits: [], published: [], updatedConv: null, contacts: [] };
+const state = { pushes: [], delivered: [], connected: [], muted: [], sleep: false, preview: true, receipts: true, messages: new Map(), members: new Map(), conv: null, hidden: [], pins: [], audits: [], published: [], updatedConv: null, contacts: [] };
 const key = (c, u) => `${c}:${u}`;
 
 vi.mock('../../src/repositories/messageRepository.js', () => ({
@@ -15,7 +15,9 @@ vi.mock('../../src/repositories/messageRepository.js', () => ({
   unpin: vi.fn(async (_c, id) => { state.pins = state.pins.filter((x) => x !== id); }),
   updateConversation: vi.fn(async (_id, patch) => { state.updatedConv = { ...state.conv, ...patch }; return state.updatedConv; }),
   updateMember: vi.fn(async (c, u, patch) => Object.assign(state.members.get(key(c, u)), patch)),
-  postMessage: vi.fn(async () => 'sys-1'),
+  postMessage: vi.fn(async (args) => { const id = `new-${state.messages.size + 1}`; state.messages.set(id, { id, conversation_id: args.conversationId, sender_id: args.senderId, kind: args.kind, body: args.body, created_at: new Date().toISOString(), reactions: [], attachments: [] }); return id; }),
+  activeMemberIds: vi.fn(async () => ['u-me', 'u-admin', 'u-other']),
+  mutedMemberIds: vi.fn(async (_c, ids) => ids.filter((id) => state.muted.includes(id))),
   contactIds: vi.fn(async () => state.contacts),
   mutualGroups: vi.fn(async () => [{ id: 'g1', name: 'Market Circle', image_path: null }]),
   blockedBetween: vi.fn(async () => ({ iBlocked: false, blockedMe: false })),
@@ -29,10 +31,15 @@ vi.mock('../../src/services/profileService.js', () => ({
   trustProfile: vi.fn(async () => ({ displayName: 'Aisha P.', avatarUrl: null, location: 'Lagos', memberSince: '2026-01-01', active: true, verification: { email: true }, completedGroups: 2, onTimeRate: 100 })),
 }));
 vi.mock('../../src/services/preferencesService.js', () => ({
-  flagsFor: vi.fn(async () => () => ({ readReceipts: state.receipts, showOnlineStatus: true })),
+  flagsFor: vi.fn(async () => () => ({ readReceipts: state.receipts, showOnlineStatus: true, messagePreview: state.preview, sleepMode: state.sleep })),
 }));
 vi.mock('../../src/services/auditService.js', () => ({ record: vi.fn(async (a) => { state.audits.push(a.action); }) }));
-vi.mock('../../src/services/realtimeHub.js', () => ({ publishToConversation: vi.fn(async (c, e) => { state.published.push(e); }) }));
+vi.mock('../../src/services/realtimeHub.js', () => ({
+  publishToConversation: vi.fn(async (c, e) => { state.published.push(e); }),
+  publishMessage: vi.fn(async (m) => { state.delivered.push(m.id); }),
+  isConnected: (id) => state.connected.includes(id),
+}));
+vi.mock('../../src/services/pushService.js', () => ({ isConfigured: () => true, send: vi.fn(async (item) => { state.pushes.push(item); return { ok: true }; }) }));
 vi.mock('../../src/services/storageService.js', () => ({ publicUrl: (_b, p) => (p ? `https://cdn/${p}` : null) }));
 
 const svc = await import('../../src/services/messageService.js');
@@ -41,7 +48,7 @@ const msg = (id, extra = {}) => ({ id, conversation_id: 'c1', sender_id: 'u-me',
 const me = { id: 'u-me', fullName: 'Me' };
 
 beforeEach(() => {
-  state.messages.clear(); state.members.clear(); state.hidden = []; state.pins = []; state.audits = []; state.published = []; state.contacts = []; state.receipts = true;
+  state.messages.clear(); state.members.clear(); state.hidden = []; state.pins = []; state.audits = []; state.published = []; state.contacts = []; state.receipts = true; state.pushes = []; state.delivered = []; state.connected = []; state.muted = []; state.sleep = false; state.preview = true;
   state.conv = { id: 'c1', type: 'group', settings: {} };
   state.members.set(key('c1', 'u-me'), { role: 'member', can_pin: false, can_change_picture: false });
   state.members.set(key('c1', 'u-admin'), { role: 'admin' });
@@ -58,14 +65,17 @@ describe('permissions come from the real role and the group settings', () => {
 });
 
 describe('edit and delete', () => {
-  it('only your own message, within 15 minutes', async () => {
+  it('only your own message, within 10 minutes (server-enforced)', async () => {
     state.messages.set('m1', msg('m1'));
     await expect(svc.editMessage('u-me', 'm1', 'hello again')).resolves.toMatchObject({ body: 'hello again', editedAt: expect.any(String) });
     state.messages.set('m2', msg('m2', { sender_id: 'u-admin' }));
     await expect(svc.editMessage('u-me', 'm2', 'x')).rejects.toMatchObject({ code: 'NOT_YOUR_MESSAGE' });
-    state.messages.set('m3', msg('m3', { created_at: ago(20 * 60_000) }));
+    state.messages.set('m3', msg('m3', { created_at: ago(11 * 60_000) }));
     await expect(svc.editMessage('u-me', 'm3', 'x')).rejects.toMatchObject({ code: 'EDIT_WINDOW_PASSED' });
+    state.messages.set('m6', msg('m6', { created_at: ago(9 * 60_000) }));
+    await expect(svc.editMessage('u-me', 'm6', 'still in time')).resolves.toMatchObject({ id: 'm6', body: 'still in time' });
     expect(state.published).toContain('message.updated');
+    expect(state.audits).toContain('chat.message.edited');   // previous text kept in the audit log
   });
 
   it('delete for me hides it only for you; delete for everyone leaves a tombstone', async () => {
@@ -85,9 +95,13 @@ describe('edit and delete', () => {
     expect(state.audits).toContain('chat.message.moderated_delete');
   });
 
-  it('delete-for-everyone window is one hour for your own messages', async () => {
-    state.messages.set('m5', msg('m5', { created_at: ago(2 * 3600_000) }));
-    await expect(svc.deleteMessage(me, 'm5', 'everyone')).rejects.toMatchObject({ code: 'DELETE_WINDOW_PASSED' });
+  it('delete-for-everyone window is 2 days for your own messages (server-enforced)', async () => {
+    state.messages.set('m5', msg('m5', { created_at: ago(47 * 3600_000) }));
+    await expect(svc.deleteMessage(me, 'm5', 'everyone')).resolves.toEqual({ deleted: 'everyone' });
+    expect(state.audits).toContain('chat.message.deleted');
+    state.messages.set('m7', msg('m7', { created_at: ago(49 * 3600_000) }));
+    await expect(svc.deleteMessage(me, 'm7', 'everyone')).rejects.toMatchObject({ code: 'DELETE_WINDOW_PASSED' });
+    await expect(svc.deleteMessage(me, 'm7', 'me')).resolves.toEqual({ deleted: 'me' });   // still possible for yourself
   });
 });
 
@@ -121,6 +135,33 @@ describe('group administration (server-side)', () => {
   it('selected-member permissions are admin-only', async () => {
     await expect(svc.setMemberPermissions(me, 'c1', 'u-admin', { canPin: true }, {})).rejects.toMatchObject({ code: 'ADMIN_ONLY' });
     await expect(svc.setMemberPermissions({ id: 'u-admin' }, 'c1', 'u-me', { canPin: true }, {})).resolves.toMatchObject({ canPin: true });
+  });
+});
+
+describe('new messages are delivered in real time and pushed to people not in the app', () => {
+  it('a sent message is published to connected members straight away', async () => {
+    const m = await svc.sendText('u-me', 'c1', 'hello team', { sender: { id: 'u-me', fullName: 'Ade Me' } });
+    expect(state.delivered).toEqual([m.id]);
+  });
+
+  it('push goes to members who are not connected, not muted, not the sender', async () => {
+    state.connected = ['u-admin'];
+    await svc.sendText('u-me', 'c1', 'contribution reminder', { sender: { id: 'u-me', fullName: 'Ade Me' } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(state.pushes.map((p) => p.user_id)).toEqual(['u-other']);
+    expect(state.pushes[0]).toMatchObject({ category: 'messages', body: 'Ade: contribution reminder', data: { conversation_id: 'c1' }, quiet: false });
+  });
+
+  it('message previews off → generic text; sleep mode → silent channel; muted → no push', async () => {
+    state.preview = false; state.sleep = true;
+    await svc.sendText('u-me', 'c1', 'my secret', { sender: { id: 'u-me', fullName: 'Ade Me' } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(state.pushes.every((p) => p.body === 'You have a new message' && p.quiet)).toBe(true);
+    expect(JSON.stringify(state.pushes)).not.toContain('my secret');
+    state.pushes = []; state.muted = ['u-admin', 'u-other'];
+    await svc.sendText('u-me', 'c1', 'x', { sender: { id: 'u-me', fullName: 'Ade Me' } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(state.pushes).toEqual([]);
   });
 });
 

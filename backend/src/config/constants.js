@@ -80,9 +80,11 @@ export const UPLOAD_LIMITS = Object.freeze({
     maxBytes: 10 * 1024 * 1024,
     mimes: [
       'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
-      'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'video/mp4', 'video/webm',
+      'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'video/mp4', 'video/webm', 'video/quicktime',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
     ],
   },
   verificationDocument: { maxBytes: 5 * 1024 * 1024, mimes: ['image/jpeg', 'image/png', 'application/pdf'] },

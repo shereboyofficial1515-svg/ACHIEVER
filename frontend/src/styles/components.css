@@ -271,7 +271,7 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 /* Page header ------------------------------------------------------------------- */
 .page-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s-3); margin-bottom: var(--s-5); }
 .page-header .subtitle { color: var(--text-muted); font-size: var(--fs-sm); margin-top: 4px; }
-.back-link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--s-2); }
+.back-link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--s-1); min-height: 44px; }
 
 .divider { height: 1px; background: var(--border); margin: var(--s-2) 0; }
 .kv { display: grid; grid-template-columns: minmax(120px, 40%) 1fr; gap: 8px var(--s-4); font-size: var(--fs-sm); }
@@ -316,3 +316,25 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 .keypad-key-blank { border: 0; background: transparent; cursor: default; }
 .secure-keypad.is-disabled .keypad-grid { opacity: .6; }
 @media (max-width: 360px) { .keypad-slot { width: 36px; height: 46px; } .keypad-key { min-height: 50px; } }
+
+/* Searchable select (banks, states, LGAs, providers) */
+.searchable-trigger { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; min-height: 48px; }
+.searchable-trigger.is-placeholder { color: var(--color-text-muted); }
+.searchable-trigger .truncate { flex: 1; min-width: 0; }
+.searchable-chevron { flex-shrink: 0; color: var(--color-text-muted); }
+.searchable-backdrop { z-index: 125; }
+.searchable-panel { width: 100%; max-width: 520px; height: 100%; max-height: 100%; background: var(--color-surface-elevated); color: var(--color-text-primary); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+@media (min-width: 640px) { .searchable-backdrop { align-items: center; } .searchable-panel { height: min(640px, 86vh); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; } }
+.searchable-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px 16px; font-size: var(--fs-md); }
+.searchable-search { position: relative; padding: 0 16px 10px; }
+.searchable-search svg { position: absolute; left: 30px; top: 50%; transform: translateY(calc(-50% - 5px)); color: var(--color-text-muted); pointer-events: none; }
+.searchable-search .input { padding-left: 42px; width: 100%; }
+.searchable-list { list-style: none; margin: 0; padding: 4px 8px 12px; overflow-y: auto; flex: 1; overscroll-behavior: contain; border-top: 1px solid var(--color-border); }
+.searchable-option { display: flex; align-items: center; gap: 12px; padding: 10px 10px; min-height: 52px; border-radius: 10px; cursor: pointer; }
+.searchable-option.is-active { background: var(--color-surface-hover); }
+.searchable-option.is-selected { color: var(--color-green-primary); font-weight: 600; }
+.searchable-option.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.searchable-empty, .searchable-more { padding: 20px 12px; text-align: center; color: var(--color-text-muted); font-size: var(--fs-sm); }
+.option-logo { border-radius: 8px; object-fit: contain; background: #fff; flex-shrink: 0; }
+.option-badge { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.card-header a { display: inline-flex; align-items: center; min-height: 44px; }

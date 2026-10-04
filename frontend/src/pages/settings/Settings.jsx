@@ -355,17 +355,31 @@ function NotificationsSection() {
   );
 }
 
+// Message sounds (Settings → Notifications) ----------------------------------------------------
+function MessageSoundsCard() {
+  const [m, save] = useSaver('messages');
+  const off = !m.messageSound || m.sleepMode;
+  return (
+    <Card title="Message sounds">
+      <Toggle label="Sleep mode" description="Messages still arrive, silently. Chat and other non-urgent sounds are off; security alerts still sound." checked={Boolean(m.sleepMode)} onChange={(v) => save({ sleepMode: v })} />
+      <Toggle label="Message sounds" description="Turn off to silence all chat sounds at once" checked={m.messageSound} disabled={m.sleepMode} onChange={(v) => save({ messageSound: v })} />
+      <Toggle label="Incoming message sound" description="A soft chime when a message arrives" checked={m.incomingSound !== false} disabled={off} onChange={(v) => save({ incomingSound: v })} />
+      <Toggle label="Sent message sound" description="A short tick when your message is sent" checked={m.outgoingSound !== false} disabled={off} onChange={(v) => save({ outgoingSound: v })} />
+      <Toggle label="Notification sounds" description="A gentle tone for new in-app notifications" checked={m.notificationSound !== false} disabled={m.sleepMode} onChange={(v) => save({ notificationSound: v })} />
+    </Card>
+  );
+}
+
 // Messages -----------------------------------------------------------------------------------
 function MessagesSection() {
   const [m, save] = useSaver('messages');
   return (
     <Card title="Messages & calls">
-      <Toggle label="Message sound" description="Play a short sound when a new message arrives in another conversation" checked={m.messageSound} onChange={(v) => save({ messageSound: v })} />
       <Toggle label="Show message previews" description="Include the message text in on-screen alerts. Turn off on shared devices." checked={m.messagePreview} onChange={(v) => save({ messagePreview: v })} />
       <Toggle label="Call ringtone" description="Ring for incoming voice and video calls (the call alert is always shown)" checked={m.callRingtone} onChange={(v) => save({ callRingtone: v })} />
       <Toggle label="Load photos automatically" description="Off: photos in chats load only when you tap them (saves data)" checked={m.autoLoadImages} onChange={(v) => save({ autoLoadImages: v })} />
       <Toggle label="Read receipts" description="Let others see when you have read their messages. If off, you won’t see theirs either." checked={m.readReceipts} onChange={(v) => save({ readReceipts: v })} />
-      <p className="xsmall muted" style={{ marginTop: 8 }}>Email/SMS for missed calls and messages is under Notifications.</p>
+      <p className="xsmall muted" style={{ marginTop: 8 }}>Message sounds, sleep mode and email/SMS for missed calls are under Notifications.</p>
     </Card>
   );
 }
@@ -573,7 +587,7 @@ export default function Settings() {
           {section === 'password' && <PasswordSection />}
           {section === 'email' && <ContactSection kind="email" key="email" />}
           {section === 'phone' && <ContactSection kind="phone" key="phone" />}
-          {section === 'notifications' && <NotificationsSection />}
+          {section === 'notifications' && <><NotificationsSection /><MessageSoundsCard /></>}
           {section === 'messages' && <MessagesSection />}
           {section === 'appearance' && <AppearanceSection />}
           {section === 'accessibility' && <AccessibilitySection />}

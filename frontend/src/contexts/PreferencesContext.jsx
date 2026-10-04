@@ -9,7 +9,7 @@ import { useAuth } from './AuthContext.jsx';
  */
 export const DEFAULTS = {
   accessibility: { theme: 'system', fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false },
-  messages: { messageSound: true, callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true },
+  messages: { messageSound: true, incomingSound: true, outgoingSound: true, notificationSound: true, sleepMode: false, callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true },
   privacy: { showOnlineStatus: true },
   security: { loginAlerts: 'new_device' },
 };

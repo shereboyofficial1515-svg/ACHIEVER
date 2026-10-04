@@ -16,7 +16,10 @@ export const DEFAULTS = Object.freeze({
   accessibility: {
     theme: 'system', fontScale: 1, reducedMotion: 'system', highContrast: false, largerTargets: false, underlineLinks: false, strongFocus: false,
   },
-  messages: { messageSound: true, callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true },
+  messages: {
+    messageSound: true, incomingSound: true, outgoingSound: true, notificationSound: true, sleepMode: false,
+    callRingtone: true, messagePreview: true, autoLoadImages: true, readReceipts: true,
+  },
   privacy: { showOnlineStatus: true },
   security: { loginAlerts: 'new_device' },
 });
@@ -57,5 +60,7 @@ export async function flagsFor(userIds) {
   return (id) => ({
     readReceipts: (byId.get(id)?.messages?.readReceipts ?? DEFAULTS.messages.readReceipts) !== false,
     showOnlineStatus: (byId.get(id)?.privacy?.showOnlineStatus ?? DEFAULTS.privacy.showOnlineStatus) !== false,
+    messagePreview: (byId.get(id)?.messages?.messagePreview ?? DEFAULTS.messages.messagePreview) !== false,
+    sleepMode: byId.get(id)?.messages?.sleepMode === true,
   });
 }

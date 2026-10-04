@@ -1,25 +1,29 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Ban, BellOff, Check, CheckCheck, ChevronDown, Clock, Copy, FileText, Flag, Info, Megaphone, Mic, MoreVertical, Paperclip,
-  Pencil, Phone, Pin, PinOff, Reply, Search, SendHorizontal, SmilePlus, Trash2, Video, X,
+  AlertCircle, ArrowLeft, Ban, BellOff, Check, CheckCheck, ChevronDown, Clock, Copy, FileText, Flag, Info, Megaphone, Mic, MoreVertical, Paperclip,
+  Pencil, Phone, Pin, PinOff, Play, Reply, RotateCcw, Search, SendHorizontal, SmilePlus, Trash2, Video, WifiOff, X,
 } from 'lucide-react';
 import { ErrorState, Loader, UserAvatar } from '../ui/index.js';
 import { api } from '../../services/api.js';
-import { useRealtimeEvent } from '../../contexts/RealtimeContext.jsx';
+import { useRealtime, useRealtimeEvent } from '../../contexts/RealtimeContext.jsx';
 import { useCalls } from '../../contexts/CallContext.jsx';
 import { usePreferences } from '../../contexts/PreferencesContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useConfirm } from '../ui/ConfirmProvider.jsx';
 import { pushOverlay } from '../../platform/overlays.js';
 import { requestMicrophonePermission } from '../../platform/index.js';
-import { fileSize, formatDate, formatTime, relativeTime } from '../../utils/format.js';
+import { duration, fileSize, formatDate, formatTime, relativeTime } from '../../utils/format.js';
+import { mergeMessages } from '../../utils/messages.js';
+import { playSound } from '../../utils/sounds.js';
+import { attachmentUrl, cachedAttachmentUrl, documentTypeLabel, mediaKind } from '../../utils/mediaCache.js';
+import MediaViewer from '../media/MediaViewer.jsx';
+import { AttachmentSheet, PICKERS, SendPreview, fileKind, prepareFiles } from '../media/AttachmentComposer.jsx';
 
-const MAX_FILE = 10 * 1024 * 1024;
-const ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,application/pdf,.docx,.xlsx';
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-const EDIT_WINDOW = 15 * 60 * 1000;
-const DELETE_WINDOW = 60 * 60 * 1000;
+// The server enforces both limits; the app only hides actions that would be refused.
+export const EDIT_WINDOW = 10 * 60 * 1000;               // edit your own message: 10 minutes
+export const DELETE_WINDOW = 2 * 24 * 60 * 60 * 1000;    // delete for everyone: 2 days
 const GROUP_GAP = 5 * 60 * 1000;
 const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
 
@@ -30,38 +34,91 @@ function Linkified({ text }) {
     : <Fragment key={i}>{part}</Fragment>));
 }
 
-/** Private attachment: a short-lived signed URL is fetched only when needed. */
-function Attachment({ a, voice }) {
-  const [url, setUrl] = useState(null);
-  const toast = useToast();
+/**
+ * A chat attachment inside a bubble. Private files use short-lived signed URLs from the media
+ * cache, so tapping an image opens the viewer with the SAME URL (no second download).
+ * Photos follow "Load photos automatically"; videos load only their first frame (metadata).
+ */
+function Attachment({ a, voice, onOpen }) {
   const { prefs } = usePreferences();
-  const kind = a.mimeType.startsWith('image/') ? 'image' : a.mimeType.startsWith('video/') && !voice ? 'video' : a.mimeType.startsWith('audio/') || voice ? 'audio' : 'file';
-  const autoLoad = kind === 'audio' || (prefs.messages.autoLoadImages !== false && kind === 'image');
-  const fetchUrl = useCallback(() => api.get(`/messages/attachments/${a.id}/url`).then(({ data }) => { setUrl(data.url); return data.url; }), [a.id]);
-  useEffect(() => { if (autoLoad) fetchUrl().catch(() => {}); }, [autoLoad, fetchUrl]);
-
-  const open = async () => {
-    try {
-      const u = url || (await fetchUrl());
-      if (kind === 'file' || kind === 'image') window.open(u, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      toast.error(err);
-    }
+  const kind = mediaKind(a.mimeType, { voice });
+  const autoLoad = kind === 'audio' || ((kind === 'image' || kind === 'video') && prefs.messages.autoLoadImages !== false);
+  const [url, setUrl] = useState(() => cachedAttachmentUrl(a.id));
+  const [length, setLength] = useState(null);
+  const retried = useRef(false);
+  useEffect(() => {
+    if (autoLoad && !url) attachmentUrl(a.id).then(setUrl).catch(() => {});
+  }, [autoLoad, url, a.id]);
+  const onError = () => {   // the signed URL expired: get a fresh one once
+    if (retried.current) return;
+    retried.current = true;
+    attachmentUrl(a.id, { force: true }).then(setUrl).catch(() => {});
   };
+
   if (kind === 'audio') {
-    return url ? <audio className="msg-audio" controls preload="metadata" src={url} aria-label="Voice message" /> : <span className="small muted">Loading voice message…</span>;
+    return url ? <audio className="msg-audio" controls preload="metadata" src={url} onError={onError} aria-label="Voice message" /> : <span className="small muted">Loading voice message…</span>;
+  }
+  if (kind === 'image') {
+    return (
+      <button type="button" className="media-thumb" onClick={(e) => { e.stopPropagation(); onOpen(a); }} aria-label={`Photo: ${a.fileName}. Open`}>
+        {url ? <img src={url} alt="" loading="lazy" onError={onError} /> : <span className="media-placeholder">Photo · {fileSize(a.sizeBytes)}<br />Tap to view</span>}
+      </button>
+    );
   }
   if (kind === 'video') {
-    return url
-      ? <video className="msg-video" controls preload="metadata" src={url} aria-label={a.fileName} />
-      : <button type="button" className="attachment" onClick={open}><Video size={20} aria-hidden /><span>{a.fileName}<br />{fileSize(a.sizeBytes)} · tap to load</span></button>;
+    return (
+      <button type="button" className="media-thumb is-video" onClick={(e) => { e.stopPropagation(); onOpen(a); }} aria-label={`Video${length ? `, ${duration(length)}` : ''}. Play`}>
+        {url ? (
+          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} onLoadedMetadata={(e) => setLength(Math.round(e.currentTarget.duration))} onError={onError} />
+        ) : <span className="media-placeholder">Video · {fileSize(a.sizeBytes)}</span>}
+        <span className="media-play" aria-hidden><Play size={22} fill="currentColor" /></span>
+        {length ? <span className="media-duration">{duration(length)}</span> : null}
+      </button>
+    );
   }
   return (
-    <button type="button" className={`attachment ${kind === 'image' && url ? 'is-image' : ''}`} onClick={open}>
-      {kind === 'image' && url ? <img src={url} alt={a.fileName} loading="lazy" /> : <FileText size={20} aria-hidden />}
-      {kind === 'image' && !url && <span className="small">Photo · tap to open</span>}
-      {kind === 'file' && <span><span style={{ display: 'block', fontWeight: 600 }}>{a.fileName}</span>{fileSize(a.sizeBytes)}</span>}
+    <button type="button" className="doc-card" onClick={(e) => { e.stopPropagation(); onOpen(a); }} aria-label={`${a.fileName}. Open`}>
+      <span className="doc-card-icon"><FileText size={22} aria-hidden /></span>
+      <span className="doc-card-text">
+        <strong className="truncate">{a.fileName}</strong>
+        <span>{documentTypeLabel(a.mimeType)} · {fileSize(a.sizeBytes)}</span>
+      </span>
     </button>
+  );
+}
+
+/** An upload in progress (or failed) shown at the end of the chat until the server confirms it. */
+function UploadRow({ u, onRetry, onCancel, onRemove }) {
+  const kind = fileKind(u.file);
+  return (
+    <div className="msg mine upload-row">
+      <div className="msg-body">
+        <div className={`bubble${kind !== 'document' ? ' has-media' : ''}`}>
+          {kind === 'image' && u.previewUrl && <span className="media-thumb"><img src={u.previewUrl} alt="" /></span>}
+          {kind === 'video' && <span className="media-thumb is-video"><span className="media-placeholder">Video · {fileSize(u.file.size)}</span></span>}
+          {kind === 'document' && (
+            <span className="doc-card">
+              <span className="doc-card-icon"><FileText size={22} aria-hidden /></span>
+              <span className="doc-card-text"><strong className="truncate">{u.file.name}</strong><span>{documentTypeLabel(u.file.type)} · {fileSize(u.file.size)}</span></span>
+            </span>
+          )}
+          {u.caption && <span className="msg-text">{u.caption}</span>}
+          {u.status === 'failed' ? (
+            <span className="upload-state failed" role="alert">
+              <AlertCircle size={15} aria-hidden /> Upload failed
+              <button type="button" className="upload-action" onClick={() => onRetry(u)}><RotateCcw size={14} aria-hidden /> Retry</button>
+              <button type="button" className="upload-action" onClick={() => onRemove(u)} aria-label="Remove"><X size={14} aria-hidden /></button>
+            </span>
+          ) : (
+            <span className="upload-state" aria-live="polite">
+              <span className="upload-bar"><span style={{ width: `${u.progress}%` }} /></span>
+              Uploading… {u.progress}%
+              <button type="button" className="upload-action" onClick={() => onCancel(u)} aria-label="Cancel upload"><X size={14} aria-hidden /></button>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -79,7 +136,7 @@ function useLongPress(onLongPress, ms = 450) {
   return { onTouchStart: start, onTouchEnd: clear, onTouchMove: clear, onContextMenu: (e) => { e.preventDefault(); onLongPress(e); } };
 }
 
-function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, highlighted, selected, onSelect, onJump, onToggleReaction, currentUserId, isGroup }) {
+function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, highlighted, selected, onSelect, onJump, onToggleReaction, onOpenMedia, currentUserId, isGroup }) {
   const press = useLongPress(() => onSelect(m));
   const reactions = useMemo(() => {
     const byEmoji = new Map();
@@ -97,12 +154,13 @@ function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, h
   }
   const voice = m.metadata?.voice;
   const announcement = m.kind === 'announcement';
+  const visual = !m.deleted && !voice && m.attachments?.some((a) => /^(image|video)\//.test(a.mimeType));
   return (
     <div id={`m-${m.id}`} className={`msg ${mine ? 'mine' : 'theirs'}${showSender ? ' first' : ''}${highlighted ? ' highlight' : ''}${selected ? ' selected' : ''}${announcement ? ' announcement' : ''}`}>
       {!mine && isGroup && (showSender ? <UserAvatar name={senderName} src={sender?.avatarUrl} size={28} /> : <span className="msg-avatar-gap" aria-hidden />)}
       <div className="msg-body">
         {!mine && isGroup && showSender && !announcement && <span className="sender">{senderName}</span>}
-        <div className="bubble" {...press} onDoubleClick={() => onSelect(m)} tabIndex={0} role="article"
+        <div className={`bubble${visual ? ' has-media' : ''}${visual && !m.body ? ' media-only' : ''}`} {...press} onDoubleClick={() => onSelect(m)} tabIndex={0} role="article"
           aria-label={`${mine ? 'You' : senderName}: ${m.deleted ? 'deleted message' : m.body || 'attachment'}`}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(m); } }}>
           {announcement && !m.deleted && <span className="announcement-label"><Megaphone size={14} aria-hidden /> Group announcement{isGroup ? ` · ${mine ? 'You' : senderName}` : ''}</span>}
@@ -114,7 +172,7 @@ function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, h
           )}
           {m.deleted ? <em className="deleted">This message was deleted</em> : (
             <>
-              {m.attachments?.map((a) => <Attachment key={a.id} a={a} voice={voice} />)}
+              {m.attachments?.map((a) => <Attachment key={a.id} a={a} voice={voice} onOpen={(att) => onOpenMedia(att, m)} />)}
               {m.body && <span className="msg-text"><Linkified text={m.body} /></span>}
             </>
           )}
@@ -174,9 +232,15 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   const [pinIndex, setPinIndex] = useState(0);
   const [recording, setRecording] = useState(null);   // { started, recorder, chunks }
   const [recSeconds, setRecSeconds] = useState(0);
+  const [viewer, setViewer] = useState(null);         // { attachment, sender, createdAt }
+  const [sheet, setSheet] = useState(false);          // the Attach sheet
+  const [picked, setPicked] = useState(null);         // { files, picker } waiting for Send
+  const [uploads, setUploads] = useState([]);         // uploads in progress / failed
+  const { status: connection } = useRealtime();
+  const { prefs } = usePreferences();
   const listRef = useRef(null);
   const atBottom = useRef(true);
-  const fileRef = useRef(null);
+  const pickerRefs = useRef({});
   const inputRef = useRef(null);
   const lastTyping = useRef(0);
   const restoreScroll = useRef(null);
@@ -237,7 +301,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     try {
       const { data } = await api.get(`/messages/conversations/${conversationId}/messages`, { limit: 40, before: messages[0].createdAt });
       restoreScroll.current = listRef.current.scrollHeight - listRef.current.scrollTop;
-      setMessages((list) => [...data.messages.filter((x) => !list.some((y) => y.id === x.id)), ...list]);
+      setMessages((list) => mergeMessages(list, data.messages));
       setHasMore(data.hasMore);
     } catch (err) {
       toast.error(err);
@@ -285,12 +349,31 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   useRealtimeEvent('message.new', (m) => {
     if (m.conversationId !== conversationId) return;
     if (hasNewer) return;   // viewing older history: the "latest" button reloads
-    setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list.filter((x) => !(x.pending && x.body === m.body && m.senderId === currentUserId)), m]));
+    // Same id = same message (update, never duplicate); kept in created_at order.
+    setMessages((list) => mergeMessages(list.filter((x) => !(x.pending && x.body === m.body && m.senderId === currentUserId)), [m]));
     setTyping((t) => { const n = { ...t }; delete n[m.senderId]; return n; });
     if (m.senderId !== currentUserId) {
       if (atBottom.current) markRead();
       else setNewCount((n) => n + 1);
     }
+  });
+  // Reconnected / back from the background: fetch what arrived while the connection was down.
+  useRealtimeEvent('resync', async () => {
+    if (hasNewer) return;
+    const newest = [...messages].reverse().find((x) => !x.pending);
+    try {
+      const [{ data }] = await Promise.all([
+        api.get(`/messages/conversations/${conversationId}/messages`, newest ? { limit: 100, after: newest.createdAt } : { limit: 40 }),
+        loadConv().catch(() => {}),
+      ]);
+      if (!data.messages.length) return;
+      const fresh = data.messages.filter((x) => !messages.some((y) => y.id === x.id) && x.senderId !== currentUserId);
+      setMessages((list) => mergeMessages(list, data.messages));
+      if (fresh.length) {
+        if (atBottom.current) markRead();
+        else setNewCount((n) => n + fresh.length);
+      }
+    } catch { /* the next reconnect tries again */ }
   });
   useRealtimeEvent('message.updated', (m) => {
     if (m.conversationId !== conversationId) return;
@@ -323,6 +406,8 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   useEffect(() => (menu ? pushOverlay(() => setMenu(null)) : undefined), [menu]);
   useEffect(() => (search ? pushOverlay(() => setSearch(null)) : undefined), [search]);
   useEffect(() => (selected ? pushOverlay(() => { setSelected(null); setReacting(false); setDeleting(false); }) : undefined), [selected]);
+  // Revoke local previews of finished uploads.
+  useEffect(() => () => uploads.forEach((u) => u.previewUrl && URL.revokeObjectURL(u.previewUrl)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sending -----------------------------------------------------------------------------------
   const onDraft = (value) => {
@@ -361,8 +446,9 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     setSending(true);
     try {
       const { data } = await api.post(`/messages/conversations/${conversationId}/messages`, { body, replyTo: reply?.id || null, announcement: announce || undefined });
-      setMessages((list) => (list.some((x) => x.id === data.id) ? list.filter((x) => x.id !== temp.id) : list.map((x) => (x.id === temp.id ? data : x))));
+      setMessages((list) => mergeMessages(list.filter((x) => x.id !== temp.id), [data]));
       setAnnounce(false);
+      playSound('outgoing', prefs.messages);
     } catch (err) {
       setMessages((list) => list.filter((x) => x.id !== temp.id));
       setDraft(body);
@@ -373,25 +459,63 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     }
   };
 
-  const upload = async (file, { voice = false } = {}) => {
-    if (file.size > MAX_FILE) { toast.error('Files must be 10 MB or smaller'); return; }
-    setSending(true);
+  // Attachments: Attach sheet → picker → preview → Send → upload with progress (cancel / retry).
+  const runUpload = useCallback(async (u) => {
+    const controller = new AbortController();
+    setUploads((list) => list.map((x) => (x.id === u.id ? { ...x, status: 'uploading', progress: 0, controller } : x)));
     try {
-      const { data } = await api.upload(`/messages/conversations/${conversationId}/attachments`, file, { caption: voice ? '' : draft.trim(), replyTo: replyTo?.id || '', voice: voice ? 'true' : '' });
-      if (!voice) setDraft('');
-      setReplyTo(null);
+      const { data } = await api.uploadWithProgress(
+        `/messages/conversations/${conversationId}/attachments`,
+        u.file,
+        { caption: u.caption || '', replyTo: u.replyTo || '', voice: u.voice ? 'true' : '' },
+        { signal: controller.signal, onProgress: (progress) => setUploads((list) => list.map((x) => (x.id === u.id ? { ...x, progress } : x))) },
+      );
+      setUploads((list) => list.filter((x) => x.id !== u.id));
+      if (u.previewUrl) URL.revokeObjectURL(u.previewUrl);
       atBottom.current = true;
-      setMessages((list) => (list.some((x) => x.id === data.id) ? list : [...list, data]));
+      setMessages((list) => mergeMessages(list, [data]));
+      playSound('outgoing', prefs.messages);
     } catch (err) {
+      if (err?.name === 'AbortError') {
+        setUploads((list) => list.filter((x) => x.id !== u.id));
+        return;
+      }
+      // Nothing was saved on the server: the file stays here with Retry.
+      setUploads((list) => list.map((x) => (x.id === u.id ? { ...x, status: 'failed', error: err } : x)));
       toast.error(err);
-    } finally {
-      setSending(false);
     }
+  }, [conversationId, prefs.messages, toast]);
+
+  const queueUploads = (files, { caption = '', voice = false } = {}) => {
+    const items = files.map((file, i) => ({
+      id: `up-${Date.now()}-${i}`,
+      file,
+      caption: i === 0 ? caption : '',
+      voice,
+      replyTo: replyTo?.id || null,
+      progress: 0,
+      status: 'uploading',
+      previewUrl: fileKind(file) === 'image' ? URL.createObjectURL(file) : null,
+    }));
+    setReplyTo(null);
+    atBottom.current = true;
+    setUploads((list) => [...list, ...items]);
+    // One at a time keeps mobile data responsive; each has its own progress.
+    items.reduce((chain, item) => chain.then(() => runUpload(item)), Promise.resolve());
   };
-  const onFile = (e) => {
-    const file = e.target.files?.[0];
+  const upload = (file, opts) => queueUploads([file], opts);
+
+  const openPicker = (picker) => {
+    setSheet(false);
+    setTimeout(() => pickerRefs.current[picker]?.click(), 50);
+  };
+  const onPicked = (picker) => async (e) => {
+    const list = [...(e.target.files || [])];
     e.target.value = '';
-    if (file) upload(file);
+    if (!list.length) return;
+    const { files, errors } = await prepareFiles(list, picker);
+    errors.forEach((msg) => toast.error(msg));
+    if (files.length) setPicked({ files, picker });
   };
 
   const canRecord = typeof window !== 'undefined' && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
@@ -553,6 +677,10 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     return 'sent';
   };
 
+  const hasText = draft.trim().length > 0;   // "   " is empty; anything else shows Send
+  const connectionNote = connection === 'reconnecting' ? (navigator.onLine === false ? 'Waiting for network…' : 'Reconnecting…')
+    : connection === 'connecting' ? 'Connecting…' : null;
+
   const pinned = conv.pinned || [];
   const pin = pinned.length ? pinned[pinIndex % pinned.length] : null;
   const sel = selected;
@@ -602,7 +730,9 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
             <UserAvatar name={title} src={avatarSrc} online={other ? other.online : undefined} size={40} />
             <span className="chat-identity-text">
               <span className="chat-title truncate">{title}{conv.me?.mutedUntil && <BellOff size={13} className="muted" aria-label="Muted" />}</span>
-              <span className={`chat-subtitle truncate${typers.length ? ' is-typing' : ''}`}>{subtitle}</span>
+              {connectionNote
+                ? <span className="chat-subtitle truncate is-connecting" role="status"><WifiOff size={12} aria-hidden /> {connectionNote}</span>
+                : <span className={`chat-subtitle truncate${typers.length ? ' is-typing' : ''}`}>{subtitle}</span>}
             </span>
           </button>
           <button type="button" className="icon-button" onClick={() => calls.startCall(conversationId, 'voice')} disabled={calls.busy || calls.inCall || Boolean(blockedNote)} aria-label="Start voice call"><Phone size={19} /></button>
@@ -695,12 +825,22 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
                 onSelect={(x) => { if (!x.pending && !['system', 'call'].includes(x.kind)) { setSelected(x); setReacting(false); setDeleting(false); } }}
                 onJump={jumpTo}
                 onToggleReaction={doReact}
+                onOpenMedia={(attachment, msg) => setViewer({ attachment, sender: msg.senderId === currentUserId ? 'You' : byId.get(msg.senderId)?.name, createdAt: msg.createdAt })}
                 currentUserId={currentUserId}
                 isGroup={isGroup}
               />
             </Fragment>
           );
         })}
+        {uploads.map((u) => (
+          <UploadRow
+            key={u.id}
+            u={u}
+            onRetry={runUpload}
+            onCancel={(x) => x.controller?.abort()}
+            onRemove={(x) => { if (x.previewUrl) URL.revokeObjectURL(x.previewUrl); setUploads((list) => list.filter((y) => y.id !== x.id)); }}
+          />
+        ))}
       </div>
 
       {(newCount > 0 || hasNewer) && (
@@ -734,8 +874,10 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
         </div>
       ) : (
         <form className="chat-composer" onSubmit={send}>
-          <input ref={fileRef} type="file" accept={ACCEPT} hidden onChange={onFile} />
-          {!editing && <button type="button" className="icon-button" onClick={() => fileRef.current?.click()} disabled={sending} aria-label="Attach a photo, video or document"><Paperclip size={20} /></button>}
+          {Object.entries(PICKERS).map(([key, cfg]) => (
+            <input key={key} ref={(el) => { pickerRefs.current[key] = el; }} type="file" hidden accept={cfg.accept} multiple={cfg.multiple} capture={cfg.capture} onChange={onPicked(key)} />
+          ))}
+          {!editing && <button type="button" className="icon-button" onClick={() => setSheet(true)} aria-haspopup="dialog" aria-label="Attach: camera, photos, video or document"><Paperclip size={20} /></button>}
           {isGroup && perms.canAnnounce && !editing && (
             <button type="button" className={`icon-button${announce ? ' is-active' : ''}`} onClick={() => setAnnounce((a) => !a)} aria-pressed={announce} aria-label="Send as group announcement"><Megaphone size={19} /></button>
           )}
@@ -748,11 +890,16 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
             value={draft}
             maxLength={4000}
             onChange={(e) => onDraft(e.target.value)}
+            // Paste, autocomplete, the keyboard's clipboard chip and dictation all end up here:
+            // the Send/Mic button follows the field's real value, not key presses.
+            onInput={(e) => { if (e.currentTarget.value !== draft) onDraft(e.currentTarget.value); }}
+            onPaste={(e) => { const el = e.currentTarget; setTimeout(() => { if (el.value !== draft) onDraft(el.value); }, 0); }}
+            onCompositionEnd={(e) => onDraft(e.currentTarget.value)}
             onFocus={() => { if (atBottom.current) setTimeout(() => scrollToBottom(), 250); }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) send(e); }}
           />
-          {draft.trim() || editing || !canRecord ? (
-            <button type="submit" className="send-btn" disabled={!draft.trim() || sending} aria-label={editing ? 'Save edit' : 'Send message'}>
+          {hasText || editing || !canRecord ? (
+            <button type="submit" className="send-btn" disabled={!hasText || sending} aria-label={editing ? 'Save edit' : 'Send message'}>
               {sending ? <span className="spinner" style={{ width: 18, height: 18 }} /> : editing ? <Check size={19} /> : <SendHorizontal size={19} />}
             </button>
           ) : (
@@ -760,6 +907,18 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
           )}
         </form>
       )}
+      {sheet && <AttachmentSheet onPick={openPicker} onClose={() => setSheet(false)} />}
+      {picked && (
+        <SendPreview
+          files={picked.files}
+          picker={picked.picker}
+          onCancel={() => setPicked(null)}
+          onRetake={() => { setPicked(null); openPicker('camera'); }}
+          onRemove={(i) => setPicked((p) => { const files = p.files.filter((_, j) => j !== i); return files.length ? { ...p, files } : null; })}
+          onSend={(caption) => { queueUploads(picked.files, { caption }); setPicked(null); }}
+        />
+      )}
+      {viewer && <MediaViewer {...viewer} onClose={() => setViewer(null)} />}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import BrandLogo from '../components/brand/BrandLogo.jsx';
 import { usePreferences } from '../contexts/PreferencesContext.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
 import { usePageTransition } from '../hooks/useMotion.js';
-import { playMessageSound } from '../utils/sounds.js';
+import { playSound } from '../utils/sounds.js';
 import { api } from '../services/api.js';
 import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
 import { pushOverlay } from '../platform/overlays.js';
@@ -63,15 +63,25 @@ export default function AppLayout() {
   useEffect(() => {
     if (user?.emailVerified) refreshMessages();
   }, [user?.emailVerified, location.pathname]);
+  // Back after a dropped connection or from the background: recount what arrived meanwhile.
+  useRealtimeEvent('resync', () => { if (user?.emailVerified) refreshMessages(); });
+  // Notification sound: security alerts always sound; other notifications follow the settings.
+  useRealtimeEvent('notification.new', (n) => {
+    if (n?.category === 'security') playSound('notification', {});
+    else playSound('notification', prefs.messages);
+  });
   useRealtimeEvent('message.new', (m) => {
     if (m.senderId === user?.id) return;
     // The app received it: senders who share receipts see "delivered" (two grey ticks).
     api.post(`/messages/conversations/${m.conversationId}/delivered`).catch(() => {});
-    if (location.pathname.includes(m.conversationId)) return;
+    if (m.muted) {   // muted chat: counted, but no sound or pop-up
+      if (!location.pathname.includes(m.conversationId)) setUnreadMessages((n) => n + 1);
+      return;
+    }
+    // Settings → Notifications → Message sounds (master switch, incoming, sleep mode).
+    playSound('incoming', prefs.messages);
+    if (location.pathname.includes(m.conversationId)) return;   // already reading it
     setUnreadMessages((n) => n + 1);
-    if (m.muted) return;   // muted chat: count it, but no sound or pop-up
-    // Settings → Messages: sound and preview are the user's choice.
-    if (prefs.messages.messageSound) playMessageSound();
     toast.info(prefs.messages.messagePreview && m.body ? `${m.senderName || 'New message'}: ${m.body.slice(0, 80)}` : 'You have a new message');
   });
   const pageRef = usePageTransition(location.pathname);

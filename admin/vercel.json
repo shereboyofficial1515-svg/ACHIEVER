@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://achiever-api-uu08.onrender.com/api/:path*"
+      "destination": "https://api.achieverng.site/api/:path*"
     },
     {
       "source": "/((?!api/|assets/|brand/).*)",

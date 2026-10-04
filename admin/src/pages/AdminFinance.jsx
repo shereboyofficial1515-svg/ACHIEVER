@@ -70,7 +70,7 @@ function WithdrawModal({ o, onClose, onDone }) {
     }))) return;
     setPending(true);
     try {
-      await api.post('/finance/withdrawals', { amount: kobo, reason }, { idempotencyKey: key });
+      await api.post('/admin/finance/withdrawals', { amount: kobo, reason }, { idempotencyKey: key });
       toast.success(big ? 'Sent to a second administrator for approval' : 'Withdrawal submitted');
       onDone();
     } catch (err) {
@@ -101,7 +101,7 @@ function WithdrawModal({ o, onClose, onDone }) {
 
 function ProposeAccount({ onClose, onDone }) {
   const toast = useToast();
-  const banks = useAsync(() => api.get('/finance/banks'), []);
+  const banks = useAsync(() => api.get('/admin/finance/banks'), []);
   const [f, setF] = useState({ bankCode: '', accountNumber: '', reason: '' });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
@@ -109,7 +109,7 @@ function ProposeAccount({ onClose, onDone }) {
     setPending(true);
     setError(null);
     try {
-      await api.post('/finance/accounts', f);
+      await api.post('/admin/finance/accounts', f);
       toast.success('Verified with the bank and sent to a second administrator');
       onDone();
     } catch (err) {
@@ -141,9 +141,9 @@ export default function AdminFinance() {
   const { user, can } = useAuth();
   const toast = useToast();
   const confirmAction = useConfirm();
-  const o = useAsync(() => api.get('/finance/overview'), []);
-  const accounts = useAsync(() => api.get('/finance/accounts'), []);
-  const withdrawals = useAsync(() => api.get('/finance/withdrawals'), []);
+  const o = useAsync(() => api.get('/admin/finance/overview'), []);
+  const accounts = useAsync(() => api.get('/admin/finance/accounts'), []);
+  const withdrawals = useAsync(() => api.get('/admin/finance/withdrawals'), []);
   const [report, setReport] = useState(null);
   const [checking, setChecking] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -153,7 +153,7 @@ export default function AdminFinance() {
   const runCheck = async () => {
     setChecking(true);
     try {
-      const { data } = await api.post('/finance/vtpass-check');
+      const { data } = await api.post('/admin/finance/vtpass-check');
       setReport(data);
       o.reload();
     } catch (err) {
@@ -165,7 +165,7 @@ export default function AdminFinance() {
   const decide = async (kind, id, approve) => {
     if (!(await confirmAction({ severity: approve ? 'warning' : 'danger', title: approve ? 'Approve?' : 'Reject?', message: 'Your decision is recorded in the audit log.', confirmLabel: approve ? 'Approve' : 'Reject' }))) return;
     try {
-      await api.post(`/finance/${kind}/${id}/decision`, { approve });
+      await api.post(`/admin/finance/${kind}/${id}/decision`, { approve });
       toast.success('Decision recorded');
       reloadAll();
     } catch (err) {
@@ -269,7 +269,7 @@ export default function AdminFinance() {
                   { key: 'c', label: 'Created', render: (w) => formatDateTime(w.createdAt) },
                   { key: 'x', label: '', render: (w) => (w.status === 'PENDING_APPROVAL' ? (
                     w.requestedBy === user.id
-                      ? <Button size="sm" variant="ghost" onClick={async () => { await api.post(`/finance/withdrawals/${w.id}/cancel`).catch((e) => toast.error(e)); reloadAll(); }}>Cancel</Button>
+                      ? <Button size="sm" variant="ghost" onClick={async () => { await api.post(`/admin/finance/withdrawals/${w.id}/cancel`).catch((e) => toast.error(e)); reloadAll(); }}>Cancel</Button>
                       : can('business.approve') && (
                         <span className="row-wrap">
                           <Button size="sm" icon={Lock} onClick={() => decide('withdrawals', w.id, true)}>Approve</Button>

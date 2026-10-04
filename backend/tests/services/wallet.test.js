@@ -25,6 +25,8 @@ vi.mock('../../src/repositories/walletRepository.js', () => ({
   ensureWallet: vi.fn(async (u) => accountFor(u).id),
   findAccount: vi.fn(async (id) => state.accounts.get(id) || null),
   findAccountByUser: vi.fn(async (u) => accountFor(u) || null),
+  listTransactions: vi.fn(async () => ({ rows: state.historyRows || [], total: (state.historyRows || []).length })),
+  bankTransferStatuses: vi.fn(async (ids) => { state.statusLookups = (state.statusLookups || 0) + 1; return ids.map((id) => ({ id, status: id === 'bt-1' ? 'PROCESSING' : 'SUCCESS' })); }),
   findAccountByCode: vi.fn(async (input) => {
     const code = input === 'ACHW-BCDE6789' ? 'ACHBCDE6789ABCDEFGH' : input;   // legacy alias
     const a = [...state.accounts.values()].find((x) => x.wallet_code === code);
@@ -276,5 +278,17 @@ describe('transaction PIN security', () => {
     const dump = JSON.stringify([...state.events, ...state.challenges.values()]);
     expect(dump).not.toContain(PIN);
     expect(dump).not.toContain('000001');
+  });
+});
+
+describe('wallet history shows the real bank transfer status', () => {
+  it('a completed wallet debit for a transfer still at the bank is labelled with the transfer status (one lookup per page)', async () => {
+    const row = (id, btId) => ({ id, reference: `R-${id}`, type: 'bank_transfer', user_id: ME, amount: 10_000, fee: 10_000, status: 'success', created_at: '2026-10-04T10:00:00Z', metadata: { bank_transfer_id: btId, total_debit: 20_000 } });
+    state.historyRows = [row('w1', 'bt-1'), row('w2', 'bt-2'), { ...row('w3', null), type: 'topup', metadata: {} }];
+    state.statusLookups = 0;
+    const { items } = await wallet.transactions({ id: ME }, { page: 1, pageSize: 20 });
+    expect(items.map((t) => t.transferStatus)).toEqual(['PROCESSING', 'SUCCESS', undefined]);
+    expect(items[0].status).toBe('success');   // the ledger entry itself is unchanged
+    expect(state.statusLookups).toBe(1);
   });
 });

@@ -163,7 +163,15 @@ function formatTx(t, userId) {
 export async function transactions(user, filters) {
   await myAccount(user);
   const result = await walletRepo.listTransactions({ ...filters, userId: user.id });
-  return { items: result.rows.map((t) => formatTx(t, user.id)), meta: pageMeta(filters, result.total) };
+  const items = result.rows.map((t) => formatTx(t, user.id));
+  // The wallet debit for a bank transfer is complete as soon as the money leaves the wallet,
+  // but the transfer itself may still be processing at the bank: show the transfer's status.
+  const ids = [...new Set(items.filter((t) => t.type === 'bank_transfer' && t.bankTransferId).map((t) => t.bankTransferId))];
+  if (ids.length) {
+    const statuses = new Map((await walletRepo.bankTransferStatuses(ids).catch(() => [])).map((r) => [r.id, r.status]));
+    for (const t of items) if (t.type === 'bank_transfer' && statuses.has(t.bankTransferId)) t.transferStatus = statuses.get(t.bankTransferId);
+  }
+  return { items, meta: pageMeta(filters, result.total) };
 }
 
 export async function receipt(user, id) {

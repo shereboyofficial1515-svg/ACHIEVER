@@ -8,7 +8,7 @@ export default function AuthLayout() {
   return (
     <div className="auth-page">
       <aside className="auth-aside">
-        <BrandLogo variant="full" width={190} plate />
+        <BrandLogo variant="full" width={200} tone="dark" />
         <div>
           <h2>Contribution savings, organised properly.</h2>
           <ul>

@@ -4,6 +4,9 @@ import * as paymentRepo from '../repositories/paymentRepository.js';
 import * as collectorRepo from '../repositories/collectorRepository.js';
 import * as collectorService from './collectorService.js';
 import * as onboardingService from './onboardingService.js';
+import * as referralRepo from '../repositories/referralRepository.js';
+import * as storageService from './storageService.js';
+import { BUCKETS } from '../config/constants.js';
 
 /**
  * Role-aware home dashboard. Every figure is computed on the server from the
@@ -93,4 +96,44 @@ export async function forUser(user) {
   }
   result.onboarding = { operators: onboarding.operators, phoneVerified: onboarding.phoneVerified, phoneVerification: onboarding.phoneVerification, identity: onboarding.identity };
   return result;
+}
+
+
+/**
+ * Everything My Profile shows, in ONE request (instead of a request per card):
+ * statistics, verification and up to five OSUSU groups. Four reads run concurrently.
+ * The wallet balance is NOT included: it comes from GET /wallet (never cached, server-authoritative).
+ */
+export async function profileSummary(user) {
+  const { trustProfile } = await import('./profileService.js');
+  const [trust, memberships, adminGroups, referrals] = await Promise.all([
+    trustProfile(user.id),
+    osusuRepo.listMemberships(user.id),
+    osusuRepo.listGroups({ adminId: user.id, page: 1, pageSize: 50 }),
+    referralRepo.countForReferrer(user.id),
+  ]);
+  const ids = [...new Set([...memberships.map((m) => m.group_id), ...adminGroups.rows.map((g) => g.id)])];
+  const groups = ids.length ? (await osusuRepo.listGroups({ ids, page: 1, pageSize: 5 })).rows : [];
+  const total = ids.length;
+  return {
+    stats: {
+      groups: total,
+      completedGroups: trust.completedGroups,
+      contributions: trust.contributionsPaid,
+      onTimeRate: trust.onTimeRate,
+      referrals,
+    },
+    verification: trust.verification,
+    memberSince: trust.memberSince,
+    location: trust.location,
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      imageUrl: storageService.publicUrl(BUCKETS.groupImages, g.image_path),
+      contributionAmount: Number(g.contribution_amount),
+      frequency: g.frequency,
+      status: g.status,
+      isAdmin: g.admin_id === user.id,
+    })),
+  };
 }

@@ -33,7 +33,6 @@
 
 .brand-logo { display: inline-flex; align-items: center; text-decoration: none; line-height: 0; border-radius: var(--radius); }
 .brand-logo:hover { text-decoration: none; }
-.brand-plate { display: inline-flex; background: #ffffff; border-radius: var(--radius); padding: 8px 12px; box-shadow: var(--shadow-sm); }
 
 .topbar {
   position: sticky;

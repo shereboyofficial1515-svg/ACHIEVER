@@ -15,6 +15,7 @@ export const uploadAvatar = asyncHandler(async (req, res) => ok(res, await profi
 
 // Users ----------------------------------------------------------------------------
 export const dashboard = asyncHandler(async (req, res) => ok(res, await dashboardService.forUser(req.user)));
+export const profileSummary = asyncHandler(async (req, res) => ok(res, await dashboardService.profileSummary(req.user)));
 export const getPayoutAccount = asyncHandler(async (req, res) => ok(res, await profileService.getPayoutAccount(req.user)));
 export const setPayoutAccount = asyncHandler(async (req, res) => {
   const result = await profileService.setPayoutAccount(req.user, req.body, req);

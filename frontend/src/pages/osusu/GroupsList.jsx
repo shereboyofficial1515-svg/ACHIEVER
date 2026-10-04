@@ -17,7 +17,7 @@ export default function GroupsList() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const q = useDebounce(search);
-  const groups = useAsync(() => api.get('/osusu/groups', { scope, status, search: q, page, pageSize: 20 }), [scope, status, q, page]);
+  const groups = useAsync(() => api.get('/osusu/groups', { scope, status, search: q, page, pageSize: 20 }), [scope, status, q, page], { cacheKey: `groups:${scope}:${status}:${q}:${page}` });
 
   return (
     <PullToRefresh onRefresh={() => reloadAll(groups)}>

@@ -4,8 +4,7 @@ import {
   ArrowDown, ArrowUp, CalendarClock, CalendarPlus, CheckCircle2, Copy, Download, MessageSquare, Phone, Play, ShieldAlert, UserPlus, UsersRound, Wallet, XCircle,
 } from 'lucide-react';
 import {
-  Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, Input, KeyValue, Loader, Modal, PageHeader,
-  Pagination, ProgressBar, Select, SkeletonCards, StatCard, StatusBadge, Tabs, UserAvatar, fieldErrors,
+  Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, GroupAvatar, Input, KeyValue, Loader, Modal, PageHeader, Pagination, ProgressBar, Select, SkeletonCards, StatCard, StatusBadge, Tabs, UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import { MeetingList, ScheduleMeetingModal } from '../app/Meetings.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -725,7 +724,7 @@ export default function GroupDetail() {
         back={{ to: '/app/osusu', label: 'Groups' }}
         title={
           <span className="group-hero">
-            <span className="gimg">{g.imageUrl ? <img src={g.imageUrl} alt="" /> : <UsersRound size={26} />}</span>
+            <GroupAvatar name={g.name} src={g.imageUrl} size="large" eager />
             <span>
               {g.name}
               <span className="row-wrap" style={{ marginTop: 4 }}>

@@ -23,6 +23,13 @@ const REFERRAL_COLUMNS =
   'id, referrer_id, referred_user_id, code, status, status_reason, flag_status, flag_reasons, flag_decided_at, flag_decision_reason, ' +
   'qualified_at, reward_id, created_at, updated_at';
 
+/** How many people this member has referred (count only, no rows transferred). */
+export async function countForReferrer(referrerId) {
+  const { count, error } = await db.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', referrerId);
+  if (error) throw error;
+  return count || 0;
+}
+
 export async function listForReferrer(referrerId) {
   return run(db.from('referrals')
     .select(`${REFERRAL_COLUMNS}, referred:profiles!referrals_referred_user_id_fkey(first_name, last_name, full_name, account_status), ` +

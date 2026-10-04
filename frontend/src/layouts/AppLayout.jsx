@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -20,7 +20,7 @@ import { usePushRefresh } from '../components/domain/SecuritySettings.jsx';
 function Brand({ compact }) {
   return compact
     ? <BrandLogo variant="mark" height={36} to="/app" />
-    : <BrandLogo variant="stacked" width={132} plate to="/app" />;
+    : <BrandLogo variant="stacked" width={132} tone="dark" to="/app" />;
 }
 
 function NavList({ nav, badges, onNavigate }) {
@@ -60,9 +60,17 @@ export default function AppLayout() {
   const refreshMessages = () =>
     api.get('/messages/conversations').then(({ data }) => setUnreadMessages(data.reduce((s, c) => s + c.unreadCount, 0))).catch(() => {});
 
+  // The badge is kept current by realtime events; the full count is fetched only on start,
+  // after a reconnect (resync) and when leaving a chat (reading it lowers the count) —
+  // not on every navigation (that re-downloaded the whole conversation list each time).
+  const wasInChat = useRef(false);
   useEffect(() => {
     if (user?.emailVerified) refreshMessages();
-  }, [user?.emailVerified, location.pathname]);
+  }, [user?.emailVerified]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (wasInChat.current && !inChat && user?.emailVerified) refreshMessages();
+    wasInChat.current = inChat;
+  }, [inChat]); // eslint-disable-line react-hooks/exhaustive-deps
   // Back after a dropped connection or from the background: recount what arrived meanwhile.
   useRealtimeEvent('resync', () => { if (user?.emailVerified) refreshMessages(); });
   // Notification sound: security alerts always sound; other notifications follow the settings.

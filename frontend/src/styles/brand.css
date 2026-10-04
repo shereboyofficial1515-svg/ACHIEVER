@@ -68,7 +68,9 @@
 .footer-links a { color: var(--color-text-muted); min-height: 32px; display: inline-flex; align-items: center; }
 @media (min-width: 700px) { .footer-links { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-/* Dark theme: the official logo's navy wordmark needs its white plate to stay legible. */
-html[data-theme="dark"] .brand-logo > picture:has(img[src*="achiever-logo"]) {
-  background: #ffffff; border-radius: var(--radius); padding: 8px 12px; box-shadow: var(--shadow-sm);
-}
+/* Official logo: the light-surface artwork in light mode, the original (white) artwork in dark mode. */
+.brand-img { display: block; max-width: 100%; object-fit: contain; }
+.brand-auto { display: inline-flex; }
+.brand-auto > .brand-on-dark { display: none; }
+html[data-theme="dark"] .brand-auto > .brand-on-light { display: none; }
+html[data-theme="dark"] .brand-auto > .brand-on-dark { display: block; }

@@ -43,7 +43,7 @@ export default function Messages() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [composing, setComposing] = useState(false);
-  const convs = useAsync(() => api.get('/messages/conversations'), []);
+  const convs = useAsync(() => api.get('/messages/conversations'), [], { cacheKey: 'conversations' });
 
   useRealtimeEvent('message.new', (m) => {
     convs.setData(

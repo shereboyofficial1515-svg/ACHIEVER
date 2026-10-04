@@ -1,3 +1,4 @@
+import { clearAsyncCache } from '../hooks/useAsync.js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, setSessionEndedHandler } from '../services/api.js';
 import { disablePushForSignOut } from '../services/pushDevice.js';
@@ -26,6 +27,9 @@ export function AuthProvider({ children }) {
   // unreachable  : the API could not be reached (offline / server waking up); the session is kept
   const [status, setStatus] = useState('loading');
   const [wasSignedIn] = useState(hint.get);
+
+  // Cached screen data belongs to one account only.
+  useEffect(() => { clearAsyncCache(); }, [user?.id]);
 
   const loadMe = useCallback(async ({ quiet = false } = {}) => {
     try {

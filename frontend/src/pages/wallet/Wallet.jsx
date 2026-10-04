@@ -7,7 +7,7 @@ import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { formatDateTime, naira } from '../../utils/format.js';
-import { STATUS_LABEL, TX_FILTERS, balanceHidden, iconFor, setBalanceHidden } from './walletShared.js';
+import { BANK_STATUS, STATUS_LABEL, TX_FILTERS, balanceHidden, iconFor, setBalanceHidden } from './walletShared.js';
 
 export function TxRow({ t }) {
   const Icon = iconFor(t);
@@ -21,7 +21,9 @@ export function TxRow({ t }) {
       </div>
       <div style={{ textAlign: 'right' }}>
         <span className={`wallet-tx-amount${credit ? ' is-credit' : ''}`}>{credit ? '+' : '−'}{naira(t.amount)}</span>
-        {t.status !== 'success' && <p className="xsmall muted" style={{ margin: 0 }}>{STATUS_LABEL[t.status] || t.status}</p>}
+        {t.transferStatus ? (
+          <span className={`badge badge-${BANK_STATUS[t.transferStatus]?.tone || 'neutral'} tx-status-badge`}>{BANK_STATUS[t.transferStatus]?.label || t.transferStatus}</span>
+        ) : t.status !== 'success' && <p className="xsmall muted" style={{ margin: 0 }}>{STATUS_LABEL[t.status] || t.status}</p>}
       </div>
     </Link>
   );

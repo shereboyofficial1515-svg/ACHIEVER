@@ -313,6 +313,12 @@ export async function findRecentOpenBankTransfer(userId, { bankCode, accountNumb
   return one(q.maybeSingle());
 }
 
+/** Current status of several bank transfers at once (for the wallet history page). */
+export async function bankTransferStatuses(ids) {
+  if (!ids.length) return [];
+  return run(db.from('wallet_bank_transfers').select('id, status').in('id', ids));
+}
+
 export async function listOpenBankTransfers({ olderThan, limit = 50 }) {
   return run(db.from('wallet_bank_transfers').select(BANK).in('status', ['PENDING', 'PROCESSING']).eq('execution_mode', 'paystack_transfer')
     .lt('updated_at', olderThan).order('updated_at').limit(limit));

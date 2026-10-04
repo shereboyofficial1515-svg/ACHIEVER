@@ -486,3 +486,5 @@ html[data-theme='dark'] .wallet-hero { color: var(--color-on-primary); }
 .tx-step.is-done:not(:last-child)::before { background: var(--color-green-primary); }
 .tx-step.is-current { color: var(--color-text-primary); font-weight: 600; }
 .tx-step.is-current svg { color: var(--color-info-text); }
+
+.tx-status-badge { margin-top: 2px; font-size: 11px; }

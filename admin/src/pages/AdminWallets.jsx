@@ -285,6 +285,10 @@ function BankTransferActions({ t, onDone, onClose }) {
           t.providerCost != null && ['Provider cost', `${naira(t.providerCost)}${t.providerCostEstimated ? ' (estimated)' : ''}`],
           t.manualReference && ['Bank reference', t.manualReference],
           t.failureReason && ['Reason', t.failureReason],
+          t.reconciliation && ['Reconciliation', t.reconciliation],
+          t.attempts != null && ['Provider attempts', String(t.attempts)],
+          t.lastCheckedAt && ['Last verified with Paystack', new Date(t.lastCheckedAt).toLocaleString('en-NG')],
+          ['Created', new Date(t.createdAt).toLocaleString('en-NG')],
         ].filter(Boolean)} />
         {t.executionMode === 'manual' && t.status === 'PENDING' && can('wallet.payouts') && (
           <Card title="Manual payout">

@@ -61,9 +61,13 @@ export async function call(method, path, body, { kind = 'catalog', fetchImpl = f
     const latencyMs = Date.now() - started;
     const authFailure = res.status === 401 || res.status === 403 || json?.code === '087';
     const serverFailure = res.status >= 500 || !json;
+    // Account-level refusals arrive as HTTP 200 with a code: they make the provider unusable
+    // for members, so health must not say "operational" (018 low balance, 023 API access,
+    // 027 IP not whitelisted, 028 product not whitelisted).
+    const accountRefusal = ['018', '023', '027', '028'].includes(String(json?.code ?? ''));
     providerHealth.record(PROVIDER, {
-      ok: !authFailure && !serverFailure, latencyMs, kind,
-      errorCode: authFailure ? 'AUTHENTICATION_FAILED' : serverFailure ? `HTTP_${res.status}` : null,
+      ok: !authFailure && !serverFailure && !accountRefusal, latencyMs, kind,
+      errorCode: authFailure ? 'AUTHENTICATION_FAILED' : serverFailure ? `HTTP_${res.status}` : accountRefusal ? `VTPASS_${json.code}` : null,
       configured: isConfigured(),
     });
     return { httpStatus: res.status, json, networkError: false, latencyMs };

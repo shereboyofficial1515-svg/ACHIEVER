@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { describeCode } from './vtpass/health.js';
 import { getBillProvider } from '../integrations/bills/index.js';
 import * as billRepo from '../repositories/billRepository.js';
 import * as txRepo from '../repositories/transactionSecurityRepository.js';
@@ -37,7 +38,9 @@ import { localPhone, maskIdentifier, vtpassRequestId } from '../utils/vtpass.js'
 const secrets = createSecretBox(env.dataEncryptionKey, 'achiever-bill-secrets');
 const QUOTE_MINUTES = 15;
 
-export const MESSAGES = {
+export // VTpass account-level refusals (not the member's fault; nothing was charged by the provider).
+const ACCOUNT_REFUSALS = new Set(['018', '023', '027', '028', '087']);
+const MESSAGES = {
   unavailable: 'Bill payment is temporarily unavailable. Please try again shortly.',
   pending: 'Your transaction is being processed. We will update you when the provider confirms it.',
   failed: 'The transaction was not completed.',
@@ -596,7 +599,12 @@ function format(b, { admin = false } = {}) {
     total: Number(b.total_amount),
     status: publicStatus(b),
     internalStatus: admin ? b.status : undefined,
-    message: b.status === 'processing' ? MESSAGES.pending : ['refund_pending', 'failed'].includes(b.status) ? MESSAGES.failed : null,
+    message: b.status === 'processing' ? MESSAGES.pending
+      : b.status === 'refunded' && ACCOUNT_REFUSALS.has(b.last_provider_code) ? 'This service is temporarily unavailable from our provider. Your money has been returned to your wallet.'
+        : b.status === 'refunded' ? 'This purchase could not be completed. Your money has been returned to your wallet.'
+          : ['refund_pending', 'failed'].includes(b.status) ? MESSAGES.failed : null,
+    providerCode: admin ? b.last_provider_code ?? null : undefined,
+    providerCodeMeaning: admin && b.last_provider_code ? describeCode(b.last_provider_code) : undefined,
     hasSecrets: Boolean(b.secure_payload),
     units: b.units,
     providerReference: b.provider_reference,

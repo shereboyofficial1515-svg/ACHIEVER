@@ -195,6 +195,8 @@ export async function processWebhook(webhookId, event) {
         // Wallet → bank transfers have their own references; everything else is a group/collector payout.
         if (String(data.reference || '').startsWith('ACH-WBT-')) {
           await (await import('./bankTransferService.js')).handleTransferEvent(event.event, data);
+        } else if (String(data.reference || '').startsWith('ACH-BWD-')) {
+          await (await import('./businessWalletService.js')).handleTransferEvent(event.event, data);
         } else {
           await (await payoutService()).handleTransferEvent(event.event, data);
         }

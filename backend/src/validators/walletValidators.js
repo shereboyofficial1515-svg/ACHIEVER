@@ -109,3 +109,18 @@ export const feeProposal = z.object({
 });
 export const feeServiceParam = z.object({ service: z.string().regex(/^[a-z_]{3,40}$/) });
 export const feeRevenue = z.object({ from: z.string().datetime({ offset: true }).optional(), to: z.string().datetime({ offset: true }).optional() });
+
+// Admin finance (business wallet) -------------------------------------------------------------------
+export const businessAccount = z.object({
+  bankCode: z.string().trim().regex(/^[A-Za-z0-9-]{2,20}$/, 'Choose a bank'),
+  accountNumber: z.string().trim().regex(/^\d{10}$/, 'Enter the 10-digit account number'),
+  reason: z.string().trim().min(10, 'Give a reason (at least 10 characters)').max(300),
+}).strict();
+export const businessDecision = z.object({ approve: z.boolean(), note: z.string().trim().max(300).optional().nullable() }).strict();
+export const businessWithdrawal = z.object({
+  amount: z.coerce.number().int().min(100).max(100_000_000_000),
+  reason: z.string().trim().min(10, 'Give a reason (at least 10 characters)').max(300),
+}).strict();
+export const businessWithdrawalList = z.object({
+  status: z.enum(['PENDING_APPROVAL', 'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'REVERSED', 'REJECTED', 'CANCELLED']).optional(),
+});

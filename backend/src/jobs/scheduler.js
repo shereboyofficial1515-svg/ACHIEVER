@@ -9,6 +9,7 @@ import * as billService from '../services/billService.js';
 import * as referralService from '../services/referralService.js';
 import * as walletService from '../services/walletService.js';
 import * as bankTransferService from '../services/bankTransferService.js';
+import * as businessWalletService from '../services/businessWalletService.js';
 import * as notificationService from '../services/notificationService.js';
 import * as inviteRepo from '../repositories/inviteRepository.js';
 import * as adminService from '../services/adminService.js';
@@ -50,6 +51,7 @@ export const JOBS = [
   { name: 'payouts.execute', schedule: '*/5 * * * *', ttl: 280, run: () => payoutService.executeReady() },
   { name: 'bills.pending', schedule: '*/2 * * * *', ttl: 110, run: () => billService.processPending() },
   { name: 'wallet.bank_transfers', schedule: '*/3 * * * *', ttl: 170, run: () => bankTransferService.processOpen() },
+  { name: 'business.withdrawals', schedule: '*/3 * * * *', ttl: 170, run: () => businessWalletService.processOpen() },
   { name: 'wallet.mandates', schedule: '25 * * * *', ttl: 900, run: () => walletService.runMandates() },
   { name: 'referrals.qualify', schedule: '17 * * * *', ttl: 900, run: () => referralService.runJob() },
   // Delivery

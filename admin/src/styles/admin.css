@@ -91,3 +91,16 @@ a.metric:hover { border-color: var(--navy-600); }
 
 /* Theme switch in the admin top bar */
 .theme-select { min-height: 32px; padding: 4px 8px; font-size: 0.8rem; width: auto; }
+
+/* Finance: each money bucket has its own colour so customer funds never read as revenue */
+.finance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--s-3, 12px); }
+.finance-bucket { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-left: 4px solid var(--color-border); }
+.finance-bucket-title { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-secondary); }
+.finance-bucket-amount { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.finance-bucket.is-customer { border-left-color: #2563eb; }
+.finance-bucket.is-pending { border-left-color: #b45309; }
+.finance-bucket.is-revenue { border-left-color: #0a8754; }
+.finance-bucket.is-provider { border-left-color: #6d28d9; }
+.check-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.check-list li.ok strong { color: var(--color-success-text); }
+.check-list li.bad strong { color: var(--color-error-text); }

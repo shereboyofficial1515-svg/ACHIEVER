@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
-  Activity, BadgeCheck, Banknote, ClipboardCheck, Coins, Eye, FileText, Gauge, Gift, GitBranch, HandCoins, KeyRound, LifeBuoy, LogOut, Menu, MessageSquare, Receipt, ScrollText, Settings, ShieldAlert, ShieldCheck, Trash2, UserCog, Users, UsersRound, Wallet, X, Zap,
-} from 'lucide-react';
+  Activity, BadgeCheck, Banknote, ClipboardCheck, Coins, Eye, FileText, Gauge, Gift, GitBranch, HandCoins, KeyRound, LifeBuoy, LogOut, Menu, MessageSquare, Receipt, ScrollText, Settings, ShieldAlert, ShieldCheck, Trash2, UserCog, Users, UsersRound, Wallet, X, Zap, Landmark } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useConfirm } from '../components/ui/ConfirmProvider.jsx';
 import { pushOverlay } from '../platform/overlays.js';
@@ -24,6 +23,7 @@ export const NAV = [
     { to: '/approvals', label: 'Approvals', icon: ClipboardCheck, perms: ['finance.reversal.request', 'finance.reversal.approve', 'collectors.status', 'risk.review', 'finance.payouts.execute'] },
     { to: '/bills', label: 'Bills & Services', icon: Zap, perms: ['finance.ledger.read', 'support.tickets', 'bills.manage'] },
     { to: '/wallets', label: 'Wallets', icon: Wallet, perms: ['wallet.read', 'wallet.manage', 'wallet.adjust', 'wallet.payouts'] },
+    { to: '/finance', label: 'Finance', icon: Landmark, perms: ['business.read'] },
     { to: '/fees', label: 'Fees & Charges', icon: Coins, perms: ['fees.read', 'fees.manage', 'fees.approve'] },
     { to: '/referrals', label: 'Referrals', icon: Gift, perms: ['referrals.read'] },
   ] },

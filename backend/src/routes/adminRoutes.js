@@ -28,6 +28,7 @@ import * as bp from '../controllers/billPaymentController.js';
 import * as ts from '../controllers/transactionSecurityController.js';
 import * as wc from '../controllers/walletController.js';
 import * as wv from '../validators/walletValidators.js';
+import * as fin from '../controllers/financeController.js';
 
 const p = requirePermission;
 // Sensitive actions: permission + an authenticator code entered within the last few minutes.
@@ -122,6 +123,17 @@ r.post('/wallets/bank-transfers/:id/refund', ...sensitive('wallet.payouts'), ide
 r.post('/wallets/bank-transfers/:id/requery', p('wallet.payouts', 'wallet.manage'), validate({ params: idParam }), wc.adminBankRequery);
 
 // Fees & Charges (proposed by one administrator, approved by another; every version kept)
+// Finance: business wallet (platform revenue only), company payout account, provider float
+r.get('/finance/overview', p('business.read'), fin.overview);
+r.get('/finance/banks', p('business.accounts', 'business.read'), fin.banks);
+r.post('/finance/vtpass-check', p('providers.check', 'business.read'), fin.vtpassCheck);
+r.get('/finance/accounts', p('business.read'), fin.accounts);
+r.post('/finance/accounts', ...sensitive('business.accounts'), validate({ body: wv.businessAccount }), fin.proposeAccount);
+r.post('/finance/accounts/:id/decision', ...sensitive('business.approve'), validate({ params: idParam, body: wv.businessDecision }), fin.decideAccount);
+r.get('/finance/withdrawals', p('business.read'), validate({ query: wv.businessWithdrawalList }), fin.withdrawals);
+r.post('/finance/withdrawals', ...sensitive('business.withdraw'), idempotent, validate({ body: wv.businessWithdrawal }), fin.requestWithdrawal);
+r.post('/finance/withdrawals/:id/decision', ...sensitive('business.approve'), validate({ params: idParam, body: wv.businessDecision }), fin.decideWithdrawal);
+r.post('/finance/withdrawals/:id/cancel', p('business.withdraw'), validate({ params: idParam }), fin.cancelWithdrawal);
 r.get('/fees', p('fees.read', 'fees.manage', 'fees.approve'), wc.adminFees);
 r.get('/fees/revenue', p('fees.read', 'finance.ledger.read'), validate({ query: wv.feeRevenue }), wc.adminFeeRevenue);
 r.get('/fees/services/:service/history', p('fees.read', 'fees.manage', 'fees.approve'), validate({ params: wv.feeServiceParam }), wc.adminFeeHistory);

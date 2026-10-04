@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Select } from '../ui/index.js';
+import { SearchableSelect, StateSelect } from '../ui/index.js';
 import { api } from '../../services/api.js';
 
 let statesCache = null;
@@ -44,21 +44,21 @@ export default function LocationPicker({ stateCode, lgaId, onChange, errors = {}
 
   return (
     <div className="grid-2">
-      <Select
-        label="State"
-        placeholder="Choose a state"
+      <StateSelect
+        states={states}
+        loading={!states.length && !loadError}
         value={stateCode || ''}
-        onChange={(e) => onChange({ stateCode: e.target.value, lgaId: '' })}
-        options={states.map((s) => ({ value: s.code, label: s.name }))}
+        onChange={(code) => onChange({ stateCode: code, lgaId: '' })}
         error={errors.stateCode || loadError}
         disabled={disabled}
         required
       />
-      <Select
+      <SearchableSelect
         label="Local government area"
         placeholder={stateCode ? 'Choose an LGA' : 'Choose a state first'}
+        searchPlaceholder="Search LGAs…"
         value={lgaId ? String(lgaId) : ''}
-        onChange={(e) => onChange({ stateCode, lgaId: e.target.value })}
+        onChange={(id) => onChange({ stateCode, lgaId: id })}
         options={lgas.map((l) => ({ value: String(l.id), label: l.name }))}
         error={errors.lgaId}
         disabled={disabled || !stateCode}

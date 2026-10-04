@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BellRing, Fingerprint, Grid3x3, KeyRound } from 'lucide-react';
 import { Alert, AsyncContent, Button, Card, Checkbox, Input, fieldErrors } from '../ui/index.js';
 import SecureKeypad from '../ui/SecureKeypad.jsx';
@@ -104,6 +104,7 @@ export function BiometricSection() {
   const [local, setLocal] = useState(() => biometricEnrolment());
   const devices = useAsync(() => api.get('/security/biometric/devices'), []);
   const [password, setPassword] = useState('');
+  const passwordRef = useRef(null);
   const [step, setStep] = useState('idle');
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
@@ -116,7 +117,7 @@ export function BiometricSection() {
     return run(async () => {
       setError(null);
       try {
-        const { data: start } = await api.post('/security/biometric/enrol/start', { password });
+        const { data: start } = await api.post('/security/biometric/enrol/start', { password: passwordRef.current?.value || password });
         const publicKey = await createBiometricKey();
         let signature;
         try {
@@ -179,9 +180,9 @@ export function BiometricSection() {
           </div>
         ) : step === 'password' ? (
           <form className="stack" onSubmit={enable}>
-            <Input label="Your sign-in password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fieldErrors(error).password} />
+            <Input ref={passwordRef} label="Your sign-in password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fieldErrors(error).password} />
             <div className="row-wrap">
-              <Button type="submit" loading={pending} disabled={!password}>Continue</Button>
+              <Button type="submit" loading={pending}>Continue</Button>
               <Button variant="secondary" onClick={() => { setStep('idle'); setPassword(''); }}>Cancel</Button>
             </div>
           </form>

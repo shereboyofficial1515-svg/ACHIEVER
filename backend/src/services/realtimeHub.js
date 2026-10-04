@@ -58,14 +58,39 @@ export async function publishToConversation(conversationId, event, payload, exce
   publishToUsers(members.filter((id) => id !== exceptUserId && clients.has(id)), event, payload);
 }
 
-async function onMessage(row) {
-  const members = await conversationMembers(row.conversation_id);
+/** Is this user connected to this API instance right now (app open and in the foreground)? */
+export function isConnected(userId) {
+  return clients.has(userId);
+}
+
+// Messages sent through the API are published straight away (no dependency on the database
+// change feed). The change feed still delivers messages written elsewhere (system and call
+// messages); ids published recently are skipped so nobody receives a message twice.
+const recentlyPublished = new Map(); // messageId -> time
+function rememberPublished(id) {
+  const now = Date.now();
+  recentlyPublished.set(id, now);
+  if (recentlyPublished.size > 2000) {
+    for (const [k, t] of recentlyPublished) if (now - t > 120_000) recentlyPublished.delete(k);
+  }
+}
+
+/** Deliver a new (formatted) message to the conversation's connected members. */
+export async function publishMessage(message) {
+  rememberPublished(message.id);
+  const members = await conversationMembers(message.conversationId);
   const local = members.filter((id) => clients.has(id));
   if (!local.length) return;
-  const [full, muted] = await Promise.all([messageRepo.findMessage(row.id), messageRepo.mutedMemberIds(row.conversation_id, local).catch(() => [])]);
-  if (!full) return;
-  const message = formatMessage(full);
+  const muted = await messageRepo.mutedMemberIds(message.conversationId, local).catch(() => []);
   for (const id of local) publishToUser(id, 'message.new', muted.includes(id) ? { ...message, muted: true } : message);
+}
+
+async function onMessage(row) {
+  if (recentlyPublished.has(row.id)) return;
+  const members = await conversationMembers(row.conversation_id);
+  if (!members.some((id) => clients.has(id))) return;
+  const full = await messageRepo.findMessage(row.id);
+  if (full) await publishMessage(formatMessage(full));
 }
 
 function onNotification(row) {
@@ -96,6 +121,8 @@ async function onCall(row, eventType) {
 }
 
 let channel;
+let retryTimer;
+let retryDelay = 2_000;
 export function startRealtimeBridge() {
   if (!env.ENABLE_REALTIME_BRIDGE || env.isTest || channel) return;
   const safe = (fn) => (payload) => Promise.resolve(fn(payload)).catch((err) => logger.warn({ err: err.message }, 'realtime handler error'));
@@ -110,13 +137,34 @@ export function startRealtimeBridge() {
       if (id) memberCache.delete(id);
     })
     .subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') logger.info('realtime bridge subscribed');
-      else if (err) logger.warn({ status, err: err.message }, 'realtime bridge status');
-      else logger.info({ status }, 'realtime bridge status');
+      if (status === 'SUBSCRIBED') {
+        retryDelay = 2_000;
+        logger.info('realtime bridge subscribed');
+        return;
+      }
+      logger.warn({ status, err: err?.message }, 'realtime bridge status');
+      // A failed, timed-out or closed channel never comes back by itself: subscribe again
+      // with backoff, otherwise the change feed would stay silent until the next deploy.
+      if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) scheduleBridgeRestart();
     });
 }
 
+function scheduleBridgeRestart() {
+  if (retryTimer || !channel) return;
+  const old = channel;
+  retryTimer = setTimeout(async () => {
+    retryTimer = undefined;
+    if (channel !== old) return;
+    channel = undefined;
+    await supabaseAdmin.removeChannel(old).catch(() => {});
+    startRealtimeBridge();
+  }, retryDelay);
+  retryDelay = Math.min(retryDelay * 2, 60_000);
+}
+
 export async function stopRealtimeBridge() {
+  clearTimeout(retryTimer);
+  retryTimer = undefined;
   if (channel) await supabaseAdmin.removeChannel(channel);
   channel = undefined;
   for (const set of clients.values()) for (const res of set) res.end();

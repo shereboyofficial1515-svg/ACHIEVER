@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyRound, MailCheck } from 'lucide-react';
 import { Alert, Button, Input, fieldErrors } from '../ui/index.js';
 import { api } from '../../services/api.js';
@@ -13,6 +13,7 @@ import { api } from '../../services/api.js';
  */
 export default function SecurityChallenge({ action, intro, children }) {
   const [password, setPassword] = useState('');
+  const passwordRef = useRef(null);
   const [challenge, setChallenge] = useState(null);
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
@@ -30,7 +31,7 @@ export default function SecurityChallenge({ action, intro, children }) {
     setPending(true);
     setError(null);
     try {
-      const { data } = await api.post('/auth/challenges', { action, password });
+      const { data } = await api.post('/auth/challenges', { action, password: passwordRef.current?.value || password });
       setChallenge(data);
       setCode('');
       setCooldown(60);
@@ -47,9 +48,9 @@ export default function SecurityChallenge({ action, intro, children }) {
       <form className="stack" onSubmit={send}>
         {intro && <p className="small muted">{intro}</p>}
         {error && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
-        <Input label="Current password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fe.password} />
+        <Input ref={passwordRef} label="Current password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fe.password} />
         <div>
-          <Button type="submit" icon={KeyRound} loading={pending} disabled={!password}>Send security code</Button>
+          <Button type="submit" icon={KeyRound} loading={pending}>Send security code</Button>
         </div>
       </form>
     );

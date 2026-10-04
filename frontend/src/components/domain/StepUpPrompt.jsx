@@ -11,6 +11,7 @@ import { api, setStepUpHandler } from '../../services/api.js';
 export default function StepUpPrompt() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
+  const passwordRef = useRef(null);
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
   const resolver = useRef(null);
@@ -39,7 +40,7 @@ export default function StepUpPrompt() {
     setPending(true);
     setError(null);
     try {
-      await api.post('/auth/step-up', { password });
+      await api.post('/auth/step-up', { password: passwordRef.current?.value || password });
       finish(true);
     } catch (err) {
       setError(err);
@@ -59,7 +60,7 @@ export default function StepUpPrompt() {
           <Button variant="secondary" onClick={() => finish(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button icon={ShieldCheck} onClick={confirm} loading={pending} disabled={!password}>
+          <Button icon={ShieldCheck} onClick={confirm} loading={pending}>
             Confirm
           </Button>
         </>
@@ -68,7 +69,7 @@ export default function StepUpPrompt() {
       <form className="stack" onSubmit={confirm}>
         <p className="muted small">This is a sensitive action. Enter your password to continue. You won&apos;t be asked again for a few minutes.</p>
         {error && <Alert tone="danger">{error.message}</Alert>}
-        <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <Input ref={passwordRef} label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </form>
     </Modal>
   );

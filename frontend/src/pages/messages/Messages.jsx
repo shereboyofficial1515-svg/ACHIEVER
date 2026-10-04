@@ -93,7 +93,7 @@ export default function Messages() {
               <UserAvatar name={c.title} src={c.otherUser?.avatarUrl || c.imageUrl} online={c.otherUser ? c.otherUser.online : undefined} size={42} />
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="row-between">
-                  <strong className="truncate">{c.title}{c.mutedUntil && <BellOff size={13} className="muted conv-muted" aria-label="Muted" />}</strong>
+                  <span className="conv-title"><strong className="truncate">{c.title}</strong>{c.mutedUntil && <BellOff size={13} className="muted conv-muted" aria-label="Muted" />}</span>
                   <span className="xsmall muted nowrap">{relativeTime(c.lastMessageAt)}</span>
                 </span>
                 <span className="row-between">

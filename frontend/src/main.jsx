@@ -8,6 +8,7 @@ import { PreferencesProvider } from './contexts/PreferencesContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { ConfirmProvider } from './components/ui/ConfirmProvider.jsx';
 import { initPlatform } from './platform/index.js';
+import { unlockSoundsOnFirstGesture } from './utils/sounds.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
@@ -19,6 +20,7 @@ import './styles/brand.css';
 
 initPlatform();
 
+unlockSoundsOnFirstGesture();
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

@@ -10,8 +10,8 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 
-const api = process.env.ACHIEVER_API_URL || 'https://achiever-api-uu08.onrender.com';
-const site = process.env.ACHIEVER_SITE_URL || 'https://achiever-nine.vercel.app';
+const api = process.env.ACHIEVER_API_URL || 'https://api.achieverng.site';
+const site = process.env.ACHIEVER_SITE_URL || 'https://achieverng.site';
 for (const [name, value] of [['API', api], ['SITE', site]]) {
   if (!/^https:\/\//.test(value) || /localhost|127\.0\.0\.1/.test(value)) {
     console.error(`${name} URL must be a public https:// address for the Android build (got ${value}).`);

@@ -33,7 +33,7 @@ npm run android:build        # web build pointed at the production API + cap syn
 npm run android:open         # opens Android Studio
 ```
 
-`android:build` uses `https://achiever-api-uu08.onrender.com` and `https://achiever-nine.vercel.app`.
+`android:build` uses `https://api.achieverng.site` and `https://achieverng.site` (override with ACHIEVER_API_URL / ACHIEVER_SITE_URL).
 It refuses `localhost` and plain `http`.
 Override with `ACHIEVER_API_URL` / `ACHIEVER_SITE_URL` for a staging build.
 

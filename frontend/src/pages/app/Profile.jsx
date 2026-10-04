@@ -1,11 +1,14 @@
+import { resizeImageFile } from '../../utils/imageResize.js';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Copy, Landmark, Lock, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
+import { Camera, Copy, Gift, Landmark, Lock, Mail, MonitorSmartphone, Pencil, Settings as SettingsIcon, Share2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import {
-  Alert, AsyncContent, BankSelect, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, PageHeader, Select, StatusBadge, Textarea,
+  Alert, AsyncContent, BankSelect, Button, Card, Checkbox, ConfirmDialog, EmptyState, Input, KeyValue, PageHeader, Select, Skeleton, StatusBadge, Textarea,
   UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import LocationPicker from '../../components/domain/LocationPicker.jsx';
+import { GroupListItem, ProfileListItem, ProfileSection, StatGrid, VerificationCard, VerifiedBadge, WalletSummaryCard } from '../../components/domain/ProfileParts.jsx';
+import { shareContent } from '../../platform/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
@@ -111,7 +114,7 @@ export function Details() {
     e.target.value = '';
     if (!file) return;
     try {
-      const { data } = await api.upload('/profiles/me/avatar', file);
+      const { data } = await api.upload('/profiles/me/avatar', await resizeImageFile(file));
       setUser({ ...user, avatarUrl: data.avatarUrl });
       toast.success('Photo updated');
     } catch (err) {
@@ -476,72 +479,95 @@ export function Deactivate() {
   );
 }
 
-/** The old Profile page now lives in Settings. */
-/** My Profile: a first-class page (nav + header avatar), not buried in Settings. */
+/**
+ * My Profile: a financial identity dashboard. One request for the profile summary
+ * (stats, verification, groups) plus the wallet (always fresh from the server).
+ * The signed-in user's details come from the session (no extra request).
+ */
 export default function Profile() {
   const { user } = useAuth();
   const toast = useToast();
-  const trust = useAsync(() => api.get(`/users/${user.id}/trust`), [user.id]);
-  const wallet = useAsync(() => api.get('/wallet').catch(() => ({ data: null })), []);
-  const t = trust.data;
-  const verifiedCount = t ? Object.values(t.verification || {}).filter(Boolean).length : 0;
+  const summary = useAsync(() => api.get('/users/me/profile-summary'), [user.id], { cacheKey: `profile-summary:${user.id}` });
+  const wallet = useAsync(() => api.get('/wallet'), []);
+  const s = summary.data;
+  const verified = Boolean(s && s.verification?.identity && s.verification?.email && user.status === 'active');
+  const name = user.preferredName ? `${user.preferredName} ${user.lastName || ''}`.trim() : user.fullName;
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); toast.success('Wallet account number copied'); } catch { toast.error('Could not copy'); }
   };
+  const share = async () => {
+    try {
+      const how = await shareContent({ title: `${name} on ACHIEVER`, text: `Connect with ${name} on ACHIEVER.`, url: `${window.location.origin}/app/people/${user.id}` });
+      if (how === 'copied') toast.success('Profile link copied');
+    } catch { toast.error('Could not share'); }
+  };
+
   return (
-    <div className="stack-lg profile-page">
-      <section className="profile-hero" aria-label="My profile">
-        <UserAvatar name={user.fullName} src={user.avatarUrl} size={96} />
-        <h1 className="profile-name">{user.fullName}</h1>
-        <p className="small muted">
-          {t ? `Member since ${formatDate(t.memberSince)}` : ' '}{t?.location ? ` · ${t.location}` : ''}
-        </p>
-        <div className="profile-badges">
-          {user.emailVerified && <span className="badge badge-success"><ShieldCheck size={13} aria-hidden /> Verified email</span>}
-          {t?.verification?.identity && <span className="badge badge-success"><ShieldCheck size={13} aria-hidden /> ID verified</span>}
-          {t && <span className="badge badge-neutral">{verifiedCount} of 4 checks</span>}
-          <span className={`badge badge-${user.status === 'active' ? 'success' : 'warning'}`}>{user.status === 'active' ? 'Account active' : `Account ${String(user.status || '').replace('_', ' ')}`}</span>
+    <div className="profile-page stack-lg">
+      <section className="profile-header" aria-label="My profile">
+        <div className="profile-banner" aria-hidden />
+        <div className="profile-header-body">
+          <UserAvatar name={user.fullName} src={user.avatarUrl} size={104} eager label={`${user.fullName} profile photo`} className="profile-header-avatar" />
+          <div className="profile-header-text">
+            <h1 className="profile-name">{name} <VerifiedBadge verified={verified} /></h1>
+            {[user.occupation, s?.location].filter(Boolean).length > 0 && (
+              <p className="profile-sub">{[user.occupation, s?.location].filter(Boolean).join(' · ')}</p>
+            )}
+            <p className="profile-sub muted">{s ? `Member since ${formatDate(s.memberSince)}` : '\u00a0'}</p>
+          </div>
+          <div className="profile-actions">
+            <Button to="/app/profile/edit" icon={Pencil}>Edit profile</Button>
+            <Button variant="secondary" icon={Share2} onClick={share}>Share</Button>
+            <Button to="/app/settings" variant="secondary" icon={SettingsIcon} aria-label="Profile settings">Settings</Button>
+          </div>
         </div>
-        <div className="row-wrap profile-actions">
-          <Button to="/app/profile/edit">Edit profile</Button>
-          <Button to="/app/settings/privacy" variant="secondary" icon={Lock}>Privacy</Button>
-          <Button to="/app/settings/security" variant="secondary" icon={ShieldCheck}>Security</Button>
-        </div>
+        {s ? (
+          <StatGrid items={[
+            { label: 'Groups', value: s.stats.groups },
+            { label: 'Completed', value: s.stats.completedGroups },
+            { label: 'Contributions', value: s.stats.contributions },
+            { label: 'Referrals', value: s.stats.referrals },
+          ]} />
+        ) : summary.error ? (
+          <p className="small muted" style={{ padding: '0 16px 16px' }}>Statistics are unavailable right now. <button type="button" className="link-button" onClick={summary.reload}>Try again</button></p>
+        ) : <div className="stat-grid is-loading" aria-busy="true"><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /></div>}
       </section>
 
-      {wallet.data?.walletId && (
-        <Card title="ACHIEVER Wallet">
-          <div className="row-between">
-            <div>
-              <p className="xsmall muted" style={{ margin: 0 }}>Wallet account number (not a bank account)</p>
-              <p className="mono" style={{ margin: 0, fontWeight: 700, overflowWrap: 'anywhere' }}>{wallet.data.walletId}</p>
-            </div>
-            <Button variant="secondary" size="sm" icon={Copy} onClick={() => copy(wallet.data.walletId)}>Copy</Button>
-          </div>
-        </Card>
-      )}
+      <div className="profile-columns">
+        <div className="stack-lg">
+          <WalletSummaryCard wallet={wallet.data} loading={wallet.loading} error={wallet.error} />
+          {s ? <VerificationCard verification={s.verification} status={user.status} /> : <Skeleton height={76} />}
 
-      {t && (
-        <Card title="What other members see">
-          <KeyValue items={[
-            ['Name', user.fullName],
-            ['Location', t.location || 'Hidden'],
-            ['Completed OSUSU groups', t.completedGroups],
-            ['Paid on time', t.onTimeRate === null ? '—' : `${t.onTimeRate}%`],
-          ]} />
-          <p className="xsmall muted">Your email, phone number, address, ID documents and balances are never shown to other members.</p>
-        </Card>
-      )}
-
-      <Card title="More">
-        <div className="profile-links">
-          <Link to="/app/settings/notifications">Notifications</Link>
-          <Link to="/app/settings/messages">Messages & chats</Link>
-          <Link to="/app/settings/payment">Payment accounts</Link>
-          <Link to="/app/settings/devices">Devices & sessions</Link>
-          <Link to="/app/settings">All settings</Link>
+          <ProfileSection title="My OSUSU groups" action={<Link to="/app/osusu" className="section-link">See all</Link>}>
+            {!s ? <><Skeleton height={56} /><Skeleton height={56} /></>
+              : s.groups.length ? s.groups.map((g) => <GroupListItem key={g.id} group={g} />)
+                : <p className="small muted section-note">You are not in an OSUSU group yet. <Link to="/app/osusu/join">Join a group</Link> or <Link to="/app/osusu/new">create one</Link>.</p>}
+          </ProfileSection>
         </div>
-      </Card>
+
+        <div className="stack-lg">
+          <ProfileSection title="Account">
+            <ProfileListItem to="/app/profile/edit" icon={UserRound} title="Personal information" description="Name, date of birth, occupation, address" />
+            <ProfileListItem to="/app/settings/email" icon={Mail} title="Contact information" description="Email address and phone number" />
+            <ProfileListItem to="/app/settings/security" icon={Lock} title="Security" description="Password, transaction PIN, biometrics" />
+            <ProfileListItem to="/app/settings/payment" icon={Landmark} title="Bank accounts" description="Payout account for withdrawals" />
+            <ProfileListItem to="/app/referrals" icon={Gift} title="Referral & earnings" description="Your referral code and rewards" />
+            <ProfileListItem to="/app/settings/privacy" icon={ShieldCheck} title="Privacy" description="What other members can see" />
+          </ProfileSection>
+
+          {wallet.data?.walletId && (
+            <ProfileSection title="Wallet account number">
+              <div className="row-between section-note">
+                <span className="mono" style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{wallet.data.walletId}</span>
+                <Button variant="secondary" size="sm" icon={Copy} onClick={() => copy(wallet.data.walletId)}>Copy</Button>
+              </div>
+              <p className="xsmall muted section-note">Share it to receive money from other ACHIEVER members. It is not a bank account number.</p>
+            </ProfileSection>
+          )}
+
+          <p className="xsmall muted section-note">Other members see your name, photo, location (if you allow it) and payment record. Your email, phone, address, ID documents and balances are never shown to them.</p>
+        </div>
+      </div>
     </div>
   );
 }

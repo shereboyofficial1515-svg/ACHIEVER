@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle, ArrowLeft, Ban, BellOff, Check, CheckCheck, ChevronDown, Clock, Copy, FileText, Flag, Info, Megaphone, Mic, MoreVertical, Paperclip,
   Pencil, Phone, Pin, PinOff, Play, Reply, RotateCcw, Search, SendHorizontal, SmilePlus, Trash2, Video, WifiOff, X,
@@ -206,6 +206,7 @@ function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, h
  */
 export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const calls = useCalls();
   const toast = useToast();
   const confirmAction = useConfirm();
@@ -269,6 +270,13 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     }
   }, [conversationId, markRead]);
   useEffect(() => { load(); }, [load]);
+  // Opened from Group info → "Search messages": start in search mode.
+  useEffect(() => {
+    if (searchParams.get('search') === '1') {
+      setSearch({ q: '', results: [] });
+      setSearchParams((p) => { p.delete('search'); return p; }, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scrollToBottom = useCallback((smooth = false) => {
     const el = listRef.current;

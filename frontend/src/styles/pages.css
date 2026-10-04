@@ -70,8 +70,6 @@
 
 /* Group detail --------------------------------------------------------------- */
 .group-hero { display: flex; gap: var(--s-4); align-items: center; }
-.group-hero .gimg { width: 64px; height: 64px; border-radius: var(--radius); background: var(--color-green-light); color: var(--color-success-text); display: grid; place-items: center; flex-shrink: 0; overflow: hidden; }
-.group-hero .gimg img { width: 100%; height: 100%; object-fit: cover; }
 .cycle-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
 .cycle-dot { min-width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 700; background: var(--color-surface-sunken); color: var(--color-text-secondary); border: 2px solid transparent; }
 .cycle-dot.paid_out { background: var(--color-success-bg); color: var(--color-success-text); }
@@ -358,3 +356,107 @@ html[data-theme='dark'] .wallet-hero { color: var(--color-on-primary); }
 .recipient-card-verified { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 600; color: var(--color-success-text); }
 .receipt-share { display: grid; gap: var(--s-3); margin-top: var(--s-2); padding-bottom: var(--s-4); }
 .receipt-share-title { margin: 0; font-size: var(--fs-md); }
+
+/* =====================================================================
+   Profile & group identity system (My Profile, member profile, Group info,
+   Group settings). One set of components, design tokens only.
+   ===================================================================== */
+.badge:has(svg)::before { display: none; }
+.badge svg { flex-shrink: 0; }
+
+/* Section card + rows */
+.profile-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; }
+.profile-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 6px; }
+.profile-section-head h2 { font-size: var(--fs-md); margin: 0; }
+.profile-section-body { display: flex; flex-direction: column; padding: 4px 0; }
+.profile-section-body > .skeleton { margin: 6px 16px; width: auto !important; }
+.section-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: var(--fs-sm); }
+.section-note { padding: 8px 16px; margin: 0; }
+.list-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; border: 0; background: none; color: var(--color-text-primary); text-decoration: none; text-align: left; font: inherit; cursor: pointer; }
+.list-row + .list-row { border-top: 1px solid var(--color-border); }
+.list-row:hover, .list-row:focus-visible { background: var(--color-surface-hover); text-decoration: none; }
+.list-row-icon { width: 38px; height: 38px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--color-green-light); color: var(--color-success-text); }
+.list-row-icon.danger, .list-row.danger { color: var(--color-error-text); }
+.list-row-icon.danger { background: var(--color-error-bg); }
+.list-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.list-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row-desc { font-size: var(--fs-xs); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row-detail { font-size: var(--fs-sm); color: var(--color-text-muted); flex: none; }
+.list-row-chevron { color: var(--color-text-muted); flex: none; }
+.group-row .badge { flex: none; }
+
+/* Identity card (Group info, member profile): avatar above, text below — never overlapping */
+.identity-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: clamp(20px, 5vw, 32px) 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); }
+.identity-text { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.identity-name { font-size: clamp(1.25rem, 4.5vw, 1.6rem); line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
+.identity-meta { margin: 0; color: var(--color-text-muted); font-size: var(--fs-sm); }
+.identity-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.identity-badges .badge { display: inline-flex; align-items: center; gap: 4px; }
+.identity-description { margin: 4px 0 0; max-width: 520px; white-space: pre-wrap; color: var(--color-text-secondary); font-size: var(--fs-sm); }
+.info-topbar-title { font-size: var(--fs-lg); margin: 0; }
+
+/* Facts (OSUSU contribution, status…) */
+.fact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; padding: 8px 16px 12px; }
+.fact-grid dt { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--color-text-muted); }
+.fact-grid dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.fact-grid + .list-row { border-top: 1px solid var(--color-border); }
+
+/* My Profile header: banner + overlapping avatar (flow layout, no absolute text) */
+.profile-header { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; }
+.profile-banner { height: clamp(84px, 18vw, 140px); background:
+  radial-gradient(circle at 85% 20%, rgba(34, 197, 94, 0.35), transparent 45%),
+  linear-gradient(135deg, #050807 0%, #0b1a14 55%, #0f3a26 100%); }
+.profile-header-body { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 0 16px 16px; }
+.profile-header-avatar { margin-top: calc(var(--avatar-size) / -2); }
+.profile-header-avatar .avatar-face { box-shadow: 0 0 0 4px var(--color-surface); }
+.profile-header-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
+.profile-header .profile-name { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 0; font-size: clamp(1.3rem, 5vw, 1.75rem); overflow-wrap: anywhere; }
+.profile-sub { margin: 0; font-size: var(--fs-sm); color: var(--color-text-secondary); }
+.profile-header .profile-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 480px; margin: 4px 0 0; }
+.profile-header .profile-actions .btn { min-height: 44px; padding-inline: 8px; justify-content: center; }
+@media (max-width: 359px) { .profile-header .profile-actions { grid-template-columns: 1fr 1fr; } .profile-header .profile-actions > :first-child { grid-column: 1 / -1; } }
+.verified-badge { color: var(--color-green-primary); flex: none; }
+@media (min-width: 768px) {
+  .profile-header-body { flex-direction: row; align-items: flex-end; text-align: left; flex-wrap: wrap; padding: 0 24px 20px; gap: 16px 20px; }
+  .profile-header-text { flex: 1; padding-bottom: 6px; }
+  .profile-header .profile-name { justify-content: flex-start; }
+  .profile-header .profile-actions { width: auto; grid-template-columns: repeat(3, auto); }
+}
+
+/* Statistics */
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--color-border); }
+.stat-grid-item { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; padding: 12px 4px; text-align: center; min-width: 0; }
+.stat-grid-item + .stat-grid-item { border-left: 1px solid var(--color-border); }
+.stat-grid dd { margin: 0; font-size: clamp(1.05rem, 4vw, 1.35rem); font-weight: 700; }
+.stat-grid dt { font-size: var(--fs-xs); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.stat-grid.is-loading { gap: 8px; padding: 12px; }
+
+/* Wallet summary card */
+.wallet-summary { display: flex; flex-direction: column; gap: 4px; padding: 18px; border-radius: var(--radius); color: #f1f5f3;
+  background: radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.28), transparent 50%), linear-gradient(135deg, #07100c, #0f2f20); }
+.wallet-summary-top { display: flex; align-items: center; justify-content: space-between; }
+.wallet-summary-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a7f3c7; }
+.wallet-summary-eye { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: inherit; display: grid; place-items: center; cursor: pointer; }
+.wallet-summary-caption { font-size: var(--fs-sm); color: #c7d4ce; }
+.wallet-summary-amount { font-size: clamp(1.6rem, 7vw, 2.1rem); font-weight: 800; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.wallet-summary-link { display: inline-flex; align-items: center; gap: 2px; align-self: flex-start; min-height: 44px; color: #86efac; font-weight: 600; }
+
+/* Verification card */
+.verify-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--color-warning-bg); color: var(--color-warning-text); border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent); }
+.verify-card.is-verified { background: var(--color-success-bg); color: var(--color-success-text); border-color: color-mix(in srgb, var(--color-green-primary) 30%, transparent); }
+.verify-card strong { display: block; color: inherit; }
+.verify-card p { margin: 2px 0 0; font-size: var(--fs-sm); }
+
+/* Two columns on wide screens */
+.profile-page { max-width: 1040px; margin-inline: auto; width: 100%; }
+.profile-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-5, 20px); }
+@media (min-width: 900px) { .profile-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
+
+/* Group settings */
+.settings-avatar-row { display: flex; align-items: center; gap: 16px; padding: 8px 16px; }
+.settings-avatar-row .stack-sm { min-width: 0; }
+.settings-fields { display: flex; flex-direction: column; gap: 14px; padding: 8px 16px 14px; }
+.settings-fields .field { margin: 0; }
+.settings-fields textarea { resize: vertical; min-height: 96px; max-width: 100%; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .list-row { transition: none; } }

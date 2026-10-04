@@ -28,7 +28,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const toast = useToast();
   const { review, activeId: paying } = usePaymentReview();
-  const dash = useAsync(() => api.get('/users/me/dashboard'), []);
+  const dash = useAsync(() => api.get('/users/me/dashboard'), [], { cacheKey: 'dashboard' });
   const cardsRef = useReveal({ children: true, deps: [Boolean(dash.data)] });
 
   const pay = (c) => review(

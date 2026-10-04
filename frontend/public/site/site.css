@@ -138,3 +138,9 @@ html[data-motion='reduce'] * { transition: none !important; animation: none !imp
   html:not([data-motion='reduce']) .card, html:not([data-motion='reduce']) .btn { transition: box-shadow 0.15s, border-color 0.15s, background 0.15s; }
 }
 @media print { .site-header, .site-footer, .toc, .search { display: none; } .content { border: 0; } }
+
+/* Official logo: ink artwork on light, original white artwork on dark */
+.brand-on-dark { display: none; }
+html[data-theme='dark'] .brand-on-light { display: none; }
+html[data-theme='dark'] .brand-on-dark { display: block; }
+.logo img, .footer-brand img { object-fit: contain; height: auto; }

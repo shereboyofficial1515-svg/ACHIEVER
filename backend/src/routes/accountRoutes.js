@@ -32,6 +32,7 @@ export const privacyRoutes = Router()
 // /api/users
 export const userRoutes = Router()
   .get('/me/dashboard', c.dashboard)
+  .get('/me/profile-summary', c.profileSummary)
   .get('/me/payout-account', c.getPayoutAccount)
   .put('/me/payout-account', blockLimitedAccounts, otpLimiter, validate({ body: s.payoutAccount }), c.setPayoutAccount)
   .post('/me/payout-account/confirm', blockLimitedAccounts, otpLimiter, validate({ body: s.payoutAccountConfirm }), sc.confirmPayoutAccount)

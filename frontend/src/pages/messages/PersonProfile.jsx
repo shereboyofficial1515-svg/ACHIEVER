@@ -1,6 +1,7 @@
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Flag, MessageSquare, Phone, ShieldCheck, Video } from 'lucide-react';
-import { Button, Card, ErrorState, KeyValue, Loader, UserAvatar } from '../../components/ui/index.js';
+import { Button, ErrorState, GroupAvatar, Loader, UserAvatar } from '../../components/ui/index.js';
+import { ProfileListItem, ProfileSection, VerifiedBadge } from '../../components/domain/ProfileParts.jsx';
 import { useConfirm } from '../../components/ui/ConfirmProvider.jsx';
 import { useCalls } from '../../contexts/CallContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -18,7 +19,7 @@ export default function PersonProfile() {
   const toast = useToast();
   const calls = useCalls();
   const confirmAction = useConfirm();
-  const person = useAsync(() => api.get(`/messages/people/${userId}`), [userId]);
+  const person = useAsync(() => api.get(`/messages/people/${userId}`), [userId], { cacheKey: `person:${userId}` });
   const chatFromUrl = params.get('chat');
 
   if (person.loading && !person.data) return <Loader label="Loading profile..." />;
@@ -73,17 +74,19 @@ export default function PersonProfile() {
   const checks = CHECKS.filter(([k]) => p.verification?.[k]);
   return (
     <div className="stack-lg info-page">
-      <div className="info-topbar">
+      <header className="info-topbar">
         <button type="button" className="icon-button" onClick={() => (chatFromUrl ? navigate(`/app/messages/${chatFromUrl}`) : navigate(-1))} aria-label="Back"><ArrowLeft size={20} /></button>
-        <span className="grow">Profile</span>
-      </div>
-      <section className="profile-hero">
-        <UserAvatar name={p.fullName} src={p.avatarUrl} online={p.online ?? undefined} size={104} />
-        <h1 className="profile-name">{p.fullName}</h1>
-        {status && <p className="small muted">{status}</p>}
-        <div className="profile-badges">
-          {checks.map(([k, label]) => <span key={k} className="badge badge-success"><ShieldCheck size={12} aria-hidden /> {label} verified</span>)}
-          {!p.active && <span className="badge badge-warning">Account inactive</span>}
+        <h1 className="grow info-topbar-title">Profile</h1>
+      </header>
+      <section className="identity-card" aria-labelledby="person-name">
+        <UserAvatar name={p.fullName} src={p.avatarUrl} online={p.online ?? undefined} size={104} eager label={`${p.fullName} profile photo`} />
+        <div className="identity-text">
+          <h2 id="person-name" className="identity-name">{p.fullName} <VerifiedBadge verified={Boolean(p.verification?.identity && p.verification?.email)} /></h2>
+          {status && <p className="identity-meta">{status}</p>}
+          <div className="identity-badges">
+            {checks.map(([k, label]) => <span key={k} className="badge badge-success"><ShieldCheck size={12} aria-hidden /> {label} verified</span>)}
+            {!p.active && <span className="badge badge-warning">Account inactive</span>}
+          </div>
         </div>
         <div className="row-wrap profile-actions">
           <Button icon={MessageSquare} onClick={openChat} disabled={p.blockedByMe}>Message</Button>
@@ -92,36 +95,30 @@ export default function PersonProfile() {
         </div>
       </section>
 
-      <Card title="About">
-        <KeyValue items={[
-          ['Member since', formatDate(p.memberSince)],
-          ['Location', p.location || 'Hidden'],
-          ['Completed OSUSU groups', p.completedGroups],
-          ['Paid on time', p.onTimeRate === null || p.onTimeRate === undefined ? '—' : `${p.onTimeRate}%`],
-        ]} />
-      </Card>
+      <ProfileSection title="About">
+        <dl className="fact-grid">
+          <div><dt>Member since</dt><dd>{formatDate(p.memberSince)}</dd></div>
+          <div><dt>Location</dt><dd>{p.location || 'Hidden'}</dd></div>
+          <div><dt>Completed OSUSU groups</dt><dd>{p.completedGroups}</dd></div>
+          <div><dt>Paid on time</dt><dd>{p.onTimeRate === null || p.onTimeRate === undefined ? '—' : `${p.onTimeRate}%`}</dd></div>
+        </dl>
+      </ProfileSection>
 
       {p.mutualGroups?.length > 0 && (
-        <Card title={`Groups in common (${p.mutualGroups.length})`}>
-          <ul className="info-members">
-            {p.mutualGroups.map((g) => (
-              <li key={g.id}>
-                <button type="button" className="info-member" onClick={() => navigate(`/app/osusu/${g.id}`)}>
-                  <UserAvatar name={g.name} src={g.imageUrl} size={36} />
-                  <span className="grow truncate">{g.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <ProfileSection title={`Groups in common (${p.mutualGroups.length})`}>
+          {p.mutualGroups.map((g) => (
+            <Link key={g.id} to={`/app/osusu/${g.id}`} className="list-row">
+              <GroupAvatar name={g.name} src={g.imageUrl} size="medium" />
+              <span className="list-row-text"><span className="list-row-title">{g.name}</span></span>
+            </Link>
+          ))}
+        </ProfileSection>
       )}
 
-      <Card>
-        <div className="info-links danger">
-          <button type="button" onClick={toggleBlock}><Ban size={18} aria-hidden /> <span className="grow">{p.blockedByMe ? 'Unblock' : 'Block'} {p.fullName}</span></button>
-          <button type="button" onClick={report}><Flag size={18} aria-hidden /> <span className="grow">Report {p.fullName}</span></button>
-        </div>
-      </Card>
+      <ProfileSection>
+        <ProfileListItem as="button" danger icon={Ban} title={`${p.blockedByMe ? 'Unblock' : 'Block'} ${p.fullName}`} onClick={toggleBlock} />
+        <ProfileListItem as="button" danger icon={Flag} title={`Report ${p.fullName}`} onClick={report} />
+      </ProfileSection>
     </div>
   );
 }

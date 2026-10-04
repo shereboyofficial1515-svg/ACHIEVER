@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { statusMeta } from '../../utils/status.js';
@@ -38,11 +39,50 @@ export function StatusBadge({ status, label }) {
 }
 export const PaymentStatus = StatusBadge;
 
-export function UserAvatar({ name, src, size = 36, online }) {
+/**
+ * Avatar: a fixed square box (never stretched by its parent) with a circular, clipped face.
+ * The picture fills the circle with object-fit: cover, so a portrait or landscape photo is
+ * cropped instead of changing the layout. Falls back to initials (or an icon) when there is
+ * no picture or it fails to load. The online dot sits outside the clipped face.
+ */
+export function UserAvatar({ name, src, size = 36, online, icon: Icon, label, eager = false, className = '' }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  const showImage = src && !failed;
   return (
-    <span className="avatar" style={{ width: size, height: size, fontSize: Math.max(11, size * 0.36) }} aria-hidden={!name}>
-      {src ? <img src={src} alt="" /> : initials(name)}
+    <span
+      className={`avatar ${className}`}
+      style={{ '--avatar-size': `${size}px`, width: size, height: size, fontSize: Math.max(11, size * 0.36) }}
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
+      <span className="avatar-face">
+        {showImage
+          ? <img src={src} alt="" width={size} height={size} loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
+          : Icon && !name ? <Icon size={Math.round(size * 0.5)} aria-hidden /> : initials(name)}
+      </span>
       {online !== undefined && <span className={`presence ${online ? 'online' : ''}`} title={online ? 'Online' : 'Offline'} />}
+    </span>
+  );
+}
+
+const GROUP_SIZES = { small: 32, medium: 44, 'group-header': 40, large: 72, profile: 104 };
+
+/** A group's picture (always circular, never distorted). size: small | medium | group-header | large | profile | px */
+export function GroupAvatar({ name, src, size = 'medium', ...rest }) {
+  const px = typeof size === 'number' ? size : GROUP_SIZES[size] || GROUP_SIZES.medium;
+  return <UserAvatar name={name} src={src} size={px} className="group-avatar" {...rest} />;
+}
+
+/** Overlapping avatars (e.g. a few group members). */
+export function AvatarStack({ people = [], size = 28, max = 4 }) {
+  const shown = people.slice(0, max);
+  const extra = people.length - shown.length;
+  return (
+    <span className="avatar-stack" aria-label={`${people.length} people`}>
+      {shown.map((p) => <UserAvatar key={p.id || p.name} name={p.name} src={p.avatarUrl} size={size} />)}
+      {extra > 0 && <span className="avatar avatar-more" style={{ width: size, height: size, fontSize: Math.max(10, size * 0.34) }}><span className="avatar-face">+{extra}</span></span>}
     </span>
   );
 }

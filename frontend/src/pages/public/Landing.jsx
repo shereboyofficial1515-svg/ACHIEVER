@@ -52,7 +52,7 @@ function WebLanding() {
             fetchpriority="high" decoding="async" style={{ objectPosition: HERO.focal }} />
         </picture>
         <header className="public-header">
-          <BrandLogo variant="stacked" width={116} plate />
+          <BrandLogo variant="stacked" width={116} tone="dark" />
           <nav className="row public-nav" aria-label="Site">
             <Link to="/help">Help Center</Link>
             <a href="/documentation.html">Documentation</a>

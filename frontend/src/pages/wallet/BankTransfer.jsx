@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, Landmark } from 'lucide-react';
-import { Alert, BankSelect, Button, Card, Input, KeyValue, PageHeader } from '../../components/ui/index.js';
+import { BadgeCheck, Clock, Landmark } from 'lucide-react';
+import { Alert, BankSelect, Button, Card, Checkbox, Input, KeyValue, Modal, PageHeader } from '../../components/ui/index.js';
 import SecureKeypad from '../../components/ui/SecureKeypad.jsx';
 import TransactionApproval from '../../components/domain/TransactionApproval.jsx';
 import FeeBreakdown from '../../components/domain/FeeBreakdown.jsx';
@@ -10,6 +10,34 @@ import { useSingleFlight } from '../../hooks/useSingleFlight.js';
 import { api, newIdempotencyKey } from '../../services/api.js';
 import { naira } from '../../utils/format.js';
 import { amountToKobo, useFeeQuote } from './walletShared.js';
+
+/**
+ * Shown once when the external bank transfer flow opens (before any details are entered),
+ * so nobody is surprised — or sends the money twice — if the bank takes a while.
+ * Closing it (Escape / back) leaves the flow; only "I understand, continue" goes on.
+ */
+export function ProcessingTimeNotice({ onContinue, onLeave }) {
+  return (
+    <Modal
+      open
+      title="Bank transfer processing time"
+      onClose={onLeave}
+      describedBy="bank-time-notice"
+      footer={(
+        <div className="row-wrap modal-actions-stack">
+          <Button onClick={onContinue} block>I understand, continue</Button>
+          <Button variant="secondary" onClick={onLeave} block>Go back</Button>
+        </div>
+      )}
+    >
+      <div id="bank-time-notice" className="stack-sm">
+        <p className="notice-lead"><Clock size={18} aria-hidden /> Your transfer to a bank account may not arrive instantly.</p>
+        <p className="small">External bank transfers are processed through our payment provider and the banking network. Most arrive quickly, but it can sometimes take up to 1 hour for the money to reach the recipient’s account.</p>
+        <p className="small">If it hasn’t arrived yet, please don’t send it again. You can follow the status in your transaction history.</p>
+      </div>
+    </Modal>
+  );
+}
 
 /**
  * ACHIEVER Wallet → Nigerian bank account.
@@ -28,6 +56,8 @@ export default function BankTransfer() {
   const [narration, setNarration] = useState('');
   const [review, setReview] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [noticeSeen, setNoticeSeen] = useState(false);          // once per visit to this flow
+  const [sendAnyway, setSendAnyway] = useState(false);
   const [error, setError] = useState(null);
   const [run, pending] = useSingleFlight();
   const kobo = amountToKobo(value);
@@ -54,6 +84,7 @@ export default function BankTransfer() {
     try {
       const { data } = await api.post('/wallet/bank-transfers', { bankCode, accountNumber, amount: kobo, narration: narration.trim() || null }, { idempotencyKey: key });
       setReview(data);
+      setSendAnyway(false);
       setStep('review');
     } catch (err) {
       setError(err);
@@ -71,6 +102,7 @@ export default function BankTransfer() {
   return (
     <div className="stack-lg">
       <PageHeader back={{ to: '/app/wallet/transfer', label: 'Transfer money' }} title="Send to bank account" subtitle="External transfer · ACHIEVER Wallet → Nigerian bank" />
+      {!noticeSeen && <ProcessingTimeNotice onContinue={() => setNoticeSeen(true)} onLeave={() => navigate('/app/wallet/transfer', { replace: true })} />}
       {error && <Alert tone="danger">{error.message}</Alert>}
 
       {step === 'account' && (
@@ -136,9 +168,18 @@ export default function BankTransfer() {
             />
             <FeeBreakdown amount={review.amount} fee={review.fee} total={review.totalDebit} recipientAmount={review.recipientAmount} mode={review.feeBearingMode} />
             {review.approval?.newAccount && <Alert tone="info">First transfer to this account. Check the name matches the person you want to pay: bank transfers cannot be recalled once sent.</Alert>}
+            {review.possibleDuplicate && (
+              <Alert tone="warning">
+                <strong style={{ display: 'block' }}>A transfer like this is still processing</strong>
+                You sent {naira(review.amount)} to this account recently and it is still being processed. Please don’t send it again unless you mean to pay twice.{' '}
+                <a href={`/app/wallet/bank-transfers/${review.possibleDuplicate.id}`} onClick={(e) => { e.preventDefault(); navigate(`/app/wallet/bank-transfers/${review.possibleDuplicate.id}`); }}>View that transfer</a>
+                <div style={{ marginTop: 8 }}><Checkbox label="I want to send another, separate transfer" checked={sendAnyway} onChange={(e) => setSendAnyway(e.target.checked)} /></div>
+              </Alert>
+            )}
+            <p className="processing-note"><Clock size={16} aria-hidden /> External bank transfers may take up to 1 hour to reach the recipient. Please avoid sending the transfer again while it is processing.</p>
             {!approving ? (
               <div className="row-wrap">
-                <Button onClick={() => setApproving(true)}>Confirm transfer</Button>
+                <Button onClick={() => setApproving(true)} disabled={Boolean(review.possibleDuplicate) && !sendAnyway}>Confirm transfer</Button>
                 <Button variant="secondary" onClick={cancel}>Cancel</Button>
               </div>
             ) : (
@@ -152,7 +193,7 @@ export default function BankTransfer() {
                 confirmLabel="Sending"
                 footnote="Your wallet is debited only after ACHIEVER verifies your approval. If the bank rejects the transfer, the full amount and fee return to your wallet."
                 onCancel={cancel}
-                onApproved={(data) => navigate(`/app/wallet/bank-transfers/${data.id}`, { replace: true })}
+                onApproved={(data) => navigate(`/app/wallet/bank-transfers/${data.id}?submitted=1`, { replace: true })}
               />
             )}
           </div>

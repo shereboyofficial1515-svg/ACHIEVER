@@ -81,6 +81,33 @@ async function approvalFor(user, t) {
   return { ...options, newAccount: !known };
 }
 
+/**
+ * What happened to a transfer, built only from recorded facts (no invented steps or times):
+ * done = it happened; current = in progress now; todo = not yet.
+ */
+export function timeline(t) {
+  const final = ['SUCCESS', 'FAILED', 'REVERSED', 'REFUNDED', 'CANCELLED'].includes(t.status);
+  const debited = Boolean(t.debit_transaction_id);
+  const sent = ['PROCESSING', 'SUCCESS', 'REVERSED'].includes(t.status) || Boolean(t.transfer_code) || (t.status === 'FAILED' && Number(t.attempts) > 0);
+  const steps = [
+    { key: 'initiated', label: 'Transfer created', state: 'done', at: t.created_at },
+    { key: 'approved', label: 'Approved and wallet debited', state: debited ? 'done' : t.status === 'INITIATED' ? 'current' : 'todo', at: debited ? t.authorized_at : null },
+  ];
+  if (t.status === 'CANCELLED') return [...steps.slice(0, 1), { key: 'cancelled', label: 'Cancelled before approval', state: 'done', at: t.updated_at }];
+  if (t.execution_mode === 'manual') {
+    steps.push({ key: 'queued', label: 'Queued for processing by ACHIEVER finance', state: t.status === 'PENDING' ? 'current' : debited ? 'done' : 'todo', at: null });
+  } else {
+    steps.push({ key: 'submitted', label: 'Sent to the bank through our payment provider', state: sent ? 'done' : debited && t.status === 'PENDING' ? 'current' : 'todo', at: null });
+    steps.push({ key: 'processing', label: 'Bank processing', state: t.status === 'PROCESSING' ? 'current' : final && sent ? 'done' : 'todo', at: t.status === 'PROCESSING' ? t.last_checked_at : null });
+  }
+  if (t.status === 'SUCCESS') steps.push({ key: 'completed', label: 'Received by the bank', state: 'done', at: t.completed_at });
+  else if (t.status === 'FAILED') steps.push({ key: 'failed', label: 'Not completed · money returned to your wallet', state: 'done', at: t.completed_at });
+  else if (t.status === 'REVERSED') steps.push({ key: 'reversed', label: 'Returned by the bank · money back in your wallet', state: 'done', at: t.completed_at });
+  else if (t.status === 'REFUNDED') steps.push({ key: 'refunded', label: 'Refunded to your wallet', state: 'done', at: t.completed_at });
+  else steps.push({ key: 'completed', label: 'Provider confirmation', state: 'todo', at: null });
+  return steps;
+}
+
 export function format(t, { admin = false } = {}) {
   return {
     id: t.id, reference: t.reference, status: t.status,
@@ -88,8 +115,11 @@ export function format(t, { admin = false } = {}) {
     amount: Number(t.amount), fee: Number(t.fee), totalDebit: Number(t.total_debit), recipientAmount: Number(t.recipient_amount),
     feeBearingMode: t.fee_snapshot?.fee_bearing_mode ?? 'FEE_ADDED', feeRule: t.fee_snapshot?.rule ?? null,
     narration: t.narration, failureReason: t.failure_reason, createdAt: t.created_at, completedAt: t.completed_at, expiresAt: t.expires_at,
+    authorizedAt: t.authorized_at, lastCheckedAt: t.last_checked_at, timeline: timeline(t),
     message: {
-      INITIATED: 'Waiting for your approval', PENDING: 'Transfer queued', PROCESSING: 'Transfer is being processed by the bank',
+      INITIATED: 'Waiting for your approval',
+      PENDING: 'Your transfer has been submitted and is being processed. It may take up to 1 hour to reach the recipient.',
+      PROCESSING: 'Your transfer has been submitted and is being processed. It may take up to 1 hour to reach the recipient.',
       SUCCESS: 'Transfer successful', FAILED: 'Transfer failed. The money (including the fee) is back in your wallet.',
       REVERSED: 'The bank returned this transfer. The money (including the fee) is back in your wallet.',
       REFUNDED: 'This transfer was cancelled and refunded to your wallet.', CANCELLED: 'Cancelled',
@@ -98,6 +128,7 @@ export function format(t, { admin = false } = {}) {
       executionMode: t.execution_mode, transferCode: t.transfer_code, providerReference: t.provider_reference, providerStatus: t.provider_status,
       providerCost: t.provider_cost == null ? null : Number(t.provider_cost), providerCostEstimated: t.provider_cost_estimated,
       manualReference: t.manual_reference, attempts: t.attempts, user: t.user ? { name: t.user.full_name, email: t.user.email } : undefined,
+      reconciliation: t.status === 'PROCESSING' ? (t.last_checked_at ? 'requeried' : 'awaiting webhook or requery') : t.execution_mode === 'manual' && t.status === 'PENDING' ? 'manual payout queue' : 'final',
     } : {}),
   };
 }
@@ -107,8 +138,9 @@ export async function start(user, { bankCode, accountNumber, amount, narration }
   await assertOpen();
   await riskService.assertNotRestricted(user.id);
   if (idempotencyKey) {
+    // Same request again (double tap, refresh, network retry): the same transfer, never a second one.
     const existing = await walletRepo.findBankTransferByKey(user.id, idempotencyKey);
-    if (existing) return { ...format(existing), approval: await approvalFor(user, existing) };
+    if (existing) return { ...format(existing), approval: await approvalFor(user, existing), possibleDuplicate: await recentDuplicate(user, existing) };
   }
   const min = await settingsService.getInt('wallet.bank_transfer_min_kobo', 10_000);
   const max = await settingsService.getInt('wallet.bank_transfer_single_max_kobo', 20_000_000);
@@ -131,7 +163,13 @@ export async function start(user, { bankCode, accountNumber, amount, narration }
   });
   await auditService.record({ actorId: user.id, action: 'wallet.bank_transfer.initiated', resourceType: 'wallet_bank_transfer', resourceId: row.id,
     metadata: { amount, fee: Number(row.fee), bank: row.bank_name, account: maskAccount(row.account_number) } });
-  return { ...format(row), approval: await approvalFor(user, row) };
+  return { ...format(row), approval: await approvalFor(user, row), possibleDuplicate: await recentDuplicate(user, row) };
+}
+
+/** Is an identical transfer (same account, same amount) still processing? The app asks before sending again. */
+async function recentDuplicate(user, t) {
+  const d = await walletRepo.findRecentOpenBankTransfer(user.id, { bankCode: t.bank_code, accountNumber: t.account_number, amount: Number(t.amount), excludeId: t.id }).catch(() => null);
+  return d ? { id: d.id, reference: d.reference, status: d.status, createdAt: d.created_at } : null;
 }
 
 async function openTransfer(user, id) {
@@ -166,8 +204,20 @@ export async function confirm(user, id, body, req) {
   }
   await auditService.record({ actorId: user.id, action: 'wallet.bank_transfer.authorized', resourceType: 'wallet_bank_transfer', resourceId: t.id, metadata: { method: auth.method }, req });
   await dispatch(await walletRepo.findBankTransfer(t.id)).catch((err) => logger.warn({ id: t.id, err: err.message }, 'bank payout dispatch deferred'));
+  const after = await walletRepo.findBankTransfer(t.id);
+  if (['PENDING', 'PROCESSING'].includes(after.status)) {
+    // "Submitted", not "successful": the provider has not confirmed delivery yet.
+    await notificationService.notify(user.id, {
+      type: 'bank_transfer_processing',
+      category: 'payments',
+      title: 'Bank transfer processing',
+      body: `${naira(after.recipient_amount)} was submitted to ${after.account_name} at ${after.bank_name}. External transfers may take up to 1 hour to arrive. Track it in your transaction history.`,
+      data: { bank_transfer_id: after.id },
+      dedupeKey: `wbt_submitted:${after.id}`,
+    }).catch((err) => logger.warn({ id: after.id, err: err.message }, 'processing notification not sent'));
+  }
   notificationService.kickDispatcher();
-  return format(await walletRepo.findBankTransfer(t.id));
+  return format(after);
 }
 
 export async function cancel(user, id) {

@@ -232,6 +232,60 @@ public class AchieverSecurityPlugin extends Plugin {
     }
 
     /**
+     * Save a generated receipt to the phone's shared storage through MediaStore:
+     * PDFs to Downloads/ACHIEVER, pictures to Pictures/ACHIEVER. Needs Android 10
+     * (API 29) or newer and no storage permission; older phones get
+     * "UNSUPPORTED" and the app offers the share sheet instead.
+     */
+    @PluginMethod
+    public void saveFile(PluginCall call) {
+        String data = call.getString("data");
+        String filename = call.getString("filename", "ACHIEVER-Receipt");
+        String mimeType = call.getString("mimeType", "application/octet-stream");
+        if (data == null || data.isEmpty() || !filename.matches("[A-Za-z0-9._-]{1,120}")
+                || !("image/png".equals(mimeType) || "application/pdf".equals(mimeType))) {
+            call.reject("Invalid file", "INVALID_FILE");
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.reject("Saving is not supported on this Android version", "UNSUPPORTED");
+            return;
+        }
+        try {
+            byte[] bytes = Base64.decode(data, Base64.DEFAULT);
+            boolean image = "image/png".equals(mimeType);
+            android.content.ContentValues values = new android.content.ContentValues();
+            values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename);
+            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType);
+            values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                (image ? android.os.Environment.DIRECTORY_PICTURES : android.os.Environment.DIRECTORY_DOWNLOADS) + "/ACHIEVER");
+            values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1);
+            android.net.Uri collection = image
+                ? android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                : android.provider.MediaStore.Downloads.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            android.content.ContentResolver resolver = getContext().getContentResolver();
+            android.net.Uri uri = resolver.insert(collection, values);
+            if (uri == null) { call.reject("Could not create the file", "STORAGE_ERROR"); return; }
+            try (java.io.OutputStream out = resolver.openOutputStream(uri)) {
+                if (out == null) throw new java.io.IOException("no stream");
+                out.write(bytes);
+            } catch (Exception e) {
+                resolver.delete(uri, null, null);
+                throw e;
+            }
+            values.clear();
+            values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0);
+            resolver.update(uri, values, null, null);
+            JSObject ret = new JSObject();
+            ret.put("size", bytes.length);
+            ret.put("folder", image ? "Pictures/ACHIEVER" : "Download/ACHIEVER");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not save the receipt", "SAVE_FAILED");
+        }
+    }
+
+    /**
      * Share a generated receipt (PNG or PDF) through the Android share sheet.
      * The file is written to the app's private cache, checked (exists, not
      * empty), and offered to other apps through the FileProvider with a

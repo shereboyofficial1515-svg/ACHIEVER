@@ -12,10 +12,45 @@ import { useAsync } from '../../hooks/useAsync.js';
 import { useSingleFlight } from '../../hooks/useSingleFlight.js';
 import { api, newIdempotencyKey } from '../../services/api.js';
 import { naira, parseNairaToKobo } from '../../utils/format.js';
-import { CATEGORY } from './billsShared.js';
+import { CATEGORY, CATEGORY_ORDER } from './billsShared.js';
 import { detectNetwork, formatPhone, isValidPhone, maskPhone, matchesFilter, normalisePhone, normalisePlan, planFilters } from './planModel.js';
 
 const PHONE_FIRST = new Set(['airtime', 'data']);
+
+const QUICK_AIRTIME = [100, 200, 500, 1000, 2000, 5000];
+
+/** Switch between bill categories without going back to the hub (only categories the API says are available). */
+function CategorySwitcher({ current, categories }) {
+  const available = (categories || []).filter((c) => c.available && CATEGORY[c.key]);
+  if (available.length < 2) return null;
+  return (
+    <nav className="category-switcher h-scroll" aria-label="Bill categories">
+      {CATEGORY_ORDER.filter((k) => available.some((c) => c.key === k)).map((k) => {
+        const Icon = CATEGORY[k].icon;
+        return (
+          <Link key={k} to={`/app/bills/buy/${k}`} replace className={`category-chip${k === current ? ' is-active' : ''}`} aria-current={k === current ? 'page' : undefined}>
+            <Icon size={16} aria-hidden /> {CATEGORY[k].label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Compact banner for the category: what happens, in one line. Kept short so the form stays near the top. */
+function CategoryBanner({ category }) {
+  const meta = CATEGORY[category];
+  const Icon = meta.icon;
+  return (
+    <div className={`category-banner bill-ban-${category}`}>
+      <div className="category-banner-text">
+        <strong>{meta.banner}</strong>
+        <span>{meta.bannerText}</span>
+      </div>
+      <span className="category-banner-art" aria-hidden><Icon size={40} strokeWidth={1.5} /></span>
+    </div>
+  );
+}
 
 /** Networks (airtime/data): one compact row, scrolls sideways on small phones. */
 function NetworkSelector({ services, value, onChange }) {
@@ -41,32 +76,38 @@ function ProviderGrid({ services, value, onChange }) {
   );
 }
 
-/** One plan: volume (or package name) first, price prominent, validity and type secondary. */
+/** One plan: volume (or package name) first, validity under it, price on its own line so nothing wraps awkwardly. */
 function PlanCard({ plan, selected, onSelect }) {
   return (
     <button type="button" role="radio" aria-checked={selected} className={`plan-card${selected ? ' is-selected' : ''}`} onClick={() => onSelect(plan.code)}>
-      <span className="plan-top">
-        <strong className="plan-title">{plan.title}</strong>
+      <span className="plan-title">{plan.title}</span>
+      <span className="plan-meta">{[plan.validity, plan.note].filter(Boolean).join(' · ') || plan.kind || ' '}</span>
+      <span className="plan-bottom">
         <strong className="plan-price">{naira(plan.price)}</strong>
-      </span>
-      <span className="plan-meta">
-        <span>{[plan.validity, plan.note].filter(Boolean).join(' · ')}</span>
-        {selected ? <span className="plan-selected"><Check size={14} aria-hidden /> Selected</span> : plan.kind && <span>{plan.kind}</span>}
+        {selected ? <span className="plan-selected"><Check size={14} aria-hidden /> Selected</span> : plan.type && plan.type !== 'Regular' && <span className="plan-tag">{plan.type}</span>}
       </span>
     </button>
   );
 }
 
+const SORTS = [
+  { value: '', label: 'Provider order' },
+  { value: 'price-asc', label: 'Price: low to high' },
+  { value: 'price-desc', label: 'Price: high to low' },
+];
+
 function PlanSection({ plansAsync, service, category, value, onChange }) {
   const [filter, setFilter] = useState('');
   const [q, setQ] = useState('');
+  const [sort, setSort] = useState('');
   const plans = useMemo(
     () => (plansAsync.data || []).map((p) => normalisePlan(p, { providerName: service?.providerName, category })),
     [plansAsync.data, service?.providerName, category],
   );
-  useEffect(() => { setFilter(''); setQ(''); }, [service?.serviceId]);
+  useEffect(() => { setFilter(''); setQ(''); setSort(''); }, [service?.serviceId]);
   const filters = planFilters(plans);
   const shown = plans.filter((p) => matchesFilter(p, filter) && (!q || p.original.toLowerCase().includes(q.toLowerCase())));
+  if (sort) shown.sort((a, b) => (sort === 'price-asc' ? a.price - b.price : b.price - a.price));
   const label = category === 'data' ? 'Data plans' : category === 'tv' ? 'Packages' : 'Products';
 
   if (plansAsync.loading && !plansAsync.data) {
@@ -93,8 +134,13 @@ function PlanSection({ plansAsync, service, category, value, onChange }) {
           ))}
         </div>
       )}
-      {plans.length > 12 && category !== 'data' && (
-        <Input label="Search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Compact, Padi" />
+      {(plans.length > 6 || (plans.length > 12 && category !== 'data')) && (
+        <div className="plan-tools">
+          {plans.length > 12 && category !== 'data' && (
+            <Input label="Search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Compact, Padi" />
+          )}
+          {plans.length > 6 && <Select label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} options={SORTS} />}
+        </div>
       )}
       <div className="plan-grid" role="radiogroup" aria-label={label}>
         {shown.map((p) => <PlanCard key={p.code} plan={p} selected={value === p.code} onSelect={onChange} />)}
@@ -180,6 +226,8 @@ export default function BillPurchase() {
     setServiceId((net && list.find((s) => s.providerCode === net.code && !s.maintenance)?.serviceId) || list[0].serviceId);
   }, [services.data]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setVerified(null); setForm((f) => ({ ...f, variationCode: '', customerId: '' })); }, [serviceId]);
+  // Switching category keeps the phone number but never carries an amount or account over.
+  useEffect(() => { setError(null); setReview(null); setApproving(false); setForm((f) => ({ ...f, amount: '', quantity: '1' })); }, [category]);
 
   const plans = useAsync(
     () => (service?.hasPlans ? api.get(`/bills/${category}/${serviceId}/products`) : Promise.resolve({ data: [] })),
@@ -319,9 +367,25 @@ export default function BillPurchase() {
   return (
     <PullToRefresh onRefresh={refresh}>
       <form className="stack-lg bill-flow" onSubmit={toReview} noValidate>
-        <PageHeader back={{ to: '/app/bills', label: 'Bills & Services' }} title={meta.label} subtitle={meta.blurb} />
+        <PageHeader back={{ to: '/app/bills', label: 'Bills & Services' }} title={meta.label} />
+        <CategorySwitcher current={category} categories={overview.data?.categories} />
+        <CategoryBanner category={category} />
         {error?.message && !Object.keys(fe).length && <Alert tone="danger">{error.message}</Alert>}
 
+        {PHONE_FIRST.has(category) && (
+          <section className="flow-section stack-sm" aria-labelledby="sec-phone">
+            <h2 id="sec-phone" className="flow-title">{PHONE_FIRST.has(category) ? 'Mobile number' : 'Your phone number'}</h2>
+            <Input label={PHONE_FIRST.has(category) ? 'Number to top up' : 'For the receipt and provider SMS'} type="tel" inputMode="tel" autoComplete="tel"
+              value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/[^\d+ ]/g, '').slice(0, 16) })}
+              error={fe.phone || (form.phone && normalisePhone(form.phone).length >= 11 && !phoneOk ? 'Enter a valid Nigerian mobile number' : undefined)} />
+            {detected && phoneOk && (
+              <p className="xsmall muted phone-network">
+                <Smartphone size={14} aria-hidden /> Network: <strong>{detected.name}</strong>
+                {service && service.providerCode !== detected.code ? ` — you chose ${service.providerName}. That's fine if the number was ported.` : ''}
+              </p>
+            )}
+          </section>
+        )}
         <section className="flow-section" aria-labelledby="sec-provider">
           <h2 id="sec-provider" className="flow-title">{PHONE_FIRST.has(category) ? 'Network' : 'Provider'}</h2>
           {services.loading && !services.data ? <ProviderCardSkeleton count={4} />
@@ -332,15 +396,6 @@ export default function BillPurchase() {
                   : <ProviderGrid services={services.data} value={serviceId} onChange={setServiceId} />}
         </section>
 
-        {service && (
-          <div className="selected-provider" aria-live="polite">
-            <ProviderLogo provider={service} size={44} eager />
-            <div>
-              <strong>{service.providerName}</strong>
-              <p className="xsmall muted">{category === 'data' ? 'Data Plans' : service.shortName !== service.providerName ? `${service.shortName} · ${meta.label}` : meta.label}</p>
-            </div>
-          </div>
-        )}
 
         {service && category === 'electricity' && (
           <section className="flow-section">
@@ -376,7 +431,8 @@ export default function BillPurchase() {
           </section>
         )}
 
-        {service && (
+
+        {service && !PHONE_FIRST.has(category) && (
           <section className="flow-section stack-sm" aria-labelledby="sec-phone">
             <h2 id="sec-phone" className="flow-title">{PHONE_FIRST.has(category) ? 'Mobile number' : 'Your phone number'}</h2>
             <Input label={PHONE_FIRST.has(category) ? 'Number to top up' : 'For the receipt and provider SMS'} type="tel" inputMode="tel" autoComplete="tel"
@@ -390,11 +446,18 @@ export default function BillPurchase() {
             )}
           </section>
         )}
-
         {service && ['airtime', 'electricity', 'betting'].includes(category) && (
           <section className="flow-section">
             <MoneyInput label="Amount" value={form.amount} onChange={set('amount')} error={fe.amount}
               hint={service.minAmount ? `From ${naira(Math.max(service.minAmount, 5000))}${service.maxAmount ? ` to ${naira(service.maxAmount)}` : ''}` : undefined} />
+            {category === 'airtime' && (
+              <div className="quick-amounts" role="group" aria-label="Quick amounts">
+                {QUICK_AIRTIME.filter((v) => v * 100 >= Math.max(service.minAmount || 0, 5000) && (!service.maxAmount || v * 100 <= service.maxAmount)).map((v) => (
+                  <button key={v} type="button" className={`filter-chip${kobo === v * 100 ? ' is-active' : ''}`} aria-pressed={kobo === v * 100}
+                    onClick={() => setForm((f) => ({ ...f, amount: String(v) }))}>₦{v.toLocaleString('en-NG')}</button>
+                ))}
+              </div>
+            )}
           </section>
         )}
 

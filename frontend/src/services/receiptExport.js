@@ -63,7 +63,52 @@ export function bankReceiptModel(t) {
   };
 }
 
-export const receiptFilename = (model, ext) => `ACHIEVER-Receipt-${String(model.reference).replace(/[^A-Za-z0-9-]/g, '')}.${ext}`;
+const BILL_TITLES = {
+  airtime: 'Airtime Purchase', data: 'Data Purchase', electricity: 'Electricity Payment', tv: 'TV Subscription',
+  education: 'Exam PIN Purchase', recharge_pin: 'Recharge PIN Purchase', betting: 'Betting Wallet Funding',
+};
+
+/**
+ * Bill purchase (GET /bills/history/:id/receipt) → receipt model. Only fields
+ * the server returned are printed; a missing value is left out, never guessed.
+ * A token or PIN is included only when the owner has revealed it (audited
+ * server call) AND chosen to put it on the receipt.
+ */
+export function billReceiptModel(r, { secrets = null } = {}) {
+  const k = r.categoryKey;
+  const rows = [];
+  const add = (label, value) => { if (value !== null && value !== undefined && value !== '') rows.push([label, String(value)]); };
+  add(k === 'airtime' || k === 'data' ? 'Network' : k === 'electricity' ? 'Distribution company' : 'Provider', r.provider);
+  if (k === 'data') add('Data plan', r.product);
+  else if (k === 'tv') add('Package', r.product);
+  else if (k === 'education' || k === 'recharge_pin') add('Product', r.product);
+  add('Validity', r.validity);
+  add(r.recipientLabel || 'Recipient', r.recipient);
+  add('Customer name', r.customerName);
+  add('Meter type', r.meterType);
+  add('Subscription', r.subscriptionType);
+  if (r.quantity > 1) add('Quantity', r.quantity);
+  add('Units', r.units);
+  if (secrets?.token) add('Token', secrets.token);
+  (secrets?.pins || []).forEach((p, i) => add(secrets.pins.length > 1 ? `PIN ${i + 1}` : 'PIN', p.serial ? `${p.pin} (Serial ${p.serial})` : p.pin));
+  rows.push(['Amount', naira(r.amount)], ['Fee', naira(r.fee || 0)], [String(r.status).toUpperCase() === 'SUCCESS' ? 'Total paid' : 'Total', naira(r.total)]);
+  add('Paid with', r.paidWith);
+  add('Reference', r.reference);
+  add('Provider reference', r.providerReference);
+  add('Payment reference', r.paymentReference);
+  add('Date', formatDateTime(r.completedAt || r.date || r.createdAt));
+  return {
+    status: String(r.status || '').toUpperCase(),
+    title: BILL_TITLES[k] || r.category || 'Bill Payment',
+    amount: naira(r.total),
+    reference: r.reference,
+    rows,
+    keyFacts: [r.reference, naira(r.total), r.recipient].filter(Boolean),
+    footer: r.supportEmail ? `Need help? ${r.supportEmail}` : null,
+  };
+}
+
+export const receiptFilename =(model, ext) => `ACHIEVER-Receipt-${String(model.reference).replace(/[^A-Za-z0-9-]/g, '')}.${ext}`;
 
 function loadImage(src) {
   return new Promise((resolve) => {
@@ -114,7 +159,7 @@ export async function renderReceiptPng(model) {
   });
   const headerH = 230;
   const heroH = 300;
-  const H = headerH + heroH + rowLayout.reduce((a, r) => a + r.h, 0) + 210;
+  const H = headerH + heroH + rowLayout.reduce((a, r) => a + r.h, 0) + 210 + (model.footer ? 46 : 0);
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -198,6 +243,7 @@ export async function renderReceiptPng(model) {
   c.fillStyle = BRAND.grey;
   c.font = font(500, 26);
   c.fillText('Save Together. Go Further. · ACHIEVER Wallet is not a bank account.', PAD, y + 104);
+  if (model.footer) c.fillText(model.footer, PAD, y + 148);
 
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
   return blob;
@@ -265,20 +311,26 @@ export function buildReceiptPdf(model, { logoJpeg = null, logoSize = null } = {}
 
   const labelW = 140;
   const valueMax = W - M * 2 - labelW - 10;
+  // Long receipts (e.g. electricity with a token, several exam PINs) use tighter rows so everything fits on one A4 page.
+  const dense = model.rows.length > 12;
+  const size = dense ? 11 : 12;
+  const lineH = dense ? 14 : 16;
+  const gap = dense ? 6 : 12;
   for (const [label, value] of model.rows) {
     const words = String(value ?? '');
-    const lines = wrapLines((s) => textWidth(pdfText(s), 12, true), words, valueMax);
-    text(M, y, label, 11, { color: BRAND.grey });
-    lines.forEach((ln, i) => text(M + labelW + 10, y - i * 16, ln, 12, { bold: true }));
-    y -= Math.max(1, lines.length) * 16 + 12;
+    const lines = wrapLines((s) => textWidth(pdfText(s), size, true), words, valueMax);
+    text(M, y, label, size - 1, { color: BRAND.grey });
+    lines.forEach((ln, i) => text(M + labelW + 10, y - i * lineH, ln, size, { bold: true }));
+    y -= Math.max(1, lines.length) * lineH + gap;
     rect(M, y + 4, W - M * 2, 0.6, BRAND.line);
-    y -= 6;
+    y -= dense ? 5 : 6;
   }
   y -= 24;
   rect(M, y, 46, 3, BRAND.sky);
   text(M, y - 22, 'ACHIEVER', 14, { bold: true });
   text(M, y - 40, 'Save Together. Go Further. - ACHIEVER Wallet is not a bank account.', 9, { color: BRAND.grey });
-  text(M, y - 54, `Generated ${formatDateTime(new Date().toISOString())}`, 8, { color: BRAND.grey });
+  if (model.footer) text(M, y - 56, model.footer, 9, { color: BRAND.grey });
+  text(M, y - (model.footer ? 70 : 54), `Generated ${formatDateTime(new Date().toISOString())}`, 8, { color: BRAND.grey });
 
   const content = ops.join('\n');
   const enc = new TextEncoder();
@@ -315,7 +367,7 @@ export function validatePdf(bytes, model) {
   if (!bytes || bytes.length < 200) return false;
   const s = new TextDecoder('latin1').decode(bytes);
   if (!s.startsWith('%PDF-') || !s.trimEnd().endsWith('%%EOF')) return false;
-  const must = [model.reference, model.amount, model.rows.find(([l]) => ['Recipient', 'Sender'].includes(l))?.[1]].filter(Boolean);
+  const must = model.keyFacts || [model.reference, model.amount, model.rows.find(([l]) => ['Recipient', 'Sender'].includes(l))?.[1]].filter(Boolean);
   return must.every((v) => s.includes(pdfText(v).slice(0, 40)) || pdfText(v).split(' ').every((w) => s.includes(w)));
 }
 

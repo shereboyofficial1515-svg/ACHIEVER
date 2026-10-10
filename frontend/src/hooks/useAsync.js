@@ -68,13 +68,39 @@ export function useAsync(fn, deps = [], { immediate = true, cacheKey } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
+  /**
+   * Background refresh (pull-to-refresh): keeps the current screen while it
+   * loads, and on failure keeps the data already shown and rethrows so the
+   * caller can say "Couldn't refresh" instead of replacing the screen.
+   */
+  const refresh = useCallback(async () => {
+    const id = ++seq.current;
+    setState((s) => ({ ...s, refreshing: true }));
+    try {
+      const result = await fnRef.current();
+      if (mounted.current && id === seq.current) {
+        const isEnvelope = result && typeof result === 'object' && 'data' in result;
+        const data = isEnvelope ? result.data : result;
+        setState({ data, meta: result?.meta, error: null, loading: false, refreshing: false });
+        if (keyRef.current) {
+          cache.delete(keyRef.current);
+          cache.set(keyRef.current, { data, meta: result?.meta, at: Date.now() });
+        }
+      }
+      return result;
+    } catch (error) {
+      if (mounted.current && id === seq.current) setState((s) => (s.data === undefined ? { ...s, error, loading: false, refreshing: false } : { ...s, refreshing: false }));
+      throw error;
+    }
+  }, []);
+
   const setData = useCallback((data) => setState((s) => {
     const next = typeof data === 'function' ? data(s.data) : data;
     if (keyRef.current && cache.has(keyRef.current)) cache.set(keyRef.current, { ...cache.get(keyRef.current), data: next });
     return { ...s, data: next };
   }), []);
 
-  return { ...state, reload: run, setData };
+  return { ...state, reload: run, refresh, setData };
 }
 
 /** Wrap a mutation with pending state and error capture. */

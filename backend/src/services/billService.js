@@ -651,23 +651,49 @@ export async function revealSecrets(user, id, req) {
   return { token: data.token, pins: data.pins, units: bill.units };
 }
 
+const RECIPIENT_LABELS = { airtime: 'Phone number', data: 'Phone number', electricity: 'Meter number', tv: 'Smartcard / IUC number', betting: 'Customer ID', recharge_pin: 'Phone number' };
+const isPlaceholderEmail = (email) => !email || /@(example\.(com|org|net)|[^@]+\.test)$/i.test(email);
+
+/**
+ * Receipt facts, all read from the stored bill (never from the client and
+ * never invented): fields the bill does not hold are null. Tokens and PINs
+ * are NOT included; they stay behind the audited /secrets call.
+ */
 export async function receipt(user, id) {
   const bill = await ownedBill(user, id);
   if (bill.status === 'awaiting_authorization' || bill.status === 'cancelled') throw AppError.notFound('No receipt for this transaction');
+  const [provider, product = null] = String(bill.service_name || '').split(' — ');
+  const verified = bill.verified_customer || {};
+  const phoneFirst = bill.category === 'airtime' || bill.category === 'data';
+  const accountIsPhone = phoneFirst || bill.customer_identifier === localPhone(bill.phone);
   return {
     issuer: 'ACHIEVER',
     reference: bill.reference,
     date: bill.completed_at || bill.created_at,
+    createdAt: bill.created_at,
+    completedAt: bill.completed_at || null,
     service: bill.service_name,
     category: CATEGORY_LABELS[bill.category],
-    provider: bill.service_name?.split(' — ')[0] || bill.service_id,
-    recipient: maskIdentifier(bill.customer_identifier),
+    categoryKey: bill.category,
+    provider: provider || bill.service_id,
+    product,
+    recipient: phoneFirst ? bill.customer_identifier : maskIdentifier(bill.customer_identifier),
+    recipientLabel: accountIsPhone ? 'Phone number' : bill.category === 'education' ? 'Profile / candidate ID' : RECIPIENT_LABELS[bill.category] || 'Account',
+    customerName: verified.name || bill.customer_name || null,
+    meterType: bill.category === 'electricity' && verified.meterType ? (verified.meterType === 'postpaid' ? 'Postpaid' : 'Prepaid') : null,
+    units: bill.category === 'electricity' ? bill.units || null : null,
+    validity: bill.category === 'data' && product ? validityOf(product) : null,
+    quantity: Number(bill.quantity) || 1,
+    subscriptionType: bill.subscription_type === 'renew' ? 'Renewal of current package' : bill.subscription_type === 'change' ? 'New / changed package' : null,
     amount: Number(bill.amount),
     fee: Number(bill.fee),
     total: Number(bill.total_amount),
     status: publicStatus(bill),
     providerReference: bill.provider_reference,
     paymentReference: bill.payment_reference,
+    paidWith: bill.funding_source === 'wallet' ? 'ACHIEVER Wallet' : 'Paystack (card / transfer / USSD)',
+    hasSecrets: Boolean(bill.secure_payload) && bill.status === 'delivered',
+    supportEmail: isPlaceholderEmail(env.SUPPORT_EMAIL) ? null : env.SUPPORT_EMAIL,
   };
 }
 

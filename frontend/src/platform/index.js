@@ -243,6 +243,39 @@ export async function shareGeneratedFile(blob, filename, { title = 'ACHIEVER rec
   return 'downloaded';
 }
 
+/**
+ * Save a generated receipt file. Browser: a download. Android 10+: written to
+ * Download/ACHIEVER (PDF) or Pictures/ACHIEVER (image); older Android versions
+ * fall back to the share sheet (where "Save to device" / Drive is offered).
+ * Returns { how: 'downloaded' | 'saved' | 'shared' | 'cancelled', folder? }.
+ */
+export async function saveGeneratedFile(blob, filename, { title = 'ACHIEVER receipt' } = {}) {
+  if (!blob || !blob.size) throw new Error('EMPTY_FILE');
+  if (isNative()) {
+    const m = await nativeModule();
+    const data = await blobToBase64(blob);
+    try {
+      const res = await m.saveToDevice({ data, filename, mimeType: blob.type });
+      if (!res?.size) throw new Error('EMPTY_FILE');
+      return { how: 'saved', folder: res.folder };
+    } catch (err) {
+      if (err?.code !== 'UNSUPPORTED') throw err;
+      const res = await m.shareFile({ data, filename, mimeType: blob.type, title });
+      if (!res?.size) throw new Error('EMPTY_FILE');
+      return { how: 'shared' };
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return { how: 'downloaded' };
+}
+
 /** Key-press feedback for the secure keypad (Android only; no-op elsewhere). */
 export async function hapticFeedback(kind = 'tap') {
   if (!isNative()) return;

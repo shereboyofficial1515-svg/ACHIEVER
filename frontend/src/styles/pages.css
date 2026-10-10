@@ -285,9 +285,11 @@ html[data-theme='dark'] .flow-num { background: var(--color-green-primary); colo
 .plan-card:hover { border-color: var(--color-green-primary); }
 .plan-card.is-selected { border-color: var(--color-green-primary); box-shadow: inset 0 0 0 1px var(--color-green-primary), 0 0 0 3px color-mix(in srgb, var(--color-sky-primary) 18%, transparent); background: var(--color-green-light); transform: translateY(-1px); }
 .plan-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.plan-title { font-size: 16px; line-height: 1.2; overflow-wrap: break-word; min-width: 0; }
+.plan-title { font-size: 16px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; min-width: 0; }
 .plan-price { font-size: 15px; color: var(--color-green-dark); white-space: nowrap; }
-.plan-meta { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--color-text-muted); }
+.plan-meta { font-size: 12px; line-height: 1.35; color: var(--color-text-muted); min-width: 0; overflow-wrap: anywhere; }
+.plan-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--color-border); flex-wrap: wrap; }
+.plan-tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--color-sky-light); color: var(--color-info-text); }
 .plan-selected { display: inline-flex; align-items: center; gap: 3px; color: var(--color-green-dark); font-weight: 700; }
 .plan-card.is-skeleton { cursor: default; }
 .skeleton-line { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--color-surface-sunken), var(--color-border), var(--color-surface-sunken)); background-size: 200% 100%; animation: provider-shimmer 1.2s linear infinite; }
@@ -488,3 +490,99 @@ html[data-theme='dark'] .wallet-hero { color: var(--color-on-primary); }
 .tx-step.is-current svg { color: var(--color-info-text); }
 
 .tx-status-badge { margin-top: 2px; font-size: 11px; }
+
+/* Bills & Services redesign ---------------------------------------------------------------- */
+.bill-ic { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 12px; background: var(--bill-tint, var(--color-green-light)); color: var(--bill-ink, var(--color-green-dark)); }
+.bill-ic-airtime, .bill-ban-airtime { --bill-tint: #e4f5ec; --bill-ink: #06683f; }
+.bill-ic-data, .bill-ban-data { --bill-tint: #e3f2fd; --bill-ink: #0369a1; }
+.bill-ic-electricity, .bill-ban-electricity { --bill-tint: #fdf3dc; --bill-ink: #8a4b05; }
+.bill-ic-tv, .bill-ban-tv { --bill-tint: #ede9fe; --bill-ink: #5b3fc4; }
+.bill-ic-education, .bill-ban-education { --bill-tint: #fce7f3; --bill-ink: #9d2a64; }
+.bill-ic-recharge_pin, .bill-ban-recharge_pin { --bill-tint: #e0f2f1; --bill-ink: #0f6b62; }
+.bill-ic-betting, .bill-ban-betting { --bill-tint: #fee9e2; --bill-ink: #a23a17; }
+html[data-theme='dark'] .bill-ic { background: color-mix(in srgb, var(--bill-ink) 30%, var(--color-surface)); color: color-mix(in srgb, var(--bill-ink) 25%, #ffffff); }
+.bill-tile.is-disabled .bill-ic { filter: grayscale(1); opacity: .7; }
+
+.bills-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-3) var(--s-4); align-items: start;
+  padding: var(--s-5); border-radius: 16px; color: #fff; overflow: hidden;
+  background: radial-gradient(120% 140% at 100% 0%, rgba(14, 165, 233, .32) 0%, transparent 55%), linear-gradient(135deg, #0a8754 0%, #06683f 100%);
+  box-shadow: 0 10px 28px rgba(6, 104, 63, .18);
+}
+.bills-hero h1 { margin: 0; font-size: clamp(1.35rem, 4.5vw, 1.75rem); color: #fff; letter-spacing: -.01em; }
+.bills-hero p { margin: 6px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: rgba(255, 255, 255, .92); max-width: 46ch; }
+.bills-hero-action {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; white-space: nowrap;
+  background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .4); color: #fff; font-weight: 600; font-size: var(--fs-sm); text-decoration: none;
+}
+.bills-hero-action:hover { background: rgba(255, 255, 255, .26); text-decoration: none; color: #fff; }
+.bills-hero-action:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.bills-hero-points { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.bills-hero-points li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(0, 0, 0, .18); color: #fff; }
+.section-label { margin: 0 0 var(--s-3); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-text-muted); }
+.bill-tile { min-height: 132px; justify-content: flex-start; }
+.bill-tile .bill-tile-text { margin-top: var(--s-1); }
+.bill-tile.is-skeleton { min-height: 132px; }
+.bills-footnote { text-align: center; max-width: 60ch; margin: 0 auto; }
+
+.bill-rows { list-style: none; margin: 0; padding: 0; }
+.bill-rows li + li { border-top: 1px solid var(--color-border); }
+.bill-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: var(--s-3); align-items: center; width: 100%;
+  padding: 12px var(--s-4); min-height: 64px; background: none; border: 0; text-align: left; cursor: pointer; color: var(--color-text-primary); font: inherit;
+}
+.bill-row:hover { background: var(--color-surface-hover); }
+.bill-row:focus-visible { outline: 3px solid var(--color-sky-primary); outline-offset: -3px; }
+.bill-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bill-row-main strong, .bill-row-main .xsmall { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bill-row-main strong { font-size: var(--fs-sm); }
+.bill-row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.bill-row-side .money { font-size: var(--fs-sm); }
+.bill-row-chev { color: var(--color-text-muted); }
+@media (max-width: 360px) { .bill-row { grid-template-columns: auto minmax(0, 1fr) auto; } .bill-row-chev { display: none; } }
+
+.category-switcher { padding: 2px; }
+.category-chip {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.category-chip:hover { border-color: var(--color-green-primary); color: var(--color-text-primary); text-decoration: none; }
+.category-chip.is-active { background: var(--color-green-primary); border-color: var(--color-green-primary); color: var(--color-on-primary); }
+.category-chip:focus-visible { outline: 3px solid var(--color-sky-primary); outline-offset: 2px; }
+@media (min-width: 900px) { .category-switcher { flex-wrap: wrap; overflow: visible; } }
+
+.category-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-4) var(--s-5);
+  border-radius: 14px; border: 1px solid color-mix(in srgb, var(--bill-ink, #06683f) 18%, transparent);
+  background: linear-gradient(110deg, var(--bill-tint, #e4f5ec) 0%, var(--color-surface) 100%);
+}
+.category-banner-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.category-banner-text strong { font-size: var(--fs-md); color: var(--color-text-primary); }
+.category-banner-text span { font-size: var(--fs-sm); line-height: 1.45; color: var(--color-text-secondary); }
+.category-banner-art { display: grid; place-items: center; flex-shrink: 0; width: 64px; height: 64px; border-radius: 18px; background: var(--color-surface); color: var(--bill-ink, #06683f); box-shadow: var(--shadow); }
+html[data-theme='dark'] .category-banner { background: linear-gradient(110deg, color-mix(in srgb, var(--bill-ink) 30%, var(--color-surface)) 0%, var(--color-surface) 100%); }
+html[data-theme='dark'] .category-banner-art { color: color-mix(in srgb, var(--bill-ink) 25%, #ffffff); }
+@media (max-width: 380px) { .category-banner { padding: var(--s-3) var(--s-4); } .category-banner-art { width: 48px; height: 48px; } .category-banner-art svg { width: 28px; height: 28px; } }
+
+.plan-tools { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.quick-amounts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.quick-amounts .filter-chip { min-height: 40px; }
+
+.bill-receipt { max-width: 560px; margin: 0 auto; width: 100%; }
+.bill-receipt-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-bottom: var(--s-4); border-bottom: 1px dashed var(--color-border-strong); }
+.bill-receipt-hero p { margin: 0; }
+.bill-receipt-title { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text-secondary); }
+.bill-receipt-amount { font-size: clamp(1.75rem, 7vw, 2.25rem); font-weight: 800; letter-spacing: -.02em; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.bill-receipt-status { display: inline-flex; align-items: center; gap: 6px; }
+.bill-receipt-status.is-success svg { color: var(--color-success); }
+.bill-receipt-status.is-warning svg { color: var(--color-warning); }
+.bill-receipt-status.is-info svg { color: var(--color-info); }
+.bill-receipt-status.is-danger svg { color: var(--color-error); }
+.receipt-quick-actions, .receipt-support-actions { justify-content: center; }
+.secret-panel { padding: var(--s-4); border-radius: var(--radius-lg); background: var(--color-surface-sunken); border: 1px solid var(--color-border); }
+.secret-panel .token-box { word-break: break-all; }
+.receipt-save-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
+.status-details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.status-details[open] summary { margin-bottom: var(--s-2); }
+@media (prefers-reduced-motion: reduce) { .bill-tile, .category-chip, .bill-row { transition: none; } .bill-tile:hover { transform: none; } }
+@media print { .category-switcher, .receipt-share, .receipt-quick-actions { display: none; } }

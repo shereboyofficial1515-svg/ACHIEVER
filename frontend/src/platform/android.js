@@ -158,6 +158,7 @@ export const setSecureScreen = (enabled) => Security.setSecureScreen({ enabled }
 export const flushCookies = () => Security.flushCookies();
 export const haptic = (kind) => Security.haptic({ kind });
 export const shareFile = (opts) => Security.shareFile(opts);
+export const saveToDevice = (opts) => Security.saveFile(opts);
 
 // Push notifications (Firebase Cloud Messaging) ------------------------------------------------
 export async function pushPermission() {

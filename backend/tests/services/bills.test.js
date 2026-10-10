@@ -291,6 +291,45 @@ describe('authorisation (PIN + emailed code)', () => {
   });
 });
 
+describe('receipt data (from the stored bill only)', () => {
+  it('electricity: company, masked meter, meter type, units and references; the token is never in the receipt', async () => {
+    const r = await billService.quote(user, { category: 'electricity', serviceId: 'ikeja-electric', phone: '+2348011111111', meterType: 'prepaid', customerId: '1111111111111', amount: 200000 });
+    await approveAndPay(user, r);
+    await billService.fulfil(r.billId);
+    const rc = await billService.receipt(user, r.billId);
+    expect(rc).toMatchObject({
+      status: 'SUCCESS', categoryKey: 'electricity', recipientLabel: 'Meter number', meterType: 'Prepaid', units: '20 kWh',
+      amount: 200000, fee: 0, total: 200000, hasSecrets: true, paidWith: 'Paystack (card / transfer / USSD)', paymentReference: 'PSK-1',
+    });
+    expect(rc.recipient).toMatch(/1111$/);
+    expect(rc.recipient).not.toContain('1111111111111');
+    expect(rc.providerReference).toBeTruthy();
+    expect(JSON.stringify(rc)).not.toContain('5555');
+    expect(rc.supportEmail).toBeNull();   // the example.com default is never printed on a receipt
+  });
+
+  it('data: network, number, plan and validity; a failed purchase is reported as FAILED, never SUCCESS', async () => {
+    await billService.listProducts('data', 'mtn-data');
+    const ok = await billService.quote(user, { category: 'data', serviceId: 'mtn-data', phone: '+2348011111111', variationCode: 'mtn-1gb' });
+    await approveAndPay(user, ok);
+    await billService.fulfil(ok.billId);
+    expect(await billService.receipt(user, ok.billId)).toMatchObject({
+      status: 'SUCCESS', recipient: '08011111111', recipientLabel: 'Phone number', product: 'MTN N1000 1.5GB - 30 days', validity: '30 days', units: null, meterType: null,
+    });
+
+    const bad = await billService.quote(user, { category: 'airtime', serviceId: 'mtn', phone: '+2348099999999', amount: 100000 });
+    await approveAndPay(user, bad);
+    await billService.fulfil(bad.billId);
+    expect(await billService.receipt(user, bad.billId)).toMatchObject({ status: 'FAILED', providerReference: null, hasSecrets: false });
+  });
+
+  it('no receipt before approval, and none for another member', async () => {
+    const r = await billService.quote(user, { category: 'airtime', serviceId: 'mtn', phone: '+2348011111111', amount: 100000 });
+    await expect(billService.receipt(user, r.billId)).rejects.toMatchObject({ status: 404 });
+    await expect(billService.receipt(other, r.billId)).rejects.toBeTruthy();
+  });
+});
+
 describe('fulfilment', () => {
   it('success: delivered only when VTpass confirms; token sealed, not stored in plain text', async () => {
     const r = await billService.quote(user, { category: 'electricity', serviceId: 'ikeja-electric', phone: '+2348011111111', meterType: 'prepaid', customerId: '1111111111111', amount: 200000 });

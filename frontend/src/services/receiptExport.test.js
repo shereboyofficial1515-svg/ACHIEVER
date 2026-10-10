@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bankReceiptModel, buildReceiptPdf, pdfText, receiptBlocker, receiptFilename, validatePdf, validatePng, walletReceiptModel } from './receiptExport.js';
+import { bankReceiptModel, billReceiptModel, buildReceiptPdf, pdfText, receiptBlocker, receiptFilename, validatePdf, validatePng, walletReceiptModel } from './receiptExport.js';
 
 const sent = {
   id: 't1', type: 'transfer', direction: 'debit', status: 'success', label: 'Money sent', reference: 'ACH-WTX-261002-ABC123',
@@ -73,5 +73,55 @@ describe('PNG validation', () => {
     expect(await validatePng(new Blob([], { type: 'image/png' }))).toBe(false);
     expect(await validatePng(new Blob(['GIF89a....'], { type: 'image/png' }))).toBe(false);
     expect(await validatePng(null)).toBe(false);
+  });
+});
+
+describe('bill receipts (from GET /bills/history/:id/receipt)', () => {
+  const electricity = {
+    reference: 'ACH-BILL-261008-2B91AA04', categoryKey: 'electricity', category: 'Electricity', provider: 'Ikeja Electric', product: null,
+    recipient: '••••••8842', recipientLabel: 'Meter number', customerName: 'Ada O.', meterType: 'Prepaid', units: '64.3 kWh', validity: null,
+    quantity: 1, subscriptionType: null, amount: 1_000_000, fee: 0, total: 1_000_000, status: 'SUCCESS', providerReference: '99881122',
+    paymentReference: null, paidWith: 'ACHIEVER Wallet', supportEmail: null, createdAt: '2026-10-08T18:40:00Z', completedAt: '2026-10-08T18:41:00Z',
+  };
+
+  it('electricity: service-specific rows in naira; missing values are left out, never invented', () => {
+    const m = billReceiptModel(electricity);
+    expect(m).toMatchObject({ status: 'SUCCESS', title: 'Electricity Payment', amount: '₦10,000.00', reference: electricity.reference, footer: null });
+    expect(m.rows).toEqual(expect.arrayContaining([
+      ['Distribution company', 'Ikeja Electric'], ['Meter number', '••••••8842'], ['Meter type', 'Prepaid'], ['Units', '64.3 kWh'],
+      ['Total paid', '₦10,000.00'], ['Provider reference', '99881122'], ['Paid with', 'ACHIEVER Wallet'],
+    ]));
+    const labels = m.rows.map(([l]) => l);
+    expect(labels).not.toContain('Payment reference');   // null on the server -> not printed
+    expect(labels).not.toContain('Token');               // never on a receipt unless revealed and chosen
+    expect(JSON.stringify(m.rows)).not.toMatch(/undefined|null/);
+  });
+
+  it('the token / PINs appear only when passed in (revealed by the owner and chosen for the receipt)', () => {
+    expect(billReceiptModel(electricity, { secrets: { token: '1234-5678' } }).rows).toContainEqual(['Token', '1234-5678']);
+    const exam = billReceiptModel({ ...electricity, categoryKey: 'education', provider: 'WAEC', product: 'Result Checker PIN', meterType: null, units: null, quantity: 2 },
+      { secrets: { pins: [{ serial: 'S1', pin: '111' }, { pin: '222' }] } });
+    expect(exam.title).toBe('Exam PIN Purchase');
+    expect(exam.rows).toEqual(expect.arrayContaining([['Product', 'Result Checker PIN'], ['Quantity', '2'], ['PIN 1', '111 (Serial S1)'], ['PIN 2', '222']]));
+  });
+
+  it('data: network, plan, validity and number; a pending or failed purchase never gets a receipt', () => {
+    const d = billReceiptModel({ ...electricity, categoryKey: 'data', provider: 'MTN Data', product: 'MTN 10GB 30 days', validity: '30 days', recipient: '08031234567', recipientLabel: 'Phone number', meterType: null, units: null, customerName: null });
+    expect(d.rows.slice(0, 4)).toEqual([['Network', 'MTN Data'], ['Data plan', 'MTN 10GB 30 days'], ['Validity', '30 days'], ['Phone number', '08031234567']]);
+    for (const status of ['PROCESSING', 'PENDING', 'FAILED', 'REFUNDED', 'REVERSED']) {
+      const m = billReceiptModel({ ...electricity, status });
+      expect(receiptBlocker(m.status)).not.toBeNull();
+      expect(m.rows).toContainEqual(['Total', '₦10,000.00']);   // not "Total paid" for an unsuccessful purchase
+    }
+  });
+
+  it('the PDF is valid, fits a long receipt and contains the reference, total and recipient', () => {
+    const m = billReceiptModel({ ...electricity, supportEmail: 'help@achieverng.site' }, { secrets: { token: '1234-5678-9012-3456-7890' } });
+    const bytes = buildReceiptPdf(m);
+    expect(validatePdf(bytes, m)).toBe(true);
+    const s = new TextDecoder('latin1').decode(bytes);
+    expect(s).toContain('Need help? help@achieverng.site');
+    const ys = [...s.matchAll(/1 0 0 1 [\d.]+ (-?[\d.]+) Tm/g)].map((x) => Number(x[1]));
+    expect(Math.min(...ys)).toBeGreaterThan(0);   // nothing is drawn below the page
   });
 });

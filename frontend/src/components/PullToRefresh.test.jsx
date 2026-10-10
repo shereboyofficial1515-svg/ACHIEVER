@@ -67,6 +67,14 @@ describe('reloadAll', () => {
     expect(a.reload).not.toHaveBeenCalled();
     expect(await reloadAll(a)).toBe(false);
   });
+  it('loading data where there was none (e.g. after an error) counts as "Updated"', async () => {
+    const failedBefore = { data: undefined, refresh: async () => ({ data: { categories: [1, 2] }, meta: undefined, message: 'OK' }) };
+    const same = { data: [1], refresh: async () => ({ data: [1], meta: undefined, message: 'OK' }) };
+    expect(await reloadAll(failedBefore, same)).toBe(true);
+    const errorOverOldData = { data: [1], error: new Error('500'), refresh: async () => ({ data: [1] }) };
+    expect(await reloadAll(errorOverOldData)).toBe(true);
+  });
+
   it('rejects when any request fails', async () => {
     const ok = { data: 1, refresh: async () => ({ data: 1 }) };
     const bad = { data: 1, refresh: async () => { throw new Error('500'); } };

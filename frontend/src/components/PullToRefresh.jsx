@@ -117,8 +117,9 @@ export default function PullToRefresh({ onRefresh, disabled = false, threshold =
 export async function reloadAll(...asyncs) {
   const list = asyncs.filter(Boolean);
   const before = list.map((a) => JSON.stringify(a.data ?? null));
+  const hadError = list.some((a) => a.error);   // an error screen that now loads is a change too
   const results = await Promise.allSettled(list.map((a) => (a.refresh ? a.refresh() : a.reload?.())));
   const failed = results.find((r) => r.status === 'rejected');
   if (failed) throw failed.reason;
-  return results.some((r, i) => r.value !== undefined && JSON.stringify(r.value?.data ?? r.value ?? null) !== before[i]);
+  return hadError || results.some((r, i) => r.value !== undefined && JSON.stringify(r.value?.data ?? r.value ?? null) !== before[i]);
 }

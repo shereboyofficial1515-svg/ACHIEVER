@@ -247,6 +247,10 @@ html[data-theme='dark'] .flow-num { background: var(--color-green-primary); colo
 .ptr-indicator.is-visible { transition: none; }
 .ptr-chip { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 6px 12px; border-radius: 999px; background: var(--color-surface); color: var(--color-text-secondary); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
 .ptr-ready, .ptr-done { color: var(--color-green-dark); border-color: var(--color-green-primary); }
+.ptr-failed { color: var(--color-error-text); border-color: var(--color-error); }
+/* A page with the app's pull-to-refresh: stop the mobile browser's own pull-to-reload
+   (it would reload the whole app on top of the in-page refresh). Scrolling is unaffected. */
+html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
 .ptr-refreshing svg { animation: ptr-spin .8s linear infinite; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ptr-refreshing svg { animation: none; } .ptr-indicator { transition: none; } }

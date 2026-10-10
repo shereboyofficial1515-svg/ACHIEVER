@@ -160,7 +160,9 @@ export const env = Object.freeze({
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
   androidAppOrigin: parsed.data.ANDROID_APP_ORIGIN.replace(/\/$/, ''),
-  corsOrigins: [parsed.data.CLIENT_URL, ...(adminClientUrl ? [adminClientUrl] : []), parsed.data.ANDROID_APP_ORIGIN.replace(/\/$/, ''), ...parsed.data.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
+  // Compared with the browser's Origin header, which never has a trailing slash and is lower-case.
+  corsOrigins: [parsed.data.CLIENT_URL, ...(adminClientUrl ? [adminClientUrl] : []), parsed.data.ANDROID_APP_ORIGIN, ...parsed.data.CORS_EXTRA_ORIGINS.split(',')]
+    .map((s) => s.trim().replace(/\/+$/, '').toLowerCase()).filter(Boolean),
   features: {
     // Real Paystack secret keys look like sk_test_... / sk_live_...; anything else is a placeholder.
     payments: /^sk_(test|live)_[A-Za-z0-9]+$/.test(parsed.data.PAYSTACK_SECRET_KEY.trim()),

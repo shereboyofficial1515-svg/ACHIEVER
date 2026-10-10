@@ -121,7 +121,13 @@ export const stepUp = asyncHandler(async (req, res) =>
 const toClient = (path) => `${env.CLIENT_URL.replace(/\/$/, '')}${path}`;
 const oauthError = (res, code) => res.redirect(302, toClient(`/login?oauth_error=${encodeURIComponent(code || 'OAUTH_FAILED')}`));
 
-export const providers = asyncHandler(async (_req, res) => ok(res, await oauthService.enabledProviders()));
+// startOrigin: where social sign-in must begin. The one-time state cookie is set
+// by /oauth/:provider/start and read by /oauth/callback, so both must be on the
+// same host (e.g. not achieverng.site → www.achieverng.site).
+export const providers = asyncHandler(async (_req, res) => ok(res, {
+  ...(await oauthService.enabledProviders()),
+  startOrigin: new URL(oauthService.callbackUrl()).origin,
+}));
 
 export const oauthStart = async (req, res) => {
   try {

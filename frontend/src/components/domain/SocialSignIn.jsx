@@ -45,12 +45,15 @@ export default function SocialSignIn({ next = '/app', label = 'Continue' }) {
     api.get('/auth/providers').then(({ data }) => setProviders(data)).catch(() => setProviders({}));
   }, []);
   if (!providers || (!providers.google && !providers.facebook)) return null;
-  const href = (p) => `${API_BASE}/api/auth/oauth/${p}/start?next=${encodeURIComponent(next)}`;
+  // Start on the host the provider returns to (the API says which), so the one-time
+  // sign-in cookie and the callback are on the same host (achieverng.site vs www.).
+  const startBase = /^https?:\/\/[^/]+$/.test(providers.startOrigin || '') ? providers.startOrigin : null;
+  const href = (p) => `${startBase || API_BASE}/api/auth/oauth/${p}/start?next=${encodeURIComponent(next)}`;
   // Android app: Google and Facebook do not allow sign-in inside an app WebView, so the
   // system browser opens the website's sign-in and hands the session back via a deep link.
   const openNative = (p) => (e) => {
     e.preventDefault();
-    openExternalLink(`${PUBLIC_SITE}/api/auth/oauth/${p}/start?client=android&next=${encodeURIComponent(next)}`);
+    openExternalLink(`${startBase || PUBLIC_SITE}/api/auth/oauth/${p}/start?client=android&next=${encodeURIComponent(next)}`);
   };
   const native = isNative();
   return (

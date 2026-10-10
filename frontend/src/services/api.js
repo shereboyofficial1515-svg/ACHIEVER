@@ -140,7 +140,14 @@ async function request(method, path, { body, params, raw = false, retry = true, 
   }
 
   if (raw && res.ok) return res;
-  const payload = res.headers.get('content-type')?.includes('application/json') ? await res.json().catch(() => null) : null;
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  const payload = isJson ? await res.json().catch(() => null) : null;
+  // Every API answer is JSON. A web page instead (e.g. the site's index.html because
+  // VITE_API_URL points to the wrong address) means the request never reached the API.
+  if (res.ok && !isJson && res.status !== 204) {
+    console.error(`[achiever] ${method} ${path} did not reach the ACHIEVER API (got ${res.headers.get('content-type') || 'no content type'}). Check VITE_API_URL.`);
+    throw new ApiError(0, { message: 'ACHIEVER could not reach its server. Please try again shortly.', error: { code: 'API_UNREACHABLE' } });
+  }
 
   if (!res.ok) {
     // Non-JSON errors come from proxies/load balancers, not the API itself.

@@ -20,6 +20,10 @@ export const NAV = [
 ];
 
 export const FOOTER = [
+  ['Osusu groups', '/osusu.html'],
+  ['Collector savings', '/collector-savings.html'],
+  ['ACHIEVER Wallet', '/wallet.html'],
+  ['Bills &amp; Services', '/bills.html'],
   ['Documentation', '/documentation.html'],
   ['Terms', '/terms.html'],
   ['Privacy', '/privacy.html'],

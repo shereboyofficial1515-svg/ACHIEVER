@@ -51,7 +51,7 @@ function VideoTile({ p, large }) {
   );
 }
 
-function CallView({ session, onLeave, onEnd, refreshToken, audioHost }) {
+function CallView({ session, currentUser, onLeave, onEnd, refreshToken, audioHost }) {
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
   const [state, setState] = useState('connecting');
   const [people, setPeople] = useState([]);
@@ -233,7 +233,8 @@ function CallView({ session, onLeave, onEnd, refreshToken, audioHost }) {
         <button type="button" className="call-btn danger" onClick={session.call.scope === 'direct' ? onEnd : onLeave} aria-label="Leave call">
           <PhoneOff size={22} />
         </button>
-        {session.call.scope === 'group' && (
+        {/* Only the person who started a group call can end it for everyone (the server enforces this). */}
+        {session.call.scope === 'group' && session.call.initiatedBy === currentUser?.id && (
           <button type="button" className="btn btn-sm btn-danger" onClick={onEnd}>
             End for all
           </button>

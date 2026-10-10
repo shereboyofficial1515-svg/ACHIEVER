@@ -80,10 +80,7 @@ export const leaveCall = asyncHandler(async (req, res) => {
   await callService.leaveCall(req.user, v(req).params.callId);
   return ok(res, {});
 });
-export const endCall = asyncHandler(async (req, res) => {
-  await callService.endCall(req.user, v(req).params.callId, req);
-  return ok(res, {});
-});
+export const endCall = asyncHandler(async (req, res) => ok(res, await callService.endCall(req.user, v(req).params.callId, req)));
 export const callHistory = asyncHandler(async (req, res) => ok(res, await callService.history(req.user)));
 
 // Meetings -------------------------------------------------------------------------------------

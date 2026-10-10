@@ -23,8 +23,27 @@ const make = (windowMinutes, limit, keyByUser = false) =>
     keyGenerator: keyByUser ? (req) => req.user?.id || ipKeyGenerator(req.ip) : (req) => ipKeyGenerator(req.ip),
   });
 
+/**
+ * Backstop for credential endpoints, keyed on the address Cloudflare saw
+ * (CF-Connecting-IP: set by Cloudflare in front of Render, so a client cannot
+ * choose it; it is the Vercel edge for requests forwarded by the website).
+ * req.ip comes from X-Forwarded-For, whose first entry the client controls, so
+ * the per-IP limiters alone can be sidestepped by sending a different fake
+ * address each time. This wider limit still caps such a client.
+ */
+export const edgeKey = (req) => ipKeyGenerator(String(req.get('cf-connecting-ip') || req.ip));
+const backstop = (windowMinutes, limit) =>
+  rateLimit({
+    windowMs: windowMinutes * 60 * 1000,
+    limit: env.isTest ? 10_000 : limit,
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler,
+    keyGenerator: edgeKey,
+  });
+
 export const apiLimiter = make(15, 600);
-export const authLimiter = make(15, 20);
+export const authLimiter = [make(15, 20), backstop(15, 200)];
 // Refresh only counts when a refresh cookie is actually presented; anonymous
 // page loads (no cookie) get a cheap 401 without consuming the budget.
 export const refreshLimiter = rateLimit({
@@ -36,16 +55,16 @@ export const refreshLimiter = rateLimit({
   keyGenerator: (req) => ipKeyGenerator(req.ip),
   skip: (req) => !req.cookies?.[COOKIES.refresh],
 });
-export const otpLimiter = make(15, 8);
-export const passwordResetLimiter = make(60, 6);
+export const otpLimiter = [make(15, 8), backstop(15, 80)];
+export const passwordResetLimiter = [make(60, 6), backstop(60, 60)];
 export const paymentLimiter = make(15, 40, true);
 export const uploadLimiter = make(15, 40, true);
 export const messageLimiter = make(1, 60, true);
 export const webhookLimiter = make(1, 300);
 
 // Site Administration: stricter than member limits on sign-in, per-admin budgets elsewhere.
-export const adminLoginLimiter = make(15, 10);
-export const adminMfaLimiter = make(15, 10);
+export const adminLoginLimiter = [make(15, 10), backstop(15, 60)];
+export const adminMfaLimiter = [make(15, 10), backstop(15, 60)];
 export const adminApiLimiter = make(1, 240, true);
 export const adminSearchLimiter = make(1, 60, true);
 export const adminExportLimiter = make(15, 20, true);

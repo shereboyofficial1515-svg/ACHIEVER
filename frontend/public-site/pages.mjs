@@ -274,4 +274,105 @@ const maintenance = {
   body: `<p>Payments are paused during maintenance. Your balances and records are safe. We will be back as soon as possible.</p><p><a class="btn btn-ghost" href="/support.html">Support</a></p>`,
 };
 
-export const PAGES = [documentation, terms, privacy, refund, cookie, security, support, deleteData, accessibility, about, contact, notFound, maintenance];
+// Product pages ---------------------------------------------------------------------------
+// Plain descriptions of what the app does today (no rates, fees or approvals are claimed:
+// fees are shown in the app before every payment and can change).
+const productCards = `<h2>Other ACHIEVER services</h2>
+<div class="grid-cards">
+  <a class="card" href="/osusu.html"><h3>Osusu groups</h3><p>Rotational group savings with a fixed payout order.</p></a>
+  <a class="card" href="/collector-savings.html"><h3>Collector savings</h3><p>Save with an approved collector for an agreed term.</p></a>
+  <a class="card" href="/wallet.html"><h3>ACHIEVER Wallet</h3><p>Add money, send to other members and to Nigerian banks.</p></a>
+  <a class="card" href="/bills.html"><h3>Bills &amp; Services</h3><p>Airtime, data, electricity, TV and exam PINs.</p></a>
+</div>
+<p><a href="/register">Create a free account</a> · <a href="/documentation.html">Read the documentation</a></p>`;
+
+const osusu = {
+  slug: 'osusu.html', title: 'Osusu, Ajo and Esusu groups online', h1: 'Osusu groups, kept on record',
+  description: 'Run a rotational Osusu (Ajo, Esusu) savings group on ACHIEVER: fixed contributions, a clear payout order, verified payments and a record every member can see.',
+  lead: 'Rotational group savings, with every contribution and payout on one shared record.',
+  body: `${LEGAL_NOTICE}
+<h2>How an Osusu group works on ACHIEVER</h2>
+<ul>
+<li>The organiser sets the contribution amount, the schedule (for example weekly or monthly), the number of members and the payout order before the group starts.</li>
+<li>Members read and accept the group's rules before joining. Once the group starts, its financial terms are locked.</li>
+<li>Every cycle, each member pays the same contribution. A payment counts only after Paystack confirms it to ACHIEVER.</li>
+<li>When a cycle is fully paid, the pool goes to the member whose turn it is, in the agreed order.</li>
+<li>Members who have already been paid keep contributing until everyone has had their turn.</li>
+</ul>
+<h2>Why groups use ACHIEVER</h2>
+<ul>
+<li><strong>One record for everyone:</strong> who has paid, who is due and who has been paid out.</li>
+<li><strong>Accountable organisers:</strong> organisers verify their identity and accept a written undertaking.</li>
+<li><strong>Reminders:</strong> members are reminded before contributions are due, and late payments are flagged.</li>
+<li><strong>Talk in one place:</strong> group chat, voice and video calls, and scheduled meetings.</li>
+<li><strong>Disputes:</strong> problems are raised in the app and reviewed against the records.</li>
+</ul>
+<p>Read the <a href="/documentation.html#osusu">Osusu guide</a> and the <a href="/terms.html#osusu-rules">Osusu rules</a>.</p>
+${productCards}`,
+};
+
+const collector = {
+  slug: 'collector-savings.html', title: 'Collector savings (daily contribution)', h1: 'Save with a collector',
+  description: 'Save flexible amounts with an approved collector on ACHIEVER for an agreed term, with the commission shown before you start and every deposit on record.',
+  lead: 'Individual savings with a collector you trust, and a record you can check at any time.',
+  body: `${LEGAL_NOTICE}
+<h2>How collector savings work</h2>
+<ul>
+<li>A collector is approved by ACHIEVER first: they verify their identity and accept a written undertaking.</li>
+<li>You join a collector's plan by invitation and see the term and the collector's commission before you start.</li>
+<li>You save flexible amounts during the term. Each deposit is confirmed with the payment provider before it is recorded.</li>
+<li>At the end of the term your savings, less the agreed commission, are due back to you.</li>
+</ul>
+<h2>Different from Osusu</h2>
+<p>Collector savings are individual: your money is not pooled and paid to other people in turn. ACHIEVER keeps the two products separate, with separate rules.</p>
+<p>Read the <a href="/documentation.html#collector">collector guide</a> and the <a href="/terms.html#collector-rules">collector responsibilities</a>.</p>
+${productCards}`,
+};
+
+const wallet = {
+  slug: 'wallet.html', title: 'ACHIEVER Wallet', h1: 'ACHIEVER Wallet',
+  description: 'Add money to your ACHIEVER Wallet with Paystack, send money to other ACHIEVER members, transfer to Nigerian bank accounts and pay contributions and bills.',
+  lead: 'One balance for your contributions, transfers and bills.',
+  body: `${LEGAL_NOTICE}
+<h2>What you can do</h2>
+<ul>
+<li><strong>Add money</strong> by card, bank transfer or USSD through Paystack. It appears once Paystack confirms the payment.</li>
+<li><strong>Send to another member</strong> using their ACHIEVER Wallet ID.</li>
+<li><strong>Transfer to a Nigerian bank account.</strong> The account name is checked before you confirm, and any fee is shown before you pay.</li>
+<li><strong>Pay contributions and bills</strong> from your balance.</li>
+</ul>
+<h2>Protected by design</h2>
+<ul>
+<li>Payments are approved with your transaction PIN and an emailed code, or with your phone's fingerprint or face unlock in the Android app.</li>
+<li>Every movement is recorded with a reference; records are never edited, only corrected with a linked entry.</li>
+<li>Receipts can be shared as a picture or a PDF.</li>
+</ul>
+<p>See <a href="/security.html">Security</a> and the <a href="/refund-policy.html">Refund Policy</a>.</p>
+${productCards}`,
+};
+
+const bills = {
+  slug: 'bills.html', title: 'Pay bills: airtime, data, electricity and TV', h1: 'Bills & Services',
+  description: 'Buy airtime and data, pay electricity and cable TV, and buy exam PINs on ACHIEVER, approved by you and refunded if the provider cannot deliver.',
+  lead: 'Everyday payments from the same account you save with.',
+  body: `<h2>Services</h2>
+<ul>
+<li><strong>Airtime</strong> for MTN, Airtel, Glo and 9mobile numbers.</li>
+<li><strong>Data</strong> bundles from each network's current price list.</li>
+<li><strong>Electricity</strong>: prepaid tokens and postpaid bills. The meter is checked with the distribution company before you pay.</li>
+<li><strong>Cable TV</strong>: renew or change your package after the smartcard is checked.</li>
+<li><strong>Exam PINs</strong> such as result-checker PINs.</li>
+</ul>
+<p class="small muted">Which services and providers are available can change; the app shows what can be bought right now.</p>
+<h2>How a purchase works</h2>
+<ol>
+<li>Enter the details. Prices come from the provider and any fee is shown before you confirm.</li>
+<li>Approve with your transaction PIN and an emailed code, or with biometrics in the Android app.</li>
+<li>Pay from your ACHIEVER Wallet or with Paystack.</li>
+<li>The purchase is sent to a licensed bill provider. It is marked successful only when the provider confirms delivery; if it cannot be delivered you are refunded.</li>
+<li>Tokens and PINs appear in your transaction details, shown only to you.</li>
+</ol>
+${productCards}`,
+};
+
+export const PAGES = [documentation, terms, privacy, refund, cookie, security, support, deleteData, accessibility, about, contact, osusu, collector, wallet, bills, notFound, maintenance];

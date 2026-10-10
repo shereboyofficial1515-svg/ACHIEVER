@@ -28,6 +28,13 @@ export function createApp() {
   app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
   app.use(requestContext);
+  // API answers hold personal and financial data: never stored by browsers, the website's
+  // /api forwarding or other proxies. Routes that are safe to cache (provider logos, public
+  // reference data) set their own Cache-Control afterwards.
+  app.use('/api', (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
   app.use(
     pinoHttp({
       logger,

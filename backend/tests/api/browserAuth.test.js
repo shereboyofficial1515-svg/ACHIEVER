@@ -33,3 +33,10 @@ describe('browser sign-in configuration', () => {
     expect(evil.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
+
+describe('API responses are not cached', () => {
+  it('member API answers say no-store', async () => {
+    const res = await request(app).get('/api/auth/providers');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+});

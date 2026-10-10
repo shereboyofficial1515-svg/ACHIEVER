@@ -178,11 +178,19 @@ export async function registerPush(onToken) {
   // Sleep mode: messages still arrive, without sound or vibration.
   await PushNotifications.createChannel({ id: 'quiet', name: 'Messages (sleep mode)', description: 'Chat messages while sleep mode is on', importance: 2, vibration: false }).catch(() => {});
   await PushNotifications.createChannel({ id: 'security', name: 'Security alerts', description: 'Sign-ins and account security', importance: 4 }).catch(() => {});
+  // Incoming calls: highest importance (heads-up, sound, vibration, shown on the lock screen).
+  await PushNotifications.createChannel({ id: 'calls', name: 'Incoming calls', description: 'Voice and video calls from your contacts and groups', importance: 5, visibility: 1, vibration: true }).catch(() => {});
   // Token refresh: Firebase may issue a new token at any time; each one is re-registered.
   PushNotifications.addListener('registration', ({ value }) => onToken(value));
   PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
-    const route = notification?.data?.route;
+    const data = notification?.data || {};
+    const route = data.route;
     if (typeof route === 'string' && route.startsWith('/app/')) window.dispatchEvent(new CustomEvent('achiever:navigate', { detail: { to: route } }));
+    // Tapped an incoming-call notification (also on a cold start): the call screen checks with the
+    // server that the call is still ringing before showing Answer / Decline.
+    if (data.type === 'call' && data.call_event === 'ring' && /^[0-9a-f-]{36}$/i.test(String(data.call_id || ''))) {
+      window.dispatchEvent(new CustomEvent('achiever:incoming-call', { detail: { callId: data.call_id } }));
+    }
   });
   await PushNotifications.register();
   return { available: true, granted: true };

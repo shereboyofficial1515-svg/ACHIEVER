@@ -1,11 +1,13 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { checkPublicUrls } from './scripts/public-urls.mjs';
+import { seoShell } from './scripts/seo-shell.mjs';
 
 export default defineConfig(({ mode }) => {
-  checkPublicUrls({ ...loadEnv(mode, process.cwd(), 'VITE_'), ...process.env });
+  const publicEnv = { ...loadEnv(mode, process.cwd(), 'VITE_'), ...process.env };
+  checkPublicUrls(publicEnv);
   return {
-    plugins: [react()],
+    plugins: [react(), seoShell(publicEnv.VITE_PUBLIC_SITE_URL || publicEnv.PUBLIC_SITE_URL)],
     server: {
       port: 5173,
       // Same-origin API in development: cookies stay first-party and SameSite=Lax works.

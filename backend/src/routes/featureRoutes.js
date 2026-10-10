@@ -56,7 +56,7 @@ export const messageRoutes = Router()
 // /api/calls
 const call = { params: s.callParam };
 export const callRoutes = Router()
-  .post('/', validate({ body: s.startCall }), f.startCall)
+  .post('/', messageLimiter, validate({ body: s.startCall }), f.startCall)   // each start can ring several phones
   .get('/history', f.callHistory)
   .get('/:callId', validate(call), f.getCall)
   .post('/:callId/accept', validate(call), f.acceptCall)

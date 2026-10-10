@@ -130,8 +130,12 @@ describe('Chat and call permissions', () => {
   });
 
   it('issues LiveKit tokens only to call participants', async () => {
-    callRepo.findCall.mockResolvedValue({ id: 'call-1', status: 'active', room_name: 'ach_call-1', participants: [{ user_id: 'u-a', status: 'joined' }] });
+    callRepo.findCall.mockResolvedValue({ id: 'call-1', conversation_id: 'conv-1', status: 'active', room_name: 'ach_call-1', participants: [{ user_id: 'u-a', status: 'joined' }] });
     await expect(callService.token({ id: 'u-b' }, 'call-1')).rejects.toMatchObject({ status: 403 });
+    // A participant who has since left the group cannot get back into the room.
+    messageRepo.findMembership.mockResolvedValue({ left_at: '2026-10-01T00:00:00Z' });
+    await expect(callService.token({ id: 'u-a', fullName: 'A' }, 'call-1')).rejects.toMatchObject({ code: 'NOT_A_MEMBER' });
+    messageRepo.findMembership.mockResolvedValue({ role: 'member', left_at: null });
     const ok = await callService.token({ id: 'u-a', fullName: 'A' }, 'call-1');
     expect(ok).toEqual({ token: 'jwt', url: 'wss://lk', roomName: 'ach_call-1' });
   });

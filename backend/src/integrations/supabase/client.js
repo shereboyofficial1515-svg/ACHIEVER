@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
 import { env } from '../../config/env.js';
-import { TIMEOUTS, fetchWithTimeout } from '../../utils/timeout.js';
+import { TIMEOUTS, fetchWithTimeout, retryReadsOnce } from '../../utils/timeout.js';
 
-// Every Supabase call (database, auth, storage) gives up after a fixed time.
-const fetch = fetchWithTimeout(TIMEOUTS.supabase);
+// Every Supabase call (database, auth, storage) gives up after a fixed time; a read whose
+// connection dropped (stale idle socket) is tried once more.
+const fetch = retryReadsOnce(fetchWithTimeout(TIMEOUTS.supabase));
 // Supabase Realtime needs a WebSocket implementation. Node 22+ has one built in;
 // older runtimes (e.g. a host defaulting to Node 20) use the `ws` package.
 const realtime = { transport: globalThis.WebSocket ?? ws };

@@ -22,8 +22,22 @@ export function CallProvider({ children }) {
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef(null);
   sessionRef.current = session;
+  // Calls already answered, declined or ended here: a late or repeated invitation for them
+  // (live event and push can both arrive) never rings again.
+  const handled = useRef(new Set());
+  const incomingRef = useRef(null);
+  incomingRef.current = incoming;
+
+  /** Show one ringing screen per call, never a second one for the same call id. */
+  const ring = useCallback((call) => {
+    if (!call?.id || call.initiatedBy === user?.id || handled.current.has(call.id)) return;
+    if (sessionRef.current) return; // already on a call; the caller will see "missed"
+    if (incomingRef.current?.id === call.id) return;
+    setIncoming(call);
+  }, [user?.id]);
 
   const begin = useCallback((result) => {
+    if (result?.call?.id) handled.current.add(result.call.id);
     setIncoming(null);
     setSession({ call: result.call, token: result.token, url: result.url, roomName: result.roomName });
   }, []);
@@ -51,6 +65,7 @@ export function CallProvider({ children }) {
   const joinMeeting = useCallback((meetingId) => run(() => api.post(`/meetings/${meetingId}/join`)), [run]);
 
   const rejectCall = useCallback(async (callId) => {
+    handled.current.add(callId);
     setIncoming(null);
     await api.post(`/calls/${callId}/reject`).catch(() => {});
   }, []);
@@ -58,6 +73,7 @@ export function CallProvider({ children }) {
   const hangUp = useCallback(async (mode = 'leave') => {
     const current = sessionRef.current;
     setSession(null);
+    if (current) handled.current.add(current.call.id);
     if (current) await api.post(`/calls/${current.call.id}/${mode}`).catch(() => {});
   }, []);
 
@@ -68,13 +84,33 @@ export function CallProvider({ children }) {
     return data;
   }, []);
 
-  useRealtimeEvent('call.incoming', (call) => {
-    if (call.initiatedBy === user?.id) return;
-    if (sessionRef.current) return; // already on a call; the caller will see "missed"
-    setIncoming(call);
-  });
+  useRealtimeEvent('call.incoming', ring);
+
+  // Opened from an incoming-call notification (Android push): ring only if the server says it
+  // is still ringing for me (an ended, answered or declined call is never shown).
+  useEffect(() => {
+    const onPushCall = async (e) => {
+      const callId = e.detail?.callId;
+      if (!callId || handled.current.has(callId)) return;
+      try {
+        const { data: call } = await api.get(`/calls/${callId}`);
+        const me = call.participants?.find((p) => p.userId === user?.id);
+        const ringing = call.status === 'ringing' || (call.scope === 'group' && call.status === 'active');
+        if (ringing && me?.status === 'invited') {
+          ring({ ...call, callerName: call.participants?.find((p) => p.userId === call.initiatedBy)?.name });
+        } else if (!ringing) {
+          toast.info('This call has already ended.');
+        }
+      } catch {
+        // Not part of this call or offline: nothing to show.
+      }
+    };
+    window.addEventListener('achiever:incoming-call', onPushCall);
+    return () => window.removeEventListener('achiever:incoming-call', onPushCall);
+  }, [ring, toast, user?.id]);
 
   useRealtimeEvent('call.updated', (call) => {
+    if (!['ringing', 'active'].includes(call.status)) handled.current.add(call.id);
     setIncoming((cur) => (cur && cur.id === call.id && call.status !== 'ringing' ? null : cur));
     const current = sessionRef.current;
     if (current && current.call.id === call.id) {

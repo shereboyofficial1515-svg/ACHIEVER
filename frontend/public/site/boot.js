@@ -4,6 +4,8 @@
    the Content-Security-Policy can forbid inline scripts. */
 (function () {
   var r = document.documentElement;
+  // Inside the Android app (Capacitor injects its bridge before page scripts).
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) r.dataset.native = '1';
   var a = {};
   try {
     a = JSON.parse(localStorage.getItem('achiever.a11y') || '{}') || {};

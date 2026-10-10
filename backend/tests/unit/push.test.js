@@ -57,4 +57,36 @@ describe('push notifications', () => {
     expect(sent.message.data.route).toBe('/app/bills/history/b1');
     expect(disabled.at(-1)).toMatchObject({ disabled_reason: 'token_invalid' });
   });
+
+  it('incoming call: high priority on the calls channel, expires in 45s, tagged by call; identifiers only', async () => {
+    await push.registerDevice({ id: 'u2' }, { token: 'fcm-token-calls-abcdefghijklmnopqrstuvwxyz' });
+    const bodies = [];
+    const fetchImpl = async (url, init) => {
+      if (url.includes('oauth2')) return { ok: true, json: async () => ({ access_token: 'ya29.test', expires_in: 3600 }) };
+      bodies.push(JSON.parse(init.body).message);
+      return { ok: true, json: async () => ({ name: 'projects/x/messages/1' }) };
+    };
+    const call = { id: 'c-1', conversation_id: 'conv-9', call_type: 'video', scope: 'group', room_name: 'ach_c-1' };
+    expect(await push.sendCall('u2', call, 'ring', { fetchImpl })).toMatchObject({ ok: true, devices: 1 });
+    expect(bodies[0]).toMatchObject({
+      notification: { title: 'Incoming group video call', body: 'Open ACHIEVER to answer.' },
+      data: { type: 'call', call_event: 'ring', call_id: 'c-1', conversation_id: 'conv-9', route: '/app/messages/conv-9?call=c-1' },
+      android: { priority: 'high', ttl: '45s', notification: { channel_id: 'calls', tag: 'call-c-1' } },
+    });
+    const { token: _deviceAddress, ...payload } = bodies[0];   // "token" is the FCM device address itself
+    expect(JSON.stringify(payload)).not.toMatch(/ach_c-1|token|secret|jwt/i);   // no LiveKit room or credentials
+
+    // Follow-ups replace the ringing notification (same tag) quietly.
+    await push.sendCall('u2', call, 'cancelled', { fetchImpl });
+    expect(bodies[1]).toMatchObject({ notification: { title: 'Missed video call' }, android: { priority: 'normal', notification: { channel_id: 'quiet', tag: 'call-c-1' } } });
+
+    // The "Missed call" notice from the notification queue uses the same tag.
+    await push.send({ id: 'n2', user_id: 'u2', category: 'messages', title: 'Missed call', body: 'You missed a call', data: { call_id: 'c-1', conversation_id: 'conv-9' } }, { fetchImpl });
+    expect(bodies[2].android.notification.tag).toBe('call-c-1');
+  });
+
+  it('no registered phone is reported honestly, not as delivered', async () => {
+    expect(await push.sendCall('nobody', { id: 'c', conversation_id: 'v', call_type: 'voice', scope: 'direct' }, 'ring', { fetchImpl: async () => ({ ok: true, json: async () => ({}) }) }))
+      .toMatchObject({ ok: false, error: 'NO_DEVICES' });
+  });
 });

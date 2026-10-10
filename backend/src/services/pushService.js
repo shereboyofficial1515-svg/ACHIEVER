@@ -86,6 +86,7 @@ export function lockScreenText(item) {
 }
 
 function route(data = {}) {
+  if (data.call_id && data.conversation_id) return `/app/messages/${data.conversation_id}?call=${data.call_id}`;
   if (data.conversation_id) return `/app/messages/${data.conversation_id}`;
   if (data.bill_payment_id) return `/app/bills/history/${data.bill_payment_id}`;
   if (data.referral_id || data.reward_id) return '/app/referrals';
@@ -95,21 +96,21 @@ function route(data = {}) {
 }
 
 /**
- * Deliver one notification to the user's devices.
- * Returns { ok, skipped?, error? } like the email/SMS channels.
+ * Send one FCM message (built per device token by `build`) to all of a user's
+ * active devices. "ok" means FCM accepted the message for at least one device;
+ * it does not mean the phone displayed it.
  */
-export async function send(item, { fetchImpl = fetch } = {}) {
+async function deliver(userId, build, { fetchImpl = fetch, kind = 'send' } = {}) {
   if (!isConfigured()) return { ok: false, skipped: true, error: 'PUSH_NOT_CONFIGURED' };
-  const devices = await activeDevices(item.user_id);
+  const devices = await activeDevices(userId);
   if (!devices.length) return { ok: false, skipped: true, error: 'NO_DEVICES' };
   let token;
   try {
     token = await accessToken(fetchImpl);
   } catch {
-    providerHealth.record('fcm', { ok: false, errorCode: 'AUTH_FAILED', kind: 'send' });
+    providerHealth.record('fcm', { ok: false, errorCode: 'AUTH_FAILED', kind });
     return { ok: false, error: 'PUSH_AUTH_FAILED' };
   }
-  const text = lockScreenText(item);
   let delivered = 0;
   for (const d of devices) {
     let deviceToken;
@@ -123,22 +124,11 @@ export async function send(item, { fetchImpl = fetch } = {}) {
     const res = await fetchImpl(`https://fcm.googleapis.com/v1/projects/${env.FCM_PROJECT_ID}/messages:send`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          token: deviceToken,
-          notification: text,
-          data: { notification_id: String(item.id), category: String(item.category), route: route(item.data) },
-          android: {
-            priority: item.category === 'security' || (item.category === 'messages' && !item.quiet) ? 'high' : 'normal',
-            // Sleep mode: messages arrive on the silent channel; security alerts always use their own channel.
-            notification: { channel_id: item.category === 'security' ? 'security' : item.category === 'messages' ? (item.quiet ? 'quiet' : 'messages') : 'general' },
-          },
-        },
-      }),
+      body: JSON.stringify({ message: { token: deviceToken, ...build() } }),
     }).catch(() => null);
     if (res?.ok) {
       delivered += 1;
-      providerHealth.record('fcm', { ok: true, latencyMs: Date.now() - started, kind: 'send' });
+      providerHealth.record('fcm', { ok: true, latencyMs: Date.now() - started, kind });
       continue;
     }
     const body = res ? await res.json().catch(() => ({})) : {};
@@ -146,11 +136,63 @@ export async function send(item, { fetchImpl = fetch } = {}) {
     if (res && (res.status === 404 || status === 'UNREGISTERED' || status === 'INVALID_ARGUMENT')) {
       await disableDevice(d.id, 'token_invalid');   // app uninstalled or token rotated
     } else {
-      providerHealth.record('fcm', { ok: false, errorCode: status || `HTTP_${res?.status ?? 0}`, kind: 'send' });
-      logger.warn({ status: res?.status ?? 0 }, 'push not delivered');
+      providerHealth.record('fcm', { ok: false, errorCode: status || `HTTP_${res?.status ?? 0}`, kind });
+      logger.warn({ status: res?.status ?? 0, kind }, 'push not delivered');
     }
   }
-  return delivered ? { ok: true } : { ok: false, error: 'PUSH_NOT_DELIVERED' };
+  return delivered ? { ok: true, devices: delivered } : { ok: false, error: 'PUSH_NOT_DELIVERED' };
+}
+
+/**
+ * Deliver one notification to the user's devices.
+ * Returns { ok, skipped?, error? } like the email/SMS channels.
+ */
+export async function send(item, { fetchImpl = fetch } = {}) {
+  const text = lockScreenText(item);
+  return deliver(item.user_id, () => ({
+    notification: text,
+    data: { notification_id: String(item.id), category: String(item.category), route: route(item.data) },
+    android: {
+      priority: item.category === 'security' || (item.category === 'messages' && !item.quiet) ? 'high' : 'normal',
+      // Sleep mode: messages arrive on the silent channel; security alerts always use their own channel.
+      // A notice about a call (e.g. "Missed call") replaces that call's ringing notification (same tag).
+      notification: {
+        channel_id: item.category === 'security' ? 'security' : item.category === 'messages' ? (item.quiet ? 'quiet' : 'messages') : 'general',
+        ...(item.data?.call_id ? { tag: `call-${item.data.call_id}` } : {}),
+      },
+    },
+  }), { fetchImpl });
+}
+
+const CALL_TEXT = {
+  ring: (c) => ({ title: `Incoming ${c.scope === 'group' ? 'group ' : ''}${c.call_type === 'video' ? 'video' : 'voice'} call`, body: 'Open ACHIEVER to answer.' }),
+  cancelled: (c) => ({ title: `Missed ${c.call_type === 'video' ? 'video' : 'voice'} call`, body: 'The call ended before it was answered.' }),
+  answered: () => ({ title: 'Call answered', body: 'You answered this call on another device.' }),
+  ended: () => ({ title: 'Call ended', body: 'This call has ended.' }),
+};
+
+/**
+ * Incoming-call push and its follow-ups. "ring" uses the high-importance
+ * "calls" channel and a short time-to-live, so a call that has already ended is
+ * never delivered late. Every follow-up carries the same tag, so it replaces
+ * the ringing notification on the phone instead of adding another one.
+ * The payload holds identifiers only: no LiveKit token, room secret or name.
+ */
+export async function sendCall(userId, call, kind = 'ring', { fetchImpl = fetch } = {}) {
+  const ringing = kind === 'ring';
+  return deliver(userId, () => ({
+    notification: CALL_TEXT[kind](call),
+    data: {
+      type: 'call', call_event: kind, call_id: String(call.id), conversation_id: String(call.conversation_id),
+      call_type: String(call.call_type), scope: String(call.scope),
+      route: route({ call_id: call.id, conversation_id: call.conversation_id }),
+    },
+    android: {
+      priority: ringing ? 'high' : 'normal',
+      ttl: ringing ? '45s' : '3600s',
+      notification: { channel_id: ringing ? 'calls' : 'quiet', tag: `call-${call.id}` },
+    },
+  }), { fetchImpl, kind: `call_${kind}` });
 }
 
 export function __reset() {

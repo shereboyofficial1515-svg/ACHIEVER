@@ -646,8 +646,8 @@ html[data-theme='dark'] .bill-ic { background: color-mix(in srgb, var(--bill-ink
 .bills-hero {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-3) var(--s-4); align-items: start;
   padding: var(--s-5); border-radius: 16px; color: #fff; overflow: hidden;
-  background: radial-gradient(120% 140% at 100% 0%, rgba(14, 165, 233, .32) 0%, transparent 55%), linear-gradient(135deg, #0a8754 0%, #06683f 100%);
-  box-shadow: 0 10px 28px rgba(6, 104, 63, .18);
+  background: var(--gradient-balance);
+  box-shadow: 0 1px 2px rgba(3, 33, 26, 0.2), 0 12px 32px -12px rgba(3, 33, 26, 0.45);
 }
 .bills-hero h1 { margin: 0; font-size: clamp(1.35rem, 4.5vw, 1.75rem); color: #fff; letter-spacing: -.01em; }
 .bills-hero p { margin: 6px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: rgba(255, 255, 255, .92); max-width: 46ch; }
@@ -658,9 +658,10 @@ html[data-theme='dark'] .bill-ic { background: color-mix(in srgb, var(--bill-ink
 .bills-hero-action:hover { background: rgba(255, 255, 255, .26); text-decoration: none; color: #fff; }
 .bills-hero-action:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .bills-hero-points { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.bills-hero-points li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(0, 0, 0, .18); color: #fff; }
+.bills-hero-points li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .12); color: #d1fae5; }
 .section-label { margin: 0 0 var(--s-3); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-text-muted); }
-.bill-tile { min-height: 132px; justify-content: flex-start; }
+.bill-tile { min-height: 132px; justify-content: flex-start; box-shadow: var(--shadow-sm); }
+.bill-tile:hover { border-color: color-mix(in srgb, var(--color-green-primary) 40%, var(--color-border)); box-shadow: var(--shadow-md); }
 .bill-tile .bill-tile-text { margin-top: var(--s-1); }
 .bill-tile.is-skeleton { min-height: 132px; }
 .bills-footnote { text-align: center; max-width: 60ch; margin: 0 auto; }
@@ -687,7 +688,8 @@ html[data-theme='dark'] .bill-ic { background: color-mix(in srgb, var(--bill-ink
   border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; white-space: nowrap;
 }
 .category-chip:hover { border-color: var(--color-green-primary); color: var(--color-text-primary); text-decoration: none; }
-.category-chip.is-active { background: var(--color-green-primary); border-color: var(--color-green-primary); color: var(--color-on-primary); }
+.category-chip.is-active { background: var(--color-emerald-900); border-color: var(--color-emerald-900); color: #fff; }
+html[data-theme='dark'] .category-chip.is-active { background: var(--color-green-primary); border-color: var(--color-green-primary); color: var(--color-on-primary); }
 .category-chip:focus-visible { outline: 3px solid var(--color-sky-primary); outline-offset: 2px; }
 @media (min-width: 900px) { .category-switcher { flex-wrap: wrap; overflow: visible; } }
 

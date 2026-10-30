@@ -391,3 +391,14 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 @media (max-width: 479px) { .form-actions > .btn { flex: 1 1 0; } }
 .review-hero { padding: var(--s-4) var(--s-5); border-radius: var(--radius); background: var(--color-green-50); border: 1px solid color-mix(in srgb, var(--color-green-primary) 18%, transparent); display: flex; flex-direction: column; gap: 2px; }
 .review-hero-amount { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
+
+/* Notifications -------------------------------------------------------------------------------- */
+.notif-item { align-items: flex-start; }
+.notif-item.is-unread { background: color-mix(in srgb, var(--color-green-primary) 5%, var(--color-surface)); }
+.notif-item.is-unread p:first-child { font-weight: 650; }
+.notif-icon.notif-security { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.notif-icon.notif-reminders { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.notif-icon.notif-messages, .notif-icon.notif-meetings { background: var(--color-info-bg); color: var(--color-info-text); }
+.notif-icon.notif-account, .notif-icon.notif-system { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
+.notif-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-green-primary); }

@@ -23,7 +23,7 @@ export function TransactionCard({ tx, onClick }) {
           {TX_TYPE_LABEL[tx.type]} · {formatDateTime(tx.createdAt || tx.created_at)}
         </p>
       </div>
-      <div style={{ textAlign: 'right' }} className="stack-sm">
+      <div className="wallet-tx-side">
         <span className={`money ${credit ? 'text-green' : ''}`}>
           {credit ? '+' : '−'}
           {naira(tx.amount)}

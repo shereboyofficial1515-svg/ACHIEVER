@@ -168,6 +168,7 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 .list-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--color-green-50); color: var(--color-green-primary); flex-shrink: 0; }
 .list-icon.credit { background: var(--color-success-bg); color: var(--color-success-text); }
 .list-icon.debit { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
+.list-item .grow { min-width: 0; }
 
 /* Avatar -------------------------------------------------------------------- */
 /* The outer box is a fixed square: flex/grid parents can neither stretch it into an oval nor

@@ -9,6 +9,8 @@ import { api } from '../../services/api.js';
 import { formatDateTime, naira } from '../../utils/format.js';
 import { BANK_STATUS, STATUS_LABEL, TX_FILTERS, balanceHidden, iconFor, setBalanceHidden } from './walletShared.js';
 
+const TX_TONE = { pending: 'warning', failed: 'danger', reversed: 'neutral' };
+
 export function TxRow({ t }) {
   const Icon = iconFor(t);
   const credit = t.direction === 'credit';
@@ -19,11 +21,13 @@ export function TxRow({ t }) {
         <p style={{ fontWeight: 600 }}>{t.label}</p>
         <p className="xsmall muted">{t.description} · {formatDateTime(t.createdAt)}</p>
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div className="wallet-tx-side">
         <span className={`wallet-tx-amount${credit ? ' is-credit' : ''}`}>{credit ? '+' : '−'}{naira(t.amount)}</span>
         {t.transferStatus ? (
           <span className={`badge badge-${BANK_STATUS[t.transferStatus]?.tone || 'neutral'} tx-status-badge`}>{BANK_STATUS[t.transferStatus]?.label || t.transferStatus}</span>
-        ) : t.status !== 'success' && <p className="xsmall muted" style={{ margin: 0 }}>{STATUS_LABEL[t.status] || t.status}</p>}
+        ) : t.status !== 'success' && (
+          <span className={`badge badge-${TX_TONE[t.status] || 'neutral'} tx-status-badge`}>{STATUS_LABEL[t.status] || t.status}</span>
+        )}
       </div>
     </Link>
   );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KeyRound } from 'lucide-react';
+import { Check, KeyRound } from 'lucide-react';
 import { Alert, Button, Card, Input, PageHeader } from '../../components/ui/index.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useToast } from '../../contexts/ToastContext.jsx';
@@ -54,7 +54,18 @@ export default function JoinGroup() {
 
   return (
     <div className="stack-lg" style={{ maxWidth: 560 }}>
-      <PageHeader title="Join a group" back={{ to: '/app/osusu', label: 'Groups' }} />
+      <PageHeader title="Join a group" subtitle="Review the group's terms before you commit." back={{ to: '/app/osusu', label: 'Groups' }} />
+      <ol className="stepper" aria-label="Steps">
+        {['Enter code', 'Review terms', 'Join'].map((label, i) => {
+          const at = terms ? (accepted ? 2 : 1) : 0;
+          return (
+            <li key={label} className={i < at ? 'is-done' : i === at ? 'is-current' : ''} aria-current={i === at ? 'step' : undefined}>
+              <span className="stepper-dot">{i < at ? <Check size={14} aria-hidden /> : i + 1}</span>
+              <span className="stepper-label">{label}</span>
+            </li>
+          );
+        })}
+      </ol>
       <Card>
         <form className="stack" onSubmit={submit}>
           <p className="muted small">Enter the 8-character code your organiser shared with you.</p>
@@ -66,7 +77,7 @@ export default function JoinGroup() {
             autoCapitalize="characters"
             autoComplete="off"
             onChange={(e) => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setTerms(null); }}
-            style={{ letterSpacing: '0.3em', fontWeight: 600, textTransform: 'uppercase' }}
+            className="code-field"
           />
           <Alert tone="info">
             Joining an Osusu group is a commitment: you contribute every cycle until every member has been paid, including after you receive

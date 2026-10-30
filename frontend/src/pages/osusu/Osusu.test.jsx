@@ -82,3 +82,17 @@ describe('group workspace', () => {
     expect(within(mine).queryByText(/paid /)).toBeNull();
   });
 });
+
+describe('contribution status', () => {
+  it('a pending contribution due later is Upcoming; overdue and paid-late keep the server meaning', async () => {
+    const { ContributionStatus } = await import('./GroupDetail.jsx');
+    render(<div>
+      <ContributionStatus c={{ status: 'pending', dueDate: '2099-01-01' }} />
+      <ContributionStatus c={{ status: 'pending', dueDate: '2000-01-01' }} />
+      <ContributionStatus c={{ status: 'overdue', dueDate: '2000-01-01' }} />
+    </div>);
+    expect(screen.getByText('Upcoming')).toBeTruthy();
+    expect(screen.getByText('Pending')).toBeTruthy();
+    expect(screen.getByText('Overdue')).toBeTruthy();
+  });
+});

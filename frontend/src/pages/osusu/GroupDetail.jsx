@@ -15,7 +15,7 @@ import { api } from '../../services/api.js';
 import { usePaymentReview } from '../../components/domain/usePaymentReview.js';
 import WalletPayModal from '../../components/domain/WalletPayModal.jsx';
 import { AutoPaySetup } from '../wallet/AutoPay.jsx';
-import { FREQUENCY_LABEL, formatDate, formatDateTime, naira } from '../../utils/format.js';
+import { FREQUENCY_LABEL, daysUntil, formatDate, formatDateTime, naira } from '../../utils/format.js';
 import { TX_TYPE_LABEL } from '../../utils/status.js';
 
 /** Payment details for the review screen (see usePaymentReview). */
@@ -97,7 +97,7 @@ function Overview({ group, onChanged, conversationId }) {
                   <p style={{ fontWeight: 500 }}>Cycle {c.cycleNumber}</p>
                   <p className="xsmall muted">Due {formatDate(c.dueDate)}</p>
                 </div>
-                <StatusBadge status={c.status} />
+                <ContributionStatus c={c} />
                 <span className="money">{naira(c.amount)}</span>
                 <Button size="sm" variant={c.status === 'overdue' ? 'danger' : 'gold'} onClick={() => review(contributionReview(group, c), (idempotencyKey) => api.post(`/osusu/contributions/${c.id}/pay`, undefined, { idempotencyKey }))} loading={paying === c.id}>
                   Pay now
@@ -597,6 +597,12 @@ function Payouts({ group }) {
   );
 }
 
+/** Server status, with a pending contribution whose due date is still ahead shown as "Upcoming". */
+export function ContributionStatus({ c }) {
+  if (c.status === 'pending' && daysUntil(c.dueDate) > 0) return <StatusBadge status="scheduled" label="Upcoming" />;
+  return <StatusBadge status={c.status} />;
+}
+
 function Contributions({ group }) {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -604,13 +610,12 @@ function Contributions({ group }) {
   const isAdmin = group.permissions.isAdmin || group.permissions.isStaff;
   return (
     <Card title={isAdmin ? 'All contributions' : 'Your contribution history'} flush>
-      <div className="filters">
-        <select className="select" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="Status filter">
-          <option value="">All statuses</option>
-          <option value="paid">Paid</option>
-          <option value="pending">Pending</option>
-          <option value="overdue">Overdue</option>
-        </select>
+      <div className="card-toolbar">
+        <div className="segmented" role="group" aria-label="Filter by status">
+          {[['', 'All'], ['pending', 'Pending'], ['overdue', 'Overdue'], ['paid', 'Paid']].map(([v, l]) => (
+            <button key={v} type="button" aria-pressed={status === v} onClick={() => { setStatus(v); setPage(1); }}>{l}</button>
+          ))}
+        </div>
       </div>
       <AsyncContent loading={list.loading} error={list.error} onRetry={list.reload} empty={!list.data?.length} emptyState={<EmptyState title="No contributions" />}>
         <DataTable
@@ -620,8 +625,8 @@ function Contributions({ group }) {
             ...(isAdmin ? [{ key: 'm', label: 'Member', render: (c) => c.memberName }] : []),
             { key: 'a', label: 'Amount', align: 'right', render: (c) => <span className="money">{naira(c.amount)}</span> },
             { key: 'd', label: 'Due', render: (c) => formatDate(c.dueDate) },
-            { key: 's', label: 'Status', render: (c) => <span className="row-wrap"><StatusBadge status={c.status} />{c.isLate && <span className="chip">Late</span>}</span> },
-            { key: 'p', label: 'Paid at', render: (c) => formatDateTime(c.paidAt) },
+            { key: 's', label: 'Status', render: (c) => <span className="row-wrap"><ContributionStatus c={c} />{c.isLate && c.status === 'paid' && <span className="badge badge-warning">Paid late</span>}</span> },
+            { key: 'p', label: 'Paid at', render: (c) => (c.paidAt ? formatDateTime(c.paidAt) : '—') },
           ]}
         />
         <Pagination meta={list.meta} onPage={setPage} />

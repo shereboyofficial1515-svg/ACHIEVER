@@ -445,7 +445,8 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
 .wallet-hero::after { content: ''; position: absolute; right: -70px; top: -90px; width: 260px; height: 260px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.07); pointer-events: none; }
 .wallet-hero .muted, .wallet-hero .xsmall { color: rgba(238, 247, 242, 0.78); }
 .wallet-balance-row { display: flex; align-items: center; gap: var(--s-2); }
-.wallet-balance { font-size: clamp(2rem, 7vw, 2.625rem); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.1; margin: 0; color: #fff; overflow-wrap: anywhere; }
+.wallet-balance { font-size: clamp(2rem, 7vw, 2.625rem); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+.wallet-hero .wallet-balance { color: #fff; }
 .wallet-eye { background: rgba(255,255,255,.1); border: 0; color: inherit; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
 .wallet-hero-title { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.08em; color: #a7f3d0; }
 .wallet-account { display: flex; flex-direction: column; gap: 4px; margin-top: var(--s-3); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: var(--radius); padding: var(--s-3) var(--s-4); position: relative; z-index: 1; }

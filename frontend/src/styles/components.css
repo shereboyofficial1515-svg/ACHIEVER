@@ -268,7 +268,7 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
   gap: var(--s-3);
   align-items: flex-start;
   padding: var(--s-3) var(--s-4);
-  background: #0b1210;
+  background: var(--color-black);
   color: #f2f6f4;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);

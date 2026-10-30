@@ -26,7 +26,8 @@
 
 /* Settings layout */
 .settings-layout { display: grid; gap: var(--s-6); }
-.settings-nav { display: flex; gap: var(--s-2); overflow-x: auto; padding-bottom: var(--s-2); scrollbar-width: thin; }
+.settings-nav { display: flex; gap: var(--s-2); overflow-x: auto; padding-bottom: var(--s-2); scrollbar-width: none; }
+.settings-nav::-webkit-scrollbar { display: none; }
 .settings-nav a { white-space: nowrap; padding: 10px 14px; border-radius: var(--radius-sm); color: var(--color-text-muted); font-weight: 500; min-height: var(--touch); display: inline-flex; align-items: center; gap: 8px; text-decoration: none; border: 1px solid transparent; }
 .settings-nav a:hover { background: var(--color-surface-hover); text-decoration: none; }
 .settings-nav a.active { background: var(--color-green-light); color: var(--color-success-text); border-color: transparent; font-weight: 600; }

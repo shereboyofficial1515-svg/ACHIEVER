@@ -8,77 +8,94 @@
 :root {
   color-scheme: light;
 
-  /* Brand scales */
-  --color-green-primary: #0a8754;   /* buttons, success (4.7:1 with white text) */
-  --color-green-dark: #06683f;
-  --color-green-bright: #16b36f;    /* decorative fills, gradients */
-  --color-green-light: #e4f5ec;
-  --color-sky-primary: #0ea5e9;     /* decorative fills, gradients */
+  /* Brand: deep emerald identity. Sky blue is kept for links and information only. */
+  --color-emerald-950: #03211a;     /* deepest brand surface (balance cards, auth aside) */
+  --color-emerald-900: #053b2b;
+  --color-emerald-800: #075a40;
+  --color-green-primary: #0b7a4f;   /* buttons, selected (5.2:1 with white text) */
+  --color-green-dark: #07603e;
+  --color-green-bright: #1f9d67;    /* decorative fills, progress */
+  --color-green-light: #e8f4ee;
+  --color-green-50: #f3faf6;
+  --color-sky-primary: #0ea5e9;
   --color-sky-dark: #0369a1;        /* links, info text (5.9:1 on white) */
-  --color-sky-light: #e3f2fd;
+  --color-sky-light: #e6f3fb;
   --color-white: #ffffff;
-  --color-black: #0b0f0e;
+  --color-black: #0c1612;
 
   /* Surfaces */
-  --color-background: #f5f7f6;
+  --color-background: #f5f6f4;
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
-  --color-surface-sunken: #eff3f1;
-  --color-surface-hover: #f1f5f3;
-  --color-overlay: rgba(6, 12, 10, 0.55);
+  --color-surface-sunken: #f1f3f1;
+  --color-surface-hover: #f4f6f4;
+  --color-overlay: rgba(4, 16, 12, 0.5);
 
   /* Text */
-  --color-text-primary: #0b0f0e;
-  --color-text-secondary: #37423e;
-  --color-text-muted: #5b6863;
-  --color-on-primary: #ffffff;       /* text on green / sky buttons */
+  --color-text-primary: #0f1a16;
+  --color-text-secondary: #3a4742;
+  --color-text-muted: #5f6c67;
+  --color-on-primary: #ffffff;
   --color-link: var(--color-sky-dark);
 
   /* Lines */
-  --color-border: #e0e7e3;
-  --color-border-strong: #c3cec9;
+  --color-border: #e3e8e5;
+  --color-border-strong: #cdd5d1;
 
-  /* Status */
+  /* Status (restrained) */
   --color-success: var(--color-green-primary);
-  --color-success-bg: var(--color-green-light);
-  --color-success-text: #06603a;
+  --color-success-bg: #e8f4ee;
+  --color-success-text: #08613d;
   --color-warning: #b45309;
-  --color-warning-bg: #fdf3dc;
+  --color-warning-bg: #fdf4e3;
   --color-warning-text: #7a3d06;
   --color-error: #c0262d;
-  --color-error-bg: #fde8e8;
+  --color-error-bg: #fdecec;
   --color-error-text: #971c21;
   --color-info: var(--color-sky-dark);
   --color-info-bg: var(--color-sky-light);
   --color-info-text: #075985;
 
-  /* Navigation (black) */
-  --color-nav-bg: #0b1210;
-  --color-nav-text: #c6d1cc;
-  --color-nav-muted: #7d8b85;
+  /* Navigation: a light sidebar with emerald accents; the deep emerald is reserved
+     for brand moments (auth aside, landing hero). */
+  --color-nav-bg: var(--color-emerald-950);
+  --color-nav-text: #c9d8d1;
+  --color-nav-muted: #86a097;
   --color-nav-hover: rgba(255, 255, 255, 0.06);
-  --color-nav-active: rgba(22, 179, 111, 0.16);
+  --color-nav-active: rgba(52, 211, 153, 0.16);
   --color-nav-accent: #34d399;
+  --color-sidebar-bg: #ffffff;
+  --color-sidebar-text: #3a4742;
+  --color-sidebar-muted: #66736e;
+  --color-sidebar-hover: #f2f5f3;
+  --color-sidebar-active-bg: var(--color-green-light);
+  --color-sidebar-active-text: #07603e;
 
-  /* Gradients (used sparingly: hero, primary moments, progress) */
-  --gradient-brand: linear-gradient(135deg, var(--color-green-primary) 0%, var(--color-sky-primary) 100%);
-  --gradient-sky-green: linear-gradient(135deg, var(--color-sky-dark) 0%, var(--color-green-primary) 100%);
+  /* Gradients: emerald only, used for balance cards, hero and progress. */
+  --gradient-brand: linear-gradient(135deg, var(--color-emerald-800) 0%, var(--color-green-primary) 100%);
+  --gradient-sky-green: linear-gradient(135deg, var(--color-emerald-900) 0%, var(--color-green-primary) 100%);
   --gradient-green: linear-gradient(135deg, var(--color-green-bright) 0%, var(--color-green-dark) 100%);
   --gradient-sky: linear-gradient(135deg, var(--color-sky-primary) 0%, #075985 100%);
-  --gradient-hero-overlay: linear-gradient(100deg, rgba(4, 30, 20, 0.92) 0%, rgba(5, 60, 40, 0.78) 45%, rgba(3, 105, 161, 0.35) 100%);
+  --gradient-balance: radial-gradient(120% 140% at 100% 0%, rgba(52, 211, 153, 0.22) 0%, rgba(52, 211, 153, 0) 55%), linear-gradient(150deg, #053b2b 0%, #03211a 100%);
+  --gradient-hero-overlay: linear-gradient(100deg, rgba(3, 33, 26, 0.94) 0%, rgba(5, 59, 43, 0.8) 45%, rgba(7, 90, 64, 0.4) 100%);
 
-  --focus: 0 0 0 3px rgba(14, 165, 233, 0.35);
+  --focus: 0 0 0 3px rgba(11, 122, 79, 0.28);
 
-  /* Type */
+  /* Type: Inter, one scale, tabular figures for money */
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-2xs: 0.6875rem;
   --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
   --fs-md: 1rem;
   --fs-lg: 1.125rem;
   --fs-xl: 1.375rem;
   --fs-2xl: 1.75rem;
+  --fs-3xl: 2.125rem;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
 
-  /* Space & shape: restrained radii and shadows */
+  /* Space & shape */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -87,47 +104,53 @@
   --s-6: 24px;
   --s-8: 32px;
   --s-10: 40px;
-  --radius-sm: 6px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --shadow-sm: 0 1px 2px rgba(11, 15, 14, 0.05);
-  --shadow: 0 1px 3px rgba(11, 15, 14, 0.07);
-  --shadow-lg: 0 12px 32px rgba(11, 15, 14, 0.16);
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(15, 26, 22, 0.04);
+  --shadow: 0 1px 2px rgba(15, 26, 22, 0.04), 0 2px 8px -2px rgba(15, 26, 22, 0.06);
+  --shadow-md: 0 2px 4px rgba(15, 26, 22, 0.04), 0 8px 20px -6px rgba(15, 26, 22, 0.1);
+  --shadow-lg: 0 16px 40px -8px rgba(15, 26, 22, 0.22);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
-  --sidebar-w: 248px;
-  --topbar-h: 60px;
+  --sidebar-w: 256px;
+  --topbar-h: 64px;
   --bottomnav-h: 64px;
+  --content-max: 1180px;
   --touch: 44px;
 }
 
-/* Dark theme: real dark surfaces (charcoal, not pure black) and brighter,
-   still-accessible green and sky blue. */
+/* Dark theme: real dark surfaces (charcoal-green, not pure black) and brighter,
+   still-accessible emerald. */
 html[data-theme='dark'] {
   color-scheme: dark;
-  --color-green-primary: #1fb57a;
-  --color-green-dark: #179463;
+  --color-green-primary: #22b07a;
+  --color-green-dark: #1a9466;
   --color-green-bright: #34d399;
-  --color-green-light: #11291f;
+  --color-green-light: #102a20;
+  --color-green-50: #0f1f19;
   --color-sky-primary: #38bdf8;
   --color-sky-dark: #7dd3fc;
   --color-sky-light: #0d2433;
 
-  --color-background: #0e1412;
-  --color-surface: #151d1a;
-  --color-surface-elevated: #1b2521;
-  --color-surface-sunken: #111816;
-  --color-surface-hover: #1d2824;
+  --color-background: #0b110f;
+  --color-surface: #121a17;
+  --color-surface-elevated: #18221e;
+  --color-surface-sunken: #0f1613;
+  --color-surface-hover: #1a2420;
   --color-overlay: rgba(0, 0, 0, 0.65);
 
-  --color-text-primary: #e8eeeb;
-  --color-text-secondary: #bcc8c3;
-  --color-text-muted: #8f9d97;
-  --color-on-primary: #04130c;
+  --color-text-primary: #e7eeea;
+  --color-text-secondary: #bccac4;
+  --color-text-muted: #8e9d97;
+  --color-on-primary: #03140d;
   --color-link: #7dd3fc;
 
-  --color-border: #26322d;
-  --color-border-strong: #37463f;
+  --color-border: #222e29;
+  --color-border-strong: #34433d;
 
+  --color-success-bg: #102a20;
   --color-success-text: #5ee0a6;
   --color-warning: #f59e0b;
   --color-warning-bg: #2a2109;
@@ -137,14 +160,20 @@ html[data-theme='dark'] {
   --color-error-text: #ff9b9b;
   --color-info-text: #8fd8fb;
 
-  --color-nav-bg: #090e0c;
-  --color-nav-text: #c6d1cc;
-  --color-nav-active: rgba(52, 211, 153, 0.14);
+  --color-nav-bg: #06120e;
+  --color-sidebar-bg: #0e1513;
+  --color-sidebar-text: #bccac4;
+  --color-sidebar-muted: #75847e;
+  --color-sidebar-hover: #16201c;
+  --color-sidebar-active-bg: #12291f;
+  --color-sidebar-active-text: #6ee7b7;
 
-  --gradient-hero-overlay: linear-gradient(100deg, rgba(3, 12, 9, 0.94) 0%, rgba(4, 38, 26, 0.84) 45%, rgba(3, 60, 94, 0.45) 100%);
-  --focus: 0 0 0 3px rgba(56, 189, 248, 0.45);
+  --gradient-balance: radial-gradient(120% 140% at 100% 0%, rgba(52, 211, 153, 0.18) 0%, rgba(52, 211, 153, 0) 55%), linear-gradient(150deg, #0a3a2a 0%, #05211a 100%);
+  --gradient-hero-overlay: linear-gradient(100deg, rgba(3, 12, 9, 0.94) 0%, rgba(4, 38, 26, 0.84) 45%, rgba(5, 70, 50, 0.45) 100%);
+  --focus: 0 0 0 3px rgba(52, 211, 153, 0.35);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 6px 18px -4px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 

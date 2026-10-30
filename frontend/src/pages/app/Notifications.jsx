@@ -8,6 +8,7 @@ import { useRealtime, useRealtimeEvent } from '../../contexts/RealtimeContext.js
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { useReveal } from '../../hooks/useMotion.js';
+import { useToast } from '../../contexts/ToastContext.jsx';
 
 export default function Notifications() {
   const [filter, setFilter] = useState('all');
@@ -31,16 +32,25 @@ export default function Notifications() {
     else list.reload();
   };
 
+  const [marking, setMarking] = useState(false);
+  const toast = useToast();
   const readAll = async () => {
-    await api.post('/notifications/read-all');
-    setUnreadNotifications(0);
-    list.reload();
+    setMarking(true);
+    try {
+      await api.post('/notifications/read-all');
+      setUnreadNotifications(0);
+      list.reload();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setMarking(false);
+    }
   };
 
   return (
     <PullToRefresh onRefresh={() => reloadAll(list)}>
     <div className="stack-lg" style={{ maxWidth: 820 }}>
-      <PageHeader title="Notifications" actions={<Button variant="secondary" size="sm" icon={CheckCheck} onClick={readAll}>Mark all as read</Button>} />
+      <PageHeader title="Notifications" subtitle="Payment confirmations, contribution reminders, payouts, group updates and security alerts." actions={<Button variant="secondary" size="sm" icon={CheckCheck} onClick={readAll} loading={marking} disabled={!list.data?.some((n) => !n.read_at)}>Mark all as read</Button>} />
       <Card flush>
         <div style={{ padding: '0 16px' }}>
           <Tabs value={filter} onChange={(v) => { setFilter(v); setPage(1); }} tabs={[{ value: 'all', label: 'All' }, { value: 'unread', label: 'Unread' }]} />
@@ -51,7 +61,7 @@ export default function Notifications() {
           onRetry={list.reload}
           empty={!list.data?.length}
           skeleton={<SkeletonList />}
-          emptyState={<EmptyState icon={BellOff} title="No notifications" message="Reminders, payment confirmations and payout updates will appear here." />}
+          emptyState={<EmptyState icon={BellOff} title={filter === 'unread' ? 'You have read everything' : 'No notifications'} message="Reminders, payment confirmations and payout updates will appear here." />}
         >
           <ul className="list" ref={listRef}>
             {list.data?.map((n) => (

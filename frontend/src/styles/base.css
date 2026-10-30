@@ -23,10 +23,11 @@ h1, h2, h3, h4 {
   margin: 0;
   line-height: 1.25;
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--color-text-primary);
 }
-h1 { font-size: var(--fs-xl); }
+h1 { font-size: 1.5rem; letter-spacing: -0.022em; }
+@media (max-width: 639px) { h1 { font-size: 1.3125rem; } }
 h2 { font-size: var(--fs-lg); }
 h3 { font-size: var(--fs-md); }
 p { margin: 0; }
@@ -65,7 +66,8 @@ button, input, select, textarea {
 .small { font-size: var(--fs-sm); }
 .xsmall { font-size: var(--fs-xs); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
-.money { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.money { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; letter-spacing: -0.01em; }
+.eyebrow { font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
 .text-green { color: var(--color-success-text); }
 .text-red { color: var(--color-error); }
 .text-sky { color: var(--color-info-text); }

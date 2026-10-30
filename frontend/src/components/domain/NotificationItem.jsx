@@ -29,21 +29,22 @@ export default function NotificationItem({ n, onOpen }) {
   const unread = !n.read_at && !n.readAt;
   return (
     <li
-      className="list-item clickable"
+      className={`list-item clickable notif-item${unread ? ' is-unread' : ''}`}
       onClick={() => onOpen(n)}
       onKeyDown={(e) => e.key === 'Enter' && onOpen(n)}
       tabIndex={0}
-      style={unread ? { background: 'var(--navy-50)' } : undefined}
     >
-      <span className="list-icon" aria-hidden>
+      <span className={`list-icon notif-icon notif-${n.category || 'system'}`} aria-hidden>
         <Icon size={18} />
       </span>
       <div className="grow">
         <p style={{ fontWeight: unread ? 600 : 500 }}>{n.title}</p>
         <p className="small muted">{n.body}</p>
       </div>
-      <span className="xsmall muted nowrap">{relativeTime(n.created_at || n.createdAt)}</span>
-      {unread && <span className="sr-only">Unread</span>}
+      <span className="notif-side">
+        <span className="xsmall muted nowrap">{relativeTime(n.created_at || n.createdAt)}</span>
+        {unread && <span className="notif-dot" aria-label="Unread" />}
+      </span>
     </li>
   );
 }

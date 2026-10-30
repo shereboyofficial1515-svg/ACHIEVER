@@ -47,6 +47,23 @@ export function walletReceiptModel(t) {
   };
 }
 
+/** Payment ledger record (GET /payments/transactions row) → receipt model. */
+export function paymentReceiptModel(t, typeLabel = '') {
+  const rows = [['Type', typeLabel || t.type]];
+  if (t.description) rows.push(['Description', t.description]);
+  rows.push(['Amount', naira(t.amount)], ['Reference', t.reference]);
+  if (t.provider_reference) rows.push(['Provider reference', t.provider_reference]);
+  if (t.provider) rows.push(['Channel', t.provider]);
+  rows.push(['Date', formatDateTime(t.completed_at || t.created_at)]);
+  return {
+    status: String(t.status || '').toUpperCase(),
+    title: typeLabel || 'Payment',
+    amount: naira(t.amount),
+    reference: t.reference,
+    rows,
+  };
+}
+
 /** Bank transfer (GET /wallet/bank-transfers/:id) → receipt model. */
 export function bankReceiptModel(t) {
   return {

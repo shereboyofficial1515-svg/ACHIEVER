@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { MessageSquare, PiggyBank, Undo2 } from 'lucide-react';
+import { CalendarClock, MessageSquare, PiggyBank, TrendingUp, Undo2, Wallet } from 'lucide-react';
 import {
   Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, KeyValue, Modal, MoneyInput, PageHeader, Pagination,
   ProgressBar, SkeletonCards, StatCard, StatusBadge, Textarea,
@@ -106,10 +106,10 @@ export default function PlanDetail() {
         }
       />
       <div className="grid-4">
-        <StatCard accent label="Balance" value={naira(p.balance)} sub={<StatusBadge status={p.status} />} />
-        <StatCard label="Expected return" value={naira(p.expectedReturn)} sub={`After ${naira(p.estimatedCommission)} commission`} />
-        <StatCard label="Total saved" value={naira(p.totalContributed)} sub={p.totalReturned ? `${naira(p.totalReturned)} returned` : undefined} />
-        <StatCard label={days > 0 ? 'Days remaining' : 'Matured'} value={days > 0 ? days : formatDate(p.endDate)} sub={`Term ends ${formatDate(p.endDate)}`} />
+        <StatCard accent icon={PiggyBank} label="Balance" value={naira(p.balance)} sub={<StatusBadge status={p.status} />} />
+        <StatCard icon={TrendingUp} label="Expected return" value={naira(p.expectedReturn)} sub={`After ${naira(p.estimatedCommission)} commission`} />
+        <StatCard icon={Wallet} label="Total saved" value={naira(p.totalContributed)} sub={p.totalReturned ? `${naira(p.totalReturned)} returned` : undefined} />
+        <StatCard icon={CalendarClock} label={days > 0 ? 'Days remaining' : 'Matured'} value={days > 0 ? days : formatDate(p.endDate)} sub={`Term ends ${formatDate(p.endDate)}`} />
       </div>
 
       {p.status === 'active' && (

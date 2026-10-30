@@ -20,10 +20,10 @@ export function TransactionCard({ tx, onClick }) {
           {tx.description || TX_TYPE_LABEL[tx.type]}
         </p>
         <p className="xsmall muted">
-          {TX_TYPE_LABEL[tx.type]} · {formatDateTime(tx.createdAt || tx.created_at)}
+          {[TX_TYPE_LABEL[tx.type], formatDateTime(tx.createdAt || tx.created_at)].filter(Boolean).join(' · ')}
         </p>
       </div>
-      <div style={{ textAlign: 'right' }} className="stack-sm">
+      <div className="wallet-tx-side">
         <span className={`money ${credit ? 'text-green' : ''}`}>
           {credit ? '+' : '−'}
           {naira(tx.amount)}

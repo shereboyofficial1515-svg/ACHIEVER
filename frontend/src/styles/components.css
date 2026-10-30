@@ -371,3 +371,22 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 .option-logo { border-radius: 8px; object-fit: contain; background: #fff; flex-shrink: 0; }
 .option-badge { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
 .card-header a { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Stepper (multi-step forms) and form actions ------------------------------------------------ */
+.stepper { list-style: none; margin: 0; padding: 0; display: flex; gap: var(--s-2); counter-reset: none; }
+.stepper li { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 3px solid var(--color-border); color: var(--color-text-muted); font-size: var(--fs-xs); font-weight: 500; }
+.stepper li.is-done { border-top-color: var(--color-green-primary); color: var(--color-text-secondary); }
+.stepper li.is-current { border-top-color: var(--color-green-primary); color: var(--color-text-primary); font-weight: 600; }
+.stepper-dot { display: none; }
+.stepper-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 640px) {
+  .stepper li { flex-direction: row; align-items: center; gap: 8px; font-size: var(--fs-sm); }
+  .stepper-dot { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; font-size: var(--fs-xs); font-weight: 700; background: var(--color-surface-sunken); color: var(--color-text-muted); }
+  .stepper li.is-current .stepper-dot { background: var(--color-green-primary); color: var(--color-on-primary); }
+  .stepper li.is-done .stepper-dot { background: var(--color-green-light); color: var(--color-green-primary); }
+}
+.form-actions { display: flex; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
+.form-actions > :only-child { margin-left: auto; }
+@media (max-width: 479px) { .form-actions > .btn { flex: 1 1 0; } }
+.review-hero { padding: var(--s-4) var(--s-5); border-radius: var(--radius); background: var(--color-green-50); border: 1px solid color-mix(in srgb, var(--color-green-primary) 18%, transparent); display: flex; flex-direction: column; gap: 2px; }
+.review-hero-amount { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; color: var(--color-text-primary); }

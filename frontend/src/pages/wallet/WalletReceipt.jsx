@@ -3,10 +3,25 @@ import { AsyncContent, Button, Card, KeyValue, PageHeader } from '../../componen
 import { useAsync } from '../../hooks/useAsync.js';
 import { api } from '../../services/api.js';
 import { formatDateTime, naira } from '../../utils/format.js';
-import { STATUS_LABEL } from './walletShared.js';
+import { STATUS_LABEL, iconFor } from './walletShared.js';
 import RecipientCard from '../../components/domain/RecipientCard.jsx';
 import ReceiptShare from '../../components/domain/ReceiptShare.jsx';
 import { walletReceiptModel } from '../../services/receiptExport.js';
+
+const TONE = { success: 'success', pending: 'warning', failed: 'danger' };
+
+function ReceiptHead({ t }) {
+  const Icon = iconFor(t);
+  const credit = t.direction === 'credit';
+  return (
+    <div className="receipt-head">
+      <span className={`receipt-icon ${credit ? 'is-credit' : ''}`} aria-hidden><Icon size={22} /></span>
+      <span className="small muted">{t.label}</span>
+      <p className={`amount${credit ? ' text-green' : ''}`}>{credit ? '+' : '−'}{naira(t.amount)}</p>
+      <span className={`badge badge-${TONE[t.status] || 'neutral'}`}>{STATUS_LABEL[t.status] || t.status}</span>
+    </div>
+  );
+}
 
 export default function WalletReceipt() {
   const { id } = useParams();
@@ -19,12 +34,7 @@ export default function WalletReceipt() {
         {t && (
           <Card>
             <div className="stack">
-              <div style={{ textAlign: 'center' }}>
-                <p className="xsmall muted" style={{ margin: 0 }}>{t.label}</p>
-                <p className={`wallet-balance${t.direction === 'credit' ? ' text-green' : ''}`} style={{ fontSize: '1.9rem' }}>
-                  {t.direction === 'credit' ? '+' : '−'}{naira(t.amount)}
-                </p>
-              </div>
+              <ReceiptHead t={t} />
               {t.counterparty && <RecipientCard party={t.counterparty} label={t.direction === 'credit' ? 'From' : 'To'} />}
               <KeyValue
                 items={[

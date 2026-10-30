@@ -172,7 +172,13 @@ export default function AppLayout() {
   };
 
   // The Android back button closes the menu drawer first.
-  useEffect(() => (drawer ? pushOverlay(() => setDrawer(false)) : undefined), [drawer]);
+  useEffect(() => {
+    if (!drawer) return undefined;
+    const pop = pushOverlay(() => setDrawer(false));
+    const onKey = (e) => { if (e.key === 'Escape') setDrawer(false); };
+    document.addEventListener('keydown', onKey);
+    return () => { pop(); document.removeEventListener('keydown', onKey); };
+  }, [drawer]);
 
   return (
     <div className="app-shell">

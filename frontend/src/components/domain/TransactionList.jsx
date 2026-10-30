@@ -20,7 +20,7 @@ export function TransactionCard({ tx, onClick }) {
           {tx.description || TX_TYPE_LABEL[tx.type]}
         </p>
         <p className="xsmall muted">
-          {TX_TYPE_LABEL[tx.type]} · {formatDateTime(tx.createdAt || tx.created_at)}
+          {[TX_TYPE_LABEL[tx.type], formatDateTime(tx.createdAt || tx.created_at)].filter(Boolean).join(' · ')}
         </p>
       </div>
       <div className="wallet-tx-side">

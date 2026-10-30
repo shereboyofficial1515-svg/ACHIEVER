@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Menu } from 'lucide-react';
+import { Bell, BookOpen, ChevronDown, LogOut, Menu, Settings, UserRound, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useRealtime, useRealtimeEvent } from '../contexts/RealtimeContext.jsx';
 import { IconButton, Loader, UserAvatar } from '../components/ui/index.js';
@@ -20,28 +20,81 @@ import { usePushRefresh } from '../components/domain/SecuritySettings.jsx';
 function Brand({ compact }) {
   return compact
     ? <BrandLogo variant="mark" height={36} to="/app" />
-    : <BrandLogo variant="stacked" width={132} tone="dark" to="/app" />;
+    : <BrandLogo variant="stacked" width={92} to="/app" />;
 }
 
-function NavList({ nav, badges, onNavigate }) {
-  const renderItem = (item) => (
-    <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={onNavigate}>
+function NavItem({ item, badges, onNavigate }) {
+  const count = item.badgeKey ? badges[item.badgeKey] : 0;
+  return (
+    <NavLink to={item.to} end={item.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={onNavigate}>
       <item.icon size={18} aria-hidden />
       <span>{item.label}</span>
-      {item.badgeKey && badges[item.badgeKey] > 0 && <span className="count">{badges[item.badgeKey]}</span>}
+      {count > 0 && <span className="count" aria-label={`${count} unread`}>{count > 99 ? '99+' : count}</span>}
     </NavLink>
   );
+}
+
+/** Grouped navigation (Savings, Money, Community, Support); `withAccount` adds Profile and Settings (phone drawer). */
+function NavList({ nav, badges, onNavigate, withAccount }) {
+  const sections = withAccount ? [...nav.sections, { id: 'account', label: 'Account', items: nav.account }] : nav.sections;
   return (
     <>
-      {nav.main.map(renderItem)}
-      {nav.admin.length > 0 && <div className="nav-section">Administration</div>}
-      {nav.admin.map(renderItem)}
+      {sections.map((s) => (
+        <div key={s.id} className="nav-group" role="group" aria-label={s.label || 'Home'}>
+          {s.label && <div className="nav-section" aria-hidden>{s.label}</div>}
+          {s.items.map((item) => <NavItem key={item.to} item={item} badges={badges} onNavigate={onNavigate} />)}
+        </div>
+      ))}
     </>
   );
 }
 
+/** Top-bar account menu: profile, settings, help and sign out. Escape, outside click and the Android back button close it. */
+function ProfileMenu({ user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const location = useLocation();
+  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus(); } };
+    document.addEventListener('pointerdown', onDoc);
+    document.addEventListener('keydown', onKey);
+    const pop = pushOverlay(() => setOpen(false));
+    return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey); pop?.(); };
+  }, [open]);
+  const first = user?.fullName?.split(' ')[0] || 'Account';
+  return (
+    <div className="profile-menu" ref={ref}>
+      <button type="button" className="profile-trigger" aria-haspopup="menu" aria-expanded={open} aria-label="Account menu" onClick={() => setOpen((v) => !v)}>
+        <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={34} />
+        <span className="profile-trigger-name">{first}</span>
+        <ChevronDown size={16} aria-hidden className="profile-trigger-chev" />
+      </button>
+      {open && (
+        <div className="profile-dropdown" role="menu">
+          <div className="profile-dropdown-head">
+            <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={40} />
+            <div className="grow">
+              <p className="truncate" style={{ fontWeight: 600 }}>{user?.fullName}</p>
+              <p className="xsmall muted truncate">{user?.email}</p>
+            </div>
+          </div>
+          <Link role="menuitem" to="/app/profile" className="profile-dropdown-item"><UserRound size={17} aria-hidden /> My profile</Link>
+          <Link role="menuitem" to="/app/settings" className="profile-dropdown-item"><Settings size={17} aria-hidden /> Settings</Link>
+          <Link role="menuitem" to="/app/help" className="profile-dropdown-item"><BookOpen size={17} aria-hidden /> Help Center</Link>
+          <button role="menuitem" type="button" className="profile-dropdown-item is-danger" onClick={() => { setOpen(false); onLogout(); }}>
+            <LogOut size={17} aria-hidden /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AppLayout() {
-  const { user, has, can, logout } = useAuth();
+  const { user, has, logout } = useAuth();
   const { unreadNotifications } = useRealtime();
   const { prefs } = usePreferences();
   const toast = useToast();
@@ -55,7 +108,7 @@ export default function AppLayout() {
     return () => document.body.classList.remove('in-chat');
   }, [inChat]);
   const navigate = useNavigate();
-  const nav = useMemo(() => buildNavigation(has, can), [has, can]);
+  const nav = useMemo(() => buildNavigation(has), [has]);
 
   const refreshMessages = () =>
     api.get('/messages/conversations').then(({ data }) => setUnreadMessages(data.reduce((s, c) => s + c.unreadCount, 0))).catch(() => {});
@@ -133,22 +186,36 @@ export default function AppLayout() {
           <NavList nav={nav} badges={badges} />
         </nav>
         <div className="sidebar-footer">
-          <button type="button" className="nav-link" style={{ width: '100%', background: 'none', border: 0, cursor: 'pointer' }} onClick={onLogout}>
-            <LogOut size={18} aria-hidden /> <span>Sign out</span>
-          </button>
+          <NavLink to="/app/profile" className={({ isActive }) => `sidebar-user ${isActive ? 'active' : ''}`}>
+            <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={36} />
+            <span className="grow">
+              <span className="sidebar-user-name truncate">{user?.fullName}</span>
+              <span className="sidebar-user-sub truncate">View profile</span>
+            </span>
+          </NavLink>
+          <NavLink to="/app/settings" className="sidebar-icon-link" aria-label="Settings" title="Settings"><Settings size={18} aria-hidden /></NavLink>
+          <button type="button" className="sidebar-icon-link" onClick={onLogout} aria-label="Sign out" title="Sign out"><LogOut size={18} aria-hidden /></button>
         </div>
       </aside>
 
       {drawer && (
         <>
           <div className="drawer-backdrop" onClick={() => setDrawer(false)} />
-          <aside className="drawer" aria-label="Menu">
-            <div className="brand" style={{ display: 'flex', alignItems: 'center', padding: '16px 20px' }}>
+          <aside className="drawer" aria-label="Menu" role="dialog" aria-modal="true">
+            <div className="drawer-head">
               <Brand />
+              <IconButton icon={X} label="Close menu" onClick={() => setDrawer(false)} />
             </div>
+            <Link to="/app/profile" className="drawer-user" onClick={() => setDrawer(false)}>
+              <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={40} />
+              <span className="grow">
+                <span className="sidebar-user-name truncate">{user?.fullName}</span>
+                <span className="sidebar-user-sub truncate">{user?.email}</span>
+              </span>
+            </Link>
             <nav>
-              <NavList nav={nav} badges={badges} onNavigate={() => setDrawer(false)} />
-              <button type="button" className="nav-link" style={{ background: 'none', border: 0, textAlign: 'left' }} onClick={onLogout}>
+              <NavList nav={nav} badges={badges} onNavigate={() => setDrawer(false)} withAccount />
+              <button type="button" className="nav-link nav-signout" onClick={onLogout}>
                 <LogOut size={18} aria-hidden /> <span>Sign out</span>
               </button>
             </nav>
@@ -162,10 +229,8 @@ export default function AppLayout() {
           <span className="mobile-mark"><Brand compact /></span>
           <span className="topbar-title">{current?.label || 'ACHIEVER'}</span>
           <div className="actions">
-            <IconButton icon={Bell} label="Notifications" count={unreadNotifications} onClick={() => navigate('/app/notifications')} />
-            <Link to="/app/profile" aria-label="My profile">
-              <UserAvatar name={user?.fullName} src={user?.avatarUrl} size={34} />
-            </Link>
+            <IconButton icon={Bell} label={unreadNotifications ? `Notifications, ${unreadNotifications} unread` : 'Notifications'} count={unreadNotifications} onClick={() => navigate('/app/notifications')} />
+            <ProfileMenu user={user} onLogout={onLogout} />
           </div>
         </header>
         <main className="main" id="main" tabIndex={-1}>

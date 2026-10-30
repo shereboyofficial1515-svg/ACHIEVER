@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowDown, ArrowUp, CalendarClock, CalendarPlus, CheckCircle2, Copy, Download, MessageSquare, Phone, Play, ShieldAlert, UserPlus, UsersRound, Wallet, XCircle,
+  ArrowDown, ArrowLeft, ArrowUp, Lock, CalendarClock, CalendarPlus, CheckCircle2, Copy, Download, MessageSquare, Phone, Play, ShieldAlert, UserPlus, UsersRound, Wallet, XCircle,
 } from 'lucide-react';
 import {
-  Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, GroupAvatar, Input, KeyValue, Loader, Modal, PageHeader, Pagination, ProgressBar, Select, SkeletonCards, StatCard, StatusBadge, Tabs, UserAvatar, fieldErrors,
+  Alert, AsyncContent, Button, Card, ConfirmDialog, DataTable, EmptyState, ErrorState, GroupAvatar, Input, KeyValue, Loader, Modal, Pagination, ProgressBar, Select, SkeletonCards, StatCard, StatusBadge, Tabs, UserAvatar, fieldErrors,
 } from '../../components/ui/index.js';
 import { MeetingList, ScheduleMeetingModal } from '../app/Meetings.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -89,7 +89,7 @@ function Overview({ group, onChanged, conversationId }) {
       )}
 
       {openMine.length > 0 && (
-        <Card title="Your contributions due" flush>
+        <Card title="Your next action: contributions due" className="card-attention" flush>
           <ul className="list">
             {openMine.map((c) => (
               <li key={c.id} className="contribution-card">
@@ -168,17 +168,21 @@ function Overview({ group, onChanged, conversationId }) {
       )}
 
       {s && (
-        <div className="grid-4">
-          <StatCard label="Members" value={s.active_members} sub={`${naira(group.contributionAmount)} ${FREQUENCY_LABEL[group.frequency].toLowerCase()}`} />
-          <StatCard label="Pool per cycle" value={naira(s.pool_per_cycle)} />
+        <div className="grid-2">
           <StatCard label="Cycles completed" value={`${s.completed_cycles}${s.total_cycles ? ` / ${s.total_cycles}` : ''}`} sub={s.total_cycles ? `${s.remaining_cycles} remaining` : 'Not started'} />
           <StatCard label="Total collected" value={naira(s.total_collected)} sub={`${naira(s.total_outstanding)} outstanding · ${s.overdue_contributions} overdue`} />
         </div>
       )}
 
-      <Card title="Group">
+      <Card title="Group terms and rules">
         <div className="stack">
           {group.description && <p className="small">{group.description}</p>}
+          <ul className="rules-list">
+            <li><Lock size={15} aria-hidden /> {group.status === 'recruiting' ? 'The terms lock when the organiser starts the group; the payout order is fixed at that point.' : 'The terms are locked because the group has started.'}</li>
+            <li><CalendarClock size={15} aria-hidden /> Every member keeps contributing each cycle until all payouts are complete, including after their own payout.</li>
+            <li><XCircle size={15} aria-hidden /> Members can leave, and the organiser can cancel, only before the group starts.</li>
+            {group.rules && <li><CheckCircle2 size={15} aria-hidden /> <span style={{ whiteSpace: 'pre-line' }}>{typeof group.rules === 'string' ? group.rules : group.rules.text || ''}</span></li>}
+          </ul>
           <KeyValue
             items={[
               ['Organiser', group.admin?.name],
@@ -562,18 +566,32 @@ function Cycles({ group, onChanged }) {
 function Payouts({ group }) {
   const payouts = useAsync(() => api.get(`/osusu/groups/${group.id}/payouts`), [group.id]);
   return (
-    <Card title="Payouts" flush>
+    <Card title="Payout order" actions={payouts.data?.length ? <span className="xsmall muted">{payouts.data.filter((p) => p.paidAt).length} of {payouts.data.length} paid out</span> : null} flush>
       <AsyncContent loading={payouts.loading} error={payouts.error} onRetry={payouts.reload} empty={!payouts.data?.length} emptyState={<EmptyState title="No payouts scheduled" message="Payouts are scheduled when the group starts." />}>
-        <DataTable
-          rows={payouts.data || []}
-          columns={[
-            { key: 'c', label: 'Cycle', render: (p) => p.cycleNumber },
-            { key: 'r', label: 'Recipient', render: (p) => (p.isMine ? `${p.recipientName} (you)` : p.recipientName) },
-            { key: 'a', label: 'Amount', align: 'right', render: (p) => <span className="money">{naira(p.amount)}</span> },
-            { key: 's', label: 'Status', render: (p) => <StatusBadge status={p.status} /> },
-            { key: 'd', label: 'Paid on', render: (p) => formatDate(p.paidAt) },
-          ]}
-        />
+        {/* A payout shows as paid only when the server has recorded paidAt (transfer confirmed). */}
+        <ol className="payout-timeline">
+          {(payouts.data || []).map((p) => {
+            const paid = Boolean(p.paidAt);
+            return (
+              <li key={p.id} className={`payout-step ${paid ? 'is-paid' : ''} ${p.isMine ? 'is-mine' : ''}`}>
+                <span className="payout-marker" aria-hidden>{paid ? <CheckCircle2 size={16} /> : p.cycleNumber}</span>
+                <div className="grow">
+                  <p className="payout-name">{p.recipientName}{p.isMine && <span className="chip" style={{ marginLeft: 8 }}>You</span>}</p>
+                  <p className="xsmall muted">
+                    Cycle {p.cycleNumber}
+                    {paid ? ` · paid ${formatDate(p.paidAt)}` : p.approvedAt ? ` · approved ${formatDate(p.approvedAt)}` : ''}
+                    {p.reference ? ` · ref ${p.reference}` : ''}
+                  </p>
+                  {p.failureReason && <p className="xsmall text-red">{p.failureReason}</p>}
+                </div>
+                <div className="payout-side">
+                  <span className="money">{naira(p.amount)}</span>
+                  <StatusBadge status={p.status} />
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </AsyncContent>
     </Card>
   );
@@ -718,23 +736,31 @@ export default function GroupDetail() {
     ...(g.permissions.isAdmin || isStaff ? [{ value: 'insights', label: 'Reports & risk' }] : []),
   ];
 
+  const s = g.summary;
   return (
     <div className="stack-lg">
-      <PageHeader
-        back={{ to: '/app/osusu', label: 'Groups' }}
-        title={
-          <span className="group-hero">
+      <div>
+        <Link to="/app/osusu" className="back-link"><ArrowLeft size={15} aria-hidden /> Groups</Link>
+        <section className="workspace-head" aria-label="Group summary">
+          <div className="workspace-id">
             <GroupAvatar name={g.name} src={g.imageUrl} size="large" eager />
-            <span>
-              {g.name}
-              <span className="row-wrap" style={{ marginTop: 4 }}>
+            <div className="grow">
+              <h1>{g.name}</h1>
+              <div className="row-wrap" style={{ marginTop: 6 }}>
                 <StatusBadge status={g.status} />
-                {g.permissions.isAdmin && <span className="chip">You organise this group</span>}
-              </span>
-            </span>
-          </span>
-        }
-      />
+                {g.permissions.isAdmin ? <span className="chip">You organise this group</span> : g.admin?.name && <span className="xsmall muted">Organised by {g.admin.name}</span>}
+              </div>
+            </div>
+          </div>
+          <dl className="workspace-terms">
+            <div><dt>Contribution</dt><dd>{naira(g.contributionAmount)} <span className="muted">· {FREQUENCY_LABEL[g.frequency]}</span></dd></div>
+            <div><dt>Members</dt><dd>{s ? `${s.active_members} of ${g.maxMembers}` : `Up to ${g.maxMembers}`}</dd></div>
+            <div><dt>Pool per cycle</dt><dd>{s?.pool_per_cycle ? naira(s.pool_per_cycle) : '—'}</dd></div>
+            <div><dt>{g.status === 'recruiting' ? 'Starts' : 'Progress'}</dt><dd>{g.status === 'recruiting' ? formatDate(g.startDate) : s?.total_cycles ? `${s.completed_cycles} of ${s.total_cycles} cycles` : '—'}</dd></div>
+            {g.membership?.payoutPosition && <div><dt>Your payout position</dt><dd>{g.membership.payoutPosition}</dd></div>}
+          </dl>
+        </section>
+      </div>
       {pendingOnly ? (
         <Alert tone="info">Your request to join is awaiting the organiser&apos;s approval. You will be notified.</Alert>
       ) : (

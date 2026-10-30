@@ -402,3 +402,15 @@ html[data-theme='dark'] .btn-danger { color: #1c0606; }
 .notif-icon.notif-account, .notif-icon.notif-system { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
 .notif-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
 .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-green-primary); }
+
+/* Toolbar extra fields (type, date range) ------------------------------------------------------- */
+.toolbar-fields .select { width: auto; min-width: 160px; flex: 1 1 160px; max-width: 260px; min-height: 42px; }
+.date-field { display: inline-flex; align-items: center; gap: 8px; flex: 1 1 170px; max-width: 220px; font-size: var(--fs-xs); color: var(--color-text-muted); font-weight: 500; }
+.date-field .input { min-height: 42px; }
+@media (max-width: 479px) { .toolbar-fields .select, .date-field { max-width: none; } }
+
+/* Receipt header (payment, wallet and bill details) --------------------------------------------- */
+.receipt-head { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--s-4) 0 var(--s-2); text-align: center; }
+.receipt-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--color-surface-sunken); color: var(--color-text-secondary); margin-bottom: 4px; }
+.receipt-icon.is-credit { background: var(--color-success-bg); color: var(--color-success-text); }
+.receipt-head .amount { margin: 0; font-size: 2rem; font-weight: 650; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }

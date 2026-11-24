@@ -118,6 +118,41 @@ export async function updateMessage(id, patch) {
   return row;
 }
 
+/**
+ * Move a receipt watermark (last_read_at / last_delivered_at) forward only. The value is
+ * the created_at of the newest message the member has (exact database precision), so a
+ * repeated or out-of-order call changes nothing. Returns the updated row, or null when the
+ * watermark was already at or past the value.
+ */
+export async function advanceReceipt(conversationId, userId, column, value) {
+  if (!['last_read_at', 'last_delivered_at'].includes(column)) throw new Error(`Unknown receipt column ${column}`);
+  return one(db.from('conversation_members').update({ [column]: value })
+    .eq('conversation_id', conversationId).eq('user_id', userId).is('left_at', null)
+    .or(`${column}.is.null,${column}.lt."${value}"`)
+    .select('conversation_id, user_id, last_read_at, last_delivered_at').maybeSingle());
+}
+
+/** The member's conversations with a message newer than their delivered watermark (messages that reached this device). */
+export async function undeliveredConversations(userId) {
+  const rows = await run(
+    db.from('conversation_members').select('conversation_id, last_delivered_at, conversation:conversations(last_message_at)')
+      .eq('user_id', userId).is('left_at', null),
+  );
+  return rows.filter((r) => r.conversation?.last_message_at
+    && (!r.last_delivered_at || new Date(r.conversation.last_message_at) > new Date(r.last_delivered_at)));
+}
+
+/** created_at of the newest message in the conversation (optionally not newer than a given message). */
+export async function newestMessageAt(conversationId, uptoMessageId) {
+  if (uptoMessageId) {
+    const m = await one(db.from('messages').select('created_at').eq('id', uptoMessageId).eq('conversation_id', conversationId).maybeSingle());
+    return m?.created_at ?? null;
+  }
+  const m = await one(db.from('messages').select('created_at').eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle());
+  return m?.created_at ?? null;
+}
+
 export async function updateMember(conversationId, userId, patch) {
   return one(db.from('conversation_members').update(patch).eq('conversation_id', conversationId).eq('user_id', userId)
     .select('conversation_id, user_id, role, last_read_at, last_delivered_at, muted_until, cleared_at, can_pin, can_change_picture').maybeSingle());

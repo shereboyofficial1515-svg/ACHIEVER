@@ -92,6 +92,8 @@ export const listNotifications = paging.extend({ unreadOnly: z.enum(['true', 'fa
 
 // Messaging --------------------------------------------------------------------------
 export const conversationParam = z.object({ conversationId: uuid });
+// Read / delivered receipts: the newest message the member's app actually has (older clients send nothing).
+export const receiptBody = z.object({ upTo: uuid.optional() }).strict();
 export const listMessages = z.object({
   before: z.string().datetime({ offset: true }).optional(),
   after: z.string().datetime({ offset: true }).optional(),

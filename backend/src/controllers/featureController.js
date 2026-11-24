@@ -47,7 +47,8 @@ export const deleteMessage = asyncHandler(async (req, res) => ok(res, await mess
 export const reactMessage = asyncHandler(async (req, res) => ok(res, await messageService.react(req.user.id, v(req).params.messageId, req.body.emoji)));
 export const pinMessage = asyncHandler(async (req, res) => ok(res, await messageService.setPinned(req.user, v(req).params.conversationId, v(req).params.messageId, req.body.pinned, req)));
 export const typing = asyncHandler(async (req, res) => { await messageService.typing(req.user, v(req).params.conversationId); return ok(res, {}); });
-export const delivered = asyncHandler(async (req, res) => { await messageService.markDelivered(req.user.id, v(req).params.conversationId); return ok(res, {}); });
+export const delivered = asyncHandler(async (req, res) => ok(res, await messageService.markDelivered(req.user.id, v(req).params.conversationId, v(req).body)));
+export const deliveredAll = asyncHandler(async (req, res) => ok(res, await messageService.markAllDelivered(req.user.id)));
 export const searchMessages = asyncHandler(async (req, res) => ok(res, await messageService.search(req.user.id, v(req).params.conversationId, v(req).query.q)));
 export const chatMedia = asyncHandler(async (req, res) => ok(res, await messageService.media(req.user.id, v(req).params.conversationId, v(req).query)));
 export const muteChat = asyncHandler(async (req, res) => ok(res, await messageService.setMute(req.user.id, v(req).params.conversationId, req.body.until)));
@@ -60,8 +61,7 @@ export const memberPermissions = asyncHandler(async (req, res) =>
   ok(res, await messageService.setMemberPermissions(req.user, v(req).params.conversationId, v(req).params.memberId, req.body, req), 'Permissions saved'));
 export const attachmentUrl = asyncHandler(async (req, res) => ok(res, { url: await messageService.attachmentUrl(req.user.id, v(req).params.id) }));
 export const markConversationRead = asyncHandler(async (req, res) => {
-  await messageService.markRead(req.user.id, v(req).params.conversationId);
-  return ok(res, {});
+  return ok(res, await messageService.markRead(req.user.id, v(req).params.conversationId, v(req).body));
 });
 export const openDirect = asyncHandler(async (req, res) => ok(res, await messageService.openDirect(req.user, req.body.userId)));
 export const contacts = asyncHandler(async (req, res) => ok(res, await messageService.contacts(req.user.id)));

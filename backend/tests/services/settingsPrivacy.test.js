@@ -199,6 +199,8 @@ describe('read receipts & online status privacy', () => {
     expect(byId.u2.online).toBe(false);
     expect(byId.u3.lastReadAt).toBe(now);
     expect(byId.u3.online).toBe(true);
+    // Delivery (two grey ticks) is not private: it is shown even when read receipts are off.
+    expect(byId.u2.sharesReceipts).toBe(false);
 
     userRepo.listUserPreferences.mockResolvedValue([{ user_id: 'u1', messages: { readReceipts: false } }]);
     const mine = await messageService.getConversation('u1', 'cv');

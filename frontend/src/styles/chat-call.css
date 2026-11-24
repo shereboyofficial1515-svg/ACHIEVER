@@ -170,7 +170,7 @@
 .msg:not(.first).mine .bubble { border-top-right-radius: 6px; }
 .msg .meta { align-self: flex-end; padding: 0; font-size: 10.5px; margin-bottom: -2px; }
 .msg.mine .meta { color: color-mix(in srgb, var(--color-on-primary) 78%, transparent); }
-.msg.mine .tick-read { color: #7dd3fc; }
+.msg .meta .tick { flex-shrink: 0; opacity: 0.85; }
 .msg .edited { font-style: italic; }
 .msg .deleted { opacity: 0.75; }
 .msg-text a { color: inherit; text-decoration: underline; overflow-wrap: anywhere; }
@@ -328,3 +328,16 @@
 .conv-title { display: flex; align-items: center; min-width: 0; flex: 1; }
 .conv-title .conv-muted { flex-shrink: 0; }
 .reaction { min-height: 32px; padding: 2px 9px; }
+
+/* Long messages: "Read more" / "Read less" ------------------------------------------------------ */
+.read-more { display: inline; padding: 0; margin: 0; border: 0; background: none; font: inherit; font-weight: 650; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; white-space: nowrap; }
+.msg.theirs .read-more { color: var(--color-link); }
+.read-more:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; box-shadow: none; }
+
+/* Read receipt: the reader's picture replaces the ticks once they have viewed the message ----- */
+.read-by { display: inline-flex; align-items: center; flex-shrink: 0; margin-left: 1px; }
+.read-by .avatar { --avatar-size: 16px; }
+.read-by .avatar + .avatar { margin-left: -5px; }
+.read-by .avatar-face { box-shadow: 0 0 0 1.5px var(--color-green-primary); font-size: 8px !important; }
+.msg.announcement.mine .read-by .avatar-face, .msg .bubble.media-only .read-by .avatar-face { box-shadow: 0 0 0 1.5px var(--color-surface); }
+.read-by-more { margin-left: 3px; font-size: 10px; font-weight: 700; }

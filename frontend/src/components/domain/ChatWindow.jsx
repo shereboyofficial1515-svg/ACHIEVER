@@ -14,7 +14,7 @@ import { useConfirm } from '../ui/ConfirmProvider.jsx';
 import { pushOverlay } from '../../platform/overlays.js';
 import { requestMicrophonePermission } from '../../platform/index.js';
 import { duration, fileSize, formatDate, formatTime, relativeTime } from '../../utils/format.js';
-import { mergeMessages } from '../../utils/messages.js';
+import { mergeMessages, messagePreview, messageReceipt } from '../../utils/messages.js';
 import { playSound } from '../../utils/sounds.js';
 import { attachmentUrl, cachedAttachmentUrl, documentTypeLabel, mediaKind } from '../../utils/mediaCache.js';
 import MediaViewer from '../media/MediaViewer.jsx';
@@ -26,6 +26,19 @@ export const EDIT_WINDOW = 10 * 60 * 1000;               // edit your own messag
 export const DELETE_WINDOW = 2 * 24 * 60 * 60 * 1000;    // delete for everyone: 2 days
 const GROUP_GAP = 5 * 60 * 1000;
 const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+
+/** The chat is really in front of the person: page visible and the app/window focused (not just open). */
+function chatOnScreen() {
+  if (typeof document === 'undefined') return false;
+  return document.visibilityState === 'visible' && (typeof document.hasFocus !== 'function' || document.hasFocus());
+}
+
+/** The later of two timestamps (receipt watermarks never move backwards). */
+function latest(a, b) {
+  if (!b) return a ?? null;
+  if (!a) return b;
+  return new Date(b) > new Date(a) ? b : a;
+}
 
 function Linkified({ text }) {
   if (!text) return null;
@@ -122,11 +135,61 @@ function UploadRow({ u, onRetry, onCancel, onRemove }) {
   );
 }
 
-function Ticks({ status }) {
-  if (status === 'sending') return <Clock size={13} aria-label="Sending" />;
-  if (status === 'read') return <CheckCheck size={15} className="tick-read" aria-label="Read" />;
-  if (status === 'delivered') return <CheckCheck size={15} aria-label="Delivered" />;
-  return <Check size={15} aria-label="Sent" />;
+const MAX_READ_AVATARS = 3;
+
+/**
+ * Status of my message: a clock while sending, one grey tick when the server has it, two grey
+ * ticks when it reached the recipient's device, and the reader's picture only once they have
+ * actually viewed it (groups: up to three readers, then "+n").
+ */
+export function Receipt({ receipt }) {
+  const { status, readers = [] } = receipt || {};
+  if (status === 'sending') return <Clock size={13} className="tick" aria-label="Sending" />;
+  if (readers.length) {
+    const shown = readers.slice(0, MAX_READ_AVATARS);
+    const extra = readers.length - shown.length;
+    const names = readers.map((r) => r.name || 'Member').join(', ');
+    return (
+      <span className="read-by" role="img" aria-label={`Read by ${names}`} title={`Read by ${names}`}>
+        {shown.map((r) => <UserAvatar key={r.id} name={r.name} src={r.avatarUrl} size={16} />)}
+        {extra > 0 && <span className="read-by-more">+{extra}</span>}
+      </span>
+    );
+  }
+  if (status === 'delivered') return <CheckCheck size={15} className="tick" aria-label="Delivered" />;
+  return <Check size={15} className="tick" aria-label="Sent" />;
+}
+
+/**
+ * Message text, collapsed to a preview when it is long ("Read more" / "Read less").
+ * The preview keeps line breaks and never cuts a word, a link or an emoji in half.
+ */
+export function MessageText({ text }) {
+  const preview = useMemo(() => messagePreview(text), [text]);
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const toggle = (e) => {
+    e.stopPropagation();
+    setOpen((o) => {
+      // Collapsing a message whose start is above the screen: bring it back into view.
+      if (o) requestAnimationFrame(() => {
+        const el = ref.current?.closest('.bubble');
+        if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: 'nearest' });
+      });
+      return !o;
+    });
+  };
+  if (!preview) return <span className="msg-text"><Linkified text={text} /></span>;
+  return (
+    <span className="msg-text" ref={ref}>
+      <Linkified text={open ? text : `${preview}…`} />
+      {' '}
+      <button type="button" className="read-more" aria-expanded={open} onClick={toggle}
+        onKeyDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+        {open ? 'Read less' : 'Read more'}
+      </button>
+    </span>
+  );
 }
 
 function useLongPress(onLongPress, ms = 450) {
@@ -136,7 +199,7 @@ function useLongPress(onLongPress, ms = 450) {
   return { onTouchStart: start, onTouchEnd: clear, onTouchMove: clear, onContextMenu: (e) => { e.preventDefault(); onLongPress(e); } };
 }
 
-function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, highlighted, selected, onSelect, onJump, onToggleReaction, onOpenMedia, currentUserId, isGroup }) {
+function MessageRow({ m, mine, showSender, sender, senderName, nameOf, receipt, highlighted, selected, onSelect, onJump, onToggleReaction, onOpenMedia, currentUserId, isGroup }) {
   const press = useLongPress(() => onSelect(m));
   const reactions = useMemo(() => {
     const byEmoji = new Map();
@@ -173,13 +236,13 @@ function MessageRow({ m, mine, showSender, sender, senderName, nameOf, status, h
           {m.deleted ? <em className="deleted">This message was deleted</em> : (
             <>
               {m.attachments?.map((a) => <Attachment key={a.id} a={a} voice={voice} onOpen={(att) => onOpenMedia(att, m)} />)}
-              {m.body && <span className="msg-text"><Linkified text={m.body} /></span>}
+              {m.body && <MessageText text={m.body} />}
             </>
           )}
           <span className="meta">
             {m.editedAt && <span className="edited">edited</span>}
             {formatTime(m.createdAt)}
-            {mine && !m.deleted && <Ticks status={status} />}
+            {mine && !m.deleted && <Receipt receipt={receipt} />}
           </span>
         </div>
         {reactions.length > 0 && (
@@ -246,7 +309,32 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   const lastTyping = useRef(0);
   const restoreScroll = useRef(null);
 
-  const markRead = useCallback(() => api.post(`/messages/conversations/${conversationId}/read`).catch(() => {}), [conversationId]);
+  const messagesRef = useRef([]);
+  messagesRef.current = messages;
+  const readSent = useRef(null);      // newest message id already reported as read
+  const readPending = useRef(false);  // a read waiting until the chat is actually on screen
+  /**
+   * Report "read" only when the person can really see the messages: the page is visible, the
+   * app/window is in front and the chat is scrolled to the latest message. The server is told
+   * which message was the newest on screen, so anything arriving later stays unread.
+   */
+  const markRead = useCallback((list) => {
+    const newest = [...(list || messagesRef.current)].reverse().find((x) => !x.pending && !String(x.id).startsWith('tmp-'));
+    if (!newest) return;
+    if (!chatOnScreen() || !atBottom.current) { readPending.current = true; return; }
+    readPending.current = false;
+    if (readSent.current === newest.id) return;   // already reported: no duplicate receipt
+    readSent.current = newest.id;
+    api.post(`/messages/conversations/${conversationId}/read`, { upTo: newest.id }).catch(() => { readSent.current = null; });
+  }, [conversationId]);
+  useEffect(() => { readSent.current = null; readPending.current = false; }, [conversationId]);
+  // Back in front (screen unlocked, app or tab reopened): report what is now visible.
+  useEffect(() => {
+    const onVisible = () => { if (readPending.current && chatOnScreen()) markRead(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); };
+  }, [markRead]);
   const loadConv = useCallback(() => api.get(`/messages/conversations/${conversationId}`).then(({ data }) => setConv(data)), [conversationId]);
 
   const load = useCallback(async () => {
@@ -262,7 +350,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
       setHasMore(m.data.hasMore);
       setHasNewer(false);
       atBottom.current = true;
-      markRead();
+      markRead(m.data.messages);
     } catch (err) {
       setError(err);
     } finally {
@@ -322,6 +410,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     const el = e.currentTarget;
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     if (atBottom.current && newCount) setNewCount(0);
+    if (atBottom.current && readPending.current) markRead();   // scrolled down to the new messages
     if (el.scrollTop < 80 && hasMore && !loadingMore) loadOlder();
   };
 
@@ -361,8 +450,8 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     setMessages((list) => mergeMessages(list.filter((x) => !(x.pending && x.body === m.body && m.senderId === currentUserId)), [m]));
     setTyping((t) => { const n = { ...t }; delete n[m.senderId]; return n; });
     if (m.senderId !== currentUserId) {
-      if (atBottom.current) markRead();
-      else setNewCount((n) => n + 1);
+      if (atBottom.current) markRead([...messagesRef.current, m]);
+      else { setNewCount((n) => n + 1); readPending.current = true; }
     }
   });
   // Reconnected / back from the background: fetch what arrived while the connection was down.
@@ -378,8 +467,8 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
       const fresh = data.messages.filter((x) => !messages.some((y) => y.id === x.id) && x.senderId !== currentUserId);
       setMessages((list) => mergeMessages(list, data.messages));
       if (fresh.length) {
-        if (atBottom.current) markRead();
-        else setNewCount((n) => n + fresh.length);
+        if (atBottom.current) markRead(mergeMessages(messagesRef.current, data.messages));
+        else { setNewCount((n) => n + fresh.length); readPending.current = true; }
       }
     } catch { /* the next reconnect tries again */ }
   });
@@ -393,8 +482,12 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
     if (r.conversationId !== conversationId) return;
     setConv((c) => (c ? {
       ...c,
-      members: c.members.map((mm) => (mm.id === r.userId && mm.sharesReceipts
-        ?{ ...mm, lastReadAt: r.lastReadAt ?? mm.lastReadAt, lastDeliveredAt: r.lastDeliveredAt ?? mm.lastDeliveredAt } : mm)),
+      // Watermarks only move forward; the read time counts only for members who share it.
+      members: c.members.map((mm) => (mm.id === r.userId ? {
+        ...mm,
+        lastDeliveredAt: latest(mm.lastDeliveredAt, r.lastDeliveredAt),
+        lastReadAt: mm.sharesReceipts ? latest(mm.lastReadAt, r.lastReadAt) : mm.lastReadAt,
+      } : mm)),
     } : c));
   });
   useRealtimeEvent('typing', (t) => {
@@ -673,17 +766,10 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
   else if (other?.lastSeenAt) subtitle = `Last seen ${relativeTime(other.lastSeenAt)}`;
   else subtitle = '';
 
-  // Receipt state of my message from what others share (never invented).
-  const others = conv.members.filter((mm) => mm.id !== currentUserId);
-  const sharing = others.filter((mm) => mm.sharesReceipts);
-  const statusOf = (m) => {
-    if (m.pending) return 'sending';
-    if (!others.length || sharing.length < others.length) return 'sent';
-    const t = new Date(m.createdAt).getTime();
-    if (sharing.every((mm) => mm.lastReadAt && new Date(mm.lastReadAt).getTime() >= t)) return 'read';
-    if (sharing.every((mm) => (mm.lastDeliveredAt && new Date(mm.lastDeliveredAt).getTime() >= t) || (mm.lastReadAt && new Date(mm.lastReadAt).getTime() >= t))) return 'delivered';
-    return 'sent';
-  };
+  // Receipt state of my message from what the others report (never invented). A group that
+  // hides its member list sends only part of the list, so it can only ever claim "sent".
+  const membersKnown = conv.members.length >= conv.memberCount;
+  const receiptOf = (m) => messageReceipt(m, conv.members, currentUserId, { membersKnown });
 
   const hasText = draft.trim().length > 0;   // "   " is empty; anything else shows Send
   const connectionNote = connection === 'reconnecting' ? (navigator.onLine === false ? 'Waiting for network…' : 'Reconnecting…')
@@ -827,7 +913,7 @@ export default function ChatWindow({ conversationId, currentUserId, onBack }) {
                 sender={byId.get(m.senderId)}
                 senderName={byId.get(m.senderId)?.name || 'Former member'}
                 nameOf={nameOf}
-                status={statusOf(m)}
+                receipt={m.senderId === currentUserId ? receiptOf(m) : undefined}
                 highlighted={highlight === m.id}
                 selected={sel?.id === m.id}
                 onSelect={(x) => { if (!x.pending && !['system', 'call'].includes(x.kind)) { setSelected(x); setReacting(false); setDeleting(false); } }}

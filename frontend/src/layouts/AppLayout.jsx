@@ -111,7 +111,13 @@ export default function AppLayout() {
   const nav = useMemo(() => buildNavigation(has), [has]);
 
   const refreshMessages = () =>
-    api.get('/messages/conversations').then(({ data }) => setUnreadMessages(data.reduce((s, c) => s + c.unreadCount, 0))).catch(() => {});
+    api.get('/messages/conversations').then(({ data }) => {
+      const unread = data.reduce((s, c) => s + c.unreadCount, 0);
+      setUnreadMessages(unread);
+      // Messages that waited while the app was closed have now reached this device: two grey
+      // ticks for their senders (never "read" — that happens only when a chat is viewed).
+      if (unread > 0) api.post('/messages/delivered').catch(() => {});
+    }).catch(() => {});
 
   // The badge is kept current by realtime events; the full count is fetched only on start,
   // after a reconnect (resync) and when leaving a chat (reading it lowers the count) —
@@ -133,8 +139,8 @@ export default function AppLayout() {
   });
   useRealtimeEvent('message.new', (m) => {
     if (m.senderId === user?.id) return;
-    // The app received it: senders who share receipts see "delivered" (two grey ticks).
-    api.post(`/messages/conversations/${m.conversationId}/delivered`).catch(() => {});
+    // The app received it: the sender sees "delivered" (two grey ticks), not "read".
+    api.post(`/messages/conversations/${m.conversationId}/delivered`, { upTo: m.id }).catch(() => {});
     if (m.muted) {   // muted chat: counted, but no sound or pop-up
       if (!location.pathname.includes(m.conversationId)) setUnreadMessages((n) => n + 1);
       return;

@@ -22,6 +22,19 @@ vi.mock('../../src/repositories/messageRepository.js', () => ({
   mutualGroups: vi.fn(async () => [{ id: 'g1', name: 'Market Circle', image_path: null }]),
   blockedBetween: vi.fn(async () => ({ iBlocked: false, blockedMe: false })),
   findByDirectKey: vi.fn(async () => null),
+  // Receipt watermarks: forward-only, like the conditional update in the repository.
+  advanceReceipt: vi.fn(async (c, u, column, value) => {
+    const m = state.members.get(key(c, u));
+    if (!m || (m[column] && new Date(m[column]) >= new Date(value))) return null;
+    m[column] = value;
+    return { last_read_at: m.last_read_at ?? null, last_delivered_at: m.last_delivered_at ?? null };
+  }),
+  newestMessageAt: vi.fn(async (c, upTo) => {
+    const list = [...state.messages.values()].filter((m) => m.conversation_id === c);
+    if (upTo) return list.find((m) => m.id === upTo)?.created_at ?? null;
+    return list.map((m) => m.created_at).sort().pop() ?? null;
+  }),
+  undeliveredConversations: vi.fn(async () => state.undelivered || []),
 }));
 vi.mock('../../src/repositories/userRepository.js', () => ({
   findManyBasic: vi.fn(async () => [{ id: 'u-other', full_name: 'Aisha Peter', avatar_path: null, last_seen_at: new Date().toISOString() }]),
@@ -166,15 +179,81 @@ describe('new messages are delivered in real time and pushed to people not in th
 });
 
 describe('read receipts respect privacy', () => {
-  it('reading updates your own state, but is only broadcast when you share read receipts', async () => {
+  it('reading is stored; the read time is broadcast only when you share read receipts (delivery always is)', async () => {
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin' }));
     await svc.markRead('u-me', 'c1');
     expect(state.published).toEqual(['conversation.receipt']);
     state.published = [];
     state.receipts = false;
+    state.messages.set('m2', msg('m2', { sender_id: 'u-admin', created_at: ago(1000) }));
     await svc.markRead('u-me', 'c1');
-    await svc.markDelivered('u-me', 'c1');
-    expect(state.published).toEqual([]);
-    expect(state.members.get(key('c1', 'u-me')).last_read_at).toEqual(expect.any(String));
+    expect(state.published).toEqual(['conversation.receipt']);   // delivered moved; read time withheld (checked below)
+    expect(state.members.get(key('c1', 'u-me')).last_read_at).toBe(state.messages.get('m2').created_at);
+  });
+});
+
+describe('message status: sent, delivered, read', () => {
+  const hub = async () => (await import('../../src/services/realtimeHub.js')).publishToConversation;
+  beforeEach(async () => (await hub()).mockClear());
+
+  it('read covers only the messages the app showed (upTo), never a message that arrived after', async () => {
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin', created_at: ago(5000) }));
+    state.messages.set('m2', msg('m2', { sender_id: 'u-admin', created_at: ago(1000) }));
+    await svc.markRead('u-me', 'c1', { upTo: 'm1' });
+    const me_ = state.members.get(key('c1', 'u-me'));
+    expect(me_.last_read_at).toBe(state.messages.get('m1').created_at);
+    expect(new Date(state.messages.get('m2').created_at) > new Date(me_.last_read_at)).toBe(true);   // m2 is still unread
+    const [, event, payload] = (await hub()).mock.calls[0];
+    expect(event).toBe('conversation.receipt');
+    expect(payload).toMatchObject({ userId: 'u-me', lastReadAt: state.messages.get('m1').created_at });
+  });
+
+  it('a repeated or older read changes nothing and publishes no duplicate receipt', async () => {
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin', created_at: ago(5000) }));
+    state.messages.set('m2', msg('m2', { sender_id: 'u-admin', created_at: ago(1000) }));
+    await expect(svc.markRead('u-me', 'c1', { upTo: 'm2' })).resolves.toEqual({ changed: true });
+    await expect(svc.markRead('u-me', 'c1', { upTo: 'm2' })).resolves.toEqual({ changed: false });
+    await expect(svc.markRead('u-me', 'c1', { upTo: 'm1' })).resolves.toEqual({ changed: false });   // never moves backwards
+    expect((await hub()).mock.calls).toHaveLength(1);
+    expect(state.members.get(key('c1', 'u-me')).last_read_at).toBe(state.messages.get('m2').created_at);
+  });
+
+  it('delivered is two grey ticks only: it never marks the message read', async () => {
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin' }));
+    await svc.markDelivered('u-me', 'c1', { upTo: 'm1' });
+    const me_ = state.members.get(key('c1', 'u-me'));
+    expect(me_.last_delivered_at).toBe(state.messages.get('m1').created_at);
+    expect(me_.last_read_at).toBeUndefined();
+    const [, , payload] = (await hub()).mock.calls[0];
+    expect(payload.lastReadAt).toBeUndefined();
+  });
+
+  it('with read receipts off, delivery is still shared but the read time is not', async () => {
+    state.receipts = false;
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin' }));
+    await svc.markRead('u-me', 'c1', { upTo: 'm1' });
+    const [, , payload] = (await hub()).mock.calls[0];
+    expect(payload).toMatchObject({ lastDeliveredAt: state.messages.get('m1').created_at });
+    expect(payload.lastReadAt).toBeUndefined();
+  });
+
+  it('a message from another conversation cannot be used as the read boundary', async () => {
+    state.messages.set('x1', msg('x1', { conversation_id: 'c2' }));
+    await expect(svc.markRead('u-me', 'c1', { upTo: 'x1' })).rejects.toMatchObject({ code: 'MESSAGE_NOT_FOUND' });
+    expect(state.members.get(key('c1', 'u-me')).last_read_at).toBeUndefined();
+  });
+
+  it('only members can report receipts', async () => {
+    await expect(svc.markRead('u-stranger', 'c1')).rejects.toMatchObject({ code: 'NOT_A_MEMBER' });
+  });
+
+  it('opening the app marks waiting chats delivered (not read)', async () => {
+    state.messages.set('m1', msg('m1', { sender_id: 'u-admin' }));
+    state.undelivered = [{ conversation_id: 'c1' }];
+    await expect(svc.markAllDelivered('u-me')).resolves.toEqual({ changed: 1 });
+    expect(state.members.get(key('c1', 'u-me')).last_delivered_at).toBe(state.messages.get('m1').created_at);
+    expect(state.members.get(key('c1', 'u-me')).last_read_at).toBeUndefined();
+    state.undelivered = [];
   });
 });
 

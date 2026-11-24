@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const get = vi.fn();
 const post = vi.fn(async () => ({ data: {} }));
@@ -28,7 +28,9 @@ beforeAll(() => {
   window.MediaRecorder = function MediaRecorder() {};
   navigator.mediaDevices = { getUserMedia: vi.fn() };
 });
-afterEach(() => { cleanup(); get.mockReset(); post.mockClear(); handlers.clear(); __resetMediaCache(); });
+// The chat counts as on screen only when the window has focus (as on a phone with the app open).
+beforeEach(() => { vi.spyOn(document, 'hasFocus').mockReturnValue(true); });
+afterEach(() => { cleanup(); get.mockReset(); post.mockClear(); handlers.clear(); __resetMediaCache(); vi.restoreAllMocks(); });
 
 const now = Date.now();
 const iso = (ms) => new Date(now - ms).toISOString();
@@ -60,16 +62,67 @@ describe('chat window', () => {
     expect(screen.getByRole('button', { name: /Market Circle\. Group info/ })).toBeTruthy();
   });
 
-  it('receipts come from what members share: delivered to all but not read by all → delivered', async () => {
+  it('groups: only the members who actually read it appear (Aisha read, Bayo only received it)', async () => {
     mount(baseConv, [msg('m1')]);
-    await screen.findByLabelText('Delivered');
-    expect(screen.queryByLabelText('Read')).toBeNull();
+    await screen.findByLabelText('Read by Aisha Peter');
+    expect(screen.queryByLabelText(/Bayo/)).toBeNull();
   });
 
-  it('a member who hides receipts means "sent" only (never a fake read)', async () => {
-    const conv = { ...baseConv, members: baseConv.members.map((m) => (m.id === 'u3' ? { ...m, sharesReceipts: false, lastReadAt: null, lastDeliveredAt: null } : m)) };
+  it('a member who hides receipts never appears as a reader, and undelivered means one tick', async () => {
+    const conv = { ...baseConv, members: baseConv.members.map((m) => (m.id === 'u2' ? { ...m, sharesReceipts: false, lastReadAt: null } : m.id === 'u3' ? { ...m, lastReadAt: null, lastDeliveredAt: null } : m)) };
     mount(conv, [msg('m1')]);
     await screen.findByLabelText('Sent');
+    expect(screen.queryByLabelText(/Read by/)).toBeNull();
+  });
+
+  it('direct chat: two grey ticks when delivered; the picture appears only when the receipt says read (live)', async () => {
+    const direct = {
+      ...baseConv, type: 'direct', memberCount: 2,
+      members: [baseConv.members[0], { id: 'u2', name: 'Aisha Peter', avatarUrl: null, online: true, sharesReceipts: true, lastReadAt: iso(10 * 60_000), lastDeliveredAt: iso(0) }],
+    };
+    mount(direct, [msg('m1')]);
+    await screen.findByLabelText('Delivered');
+    expect(screen.queryByLabelText(/Read by/)).toBeNull();
+    act(() => handlers.get('conversation.receipt')({ conversationId: 'c1', userId: 'u2', lastDeliveredAt: iso(0), lastReadAt: iso(0) }));
+    await screen.findByLabelText('Read by Aisha Peter');
+    expect(screen.queryByLabelText('Delivered')).toBeNull();
+    // An older (late) receipt never moves it backwards.
+    act(() => handlers.get('conversation.receipt')({ conversationId: 'c1', userId: 'u2', lastReadAt: iso(10 * 60_000) }));
+    expect(screen.getByLabelText('Read by Aisha Peter')).toBeTruthy();
+  });
+
+  it('opening the chat reports read up to the newest message shown', async () => {
+    mount(baseConv, [msg('m1'), msg('m2', { senderId: 'u2', createdAt: iso(30_000) })]);
+    await screen.findByText('body m2');
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/messages/conversations/c1/read', { upTo: 'm2' }));
+  });
+
+  it('a message that arrives while the screen is hidden is not marked read until it is visible', async () => {
+    mount(baseConv, [msg('m1')]);
+    await screen.findByText('body m1');
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/messages/conversations/c1/read', { upTo: 'm1' }));
+    post.mockClear();
+    const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    act(() => handlers.get('message.new')(msg('m9', { senderId: 'u2', body: 'are you there?', createdAt: iso(0) })));
+    await screen.findByText('are you there?');
+    expect(post).not.toHaveBeenCalledWith('/messages/conversations/c1/read', expect.anything());
+    vis.mockReturnValue('visible');
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/messages/conversations/c1/read', { upTo: 'm9' }));
+    vis.mockRestore();
+  });
+
+  it('long messages collapse with Read more / Read less; short ones do not', async () => {
+    const long = Array.from({ length: 160 }, (_, i) => `word${i}`).join(' ');
+    mount(baseConv, [msg('m1', { body: 'short one' }), msg('m2', { senderId: 'u2', body: long, createdAt: iso(30_000) })]);
+    await screen.findByText('short one');
+    expect(screen.getAllByRole('button', { name: 'Read more' })).toHaveLength(1);
+    expect(screen.queryByText(/word159/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Read more' }));
+    expect(screen.getByText(/word159/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Read less' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Read less' }));
+    expect(screen.queryByText(/word159/)).toBeNull();
   });
 
   it('deleted messages show a tombstone; replies, edits and announcements are labelled', async () => {

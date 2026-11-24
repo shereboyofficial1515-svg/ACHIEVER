@@ -227,7 +227,7 @@ export async function getConversation(userId, conversationId) {
       online: showPresence ? isOnline(m.profile?.last_seen_at) : false,
       lastSeenAt: showPresence && !group ? m.profile?.last_seen_at ?? null : null,
       lastReadAt: receipts ? m.last_read_at : null,
-      lastDeliveredAt: receipts ? m.last_delivered_at : null,
+      lastDeliveredAt: m.last_delivered_at ?? null,   // delivery is always visible; "read" only with shared receipts
       sharesReceipts: Boolean(receipts),
       canPin: perms.isAdmin ? m.can_pin : undefined,
       canChangePicture: perms.isAdmin ? m.can_change_picture : undefined,
@@ -440,21 +440,53 @@ async function sharesReceipts(userId) {
   return (await preferencesService.flagsFor([userId]))(userId).readReceipts;
 }
 
-export async function markRead(userId, conversationId) {
-  await assertMember(userId, conversationId);
-  const now = new Date().toISOString();
-  await messageRepo.updateMember(conversationId, userId, { last_read_at: now, last_delivered_at: now });
-  if (!(await sharesReceipts(userId))) return;   // the person turned read receipts off
-  await broadcast(conversationId, 'conversation.receipt', { conversationId, userId, lastReadAt: now, lastDeliveredAt: now });
+/**
+ * Receipt watermarks. A member has read (or received) every message created at or before
+ * their last_read_at (last_delivered_at). The client names the newest message it actually
+ * showed (`upTo`), so a message that reaches the server a moment later is never counted as
+ * read. Watermarks only move forward and an event is published only when one moved, so a
+ * repeated call is harmless and never produces a duplicate receipt.
+ */
+async function receiptBoundary(conversationId, upTo) {
+  const at = await messageRepo.newestMessageAt(conversationId, upTo);
+  if (upTo && !at) throw AppError.notFound('Message not found in this conversation', 'MESSAGE_NOT_FOUND');
+  return at;   // null: the conversation has no messages yet
 }
 
-/** The member's app received new messages (shown as "delivered" to senders who share receipts). */
-export async function markDelivered(userId, conversationId) {
+/** The member viewed the conversation up to `upTo` (read implies delivered). */
+export async function markRead(userId, conversationId, { upTo } = {}) {
   await assertMember(userId, conversationId);
-  const now = new Date().toISOString();
-  await messageRepo.updateMember(conversationId, userId, { last_delivered_at: now });
-  if (!(await sharesReceipts(userId))) return;
-  await broadcast(conversationId, 'conversation.receipt', { conversationId, userId, lastDeliveredAt: now });
+  const at = await receiptBoundary(conversationId, upTo);
+  if (!at) return { changed: false };
+  const read = await messageRepo.advanceReceipt(conversationId, userId, 'last_read_at', at);
+  const delivered = await messageRepo.advanceReceipt(conversationId, userId, 'last_delivered_at', at);
+  if (!read && !delivered) return { changed: false };
+  // Delivery is always shared; the read time only when the reader shares read receipts.
+  const payload = { conversationId, userId, lastDeliveredAt: (delivered || read).last_delivered_at };
+  if (read && (await sharesReceipts(userId))) payload.lastReadAt = read.last_read_at;
+  await broadcast(conversationId, 'conversation.receipt', payload);
+  return { changed: true };
+}
+
+/** The member's device received the conversation's messages up to `upTo` (two grey ticks, never "read"). */
+export async function markDelivered(userId, conversationId, { upTo } = {}) {
+  await assertMember(userId, conversationId);
+  const at = await receiptBoundary(conversationId, upTo);
+  if (!at) return { changed: false };
+  const row = await messageRepo.advanceReceipt(conversationId, userId, 'last_delivered_at', at);
+  if (!row) return { changed: false };
+  await broadcast(conversationId, 'conversation.receipt', { conversationId, userId, lastDeliveredAt: row.last_delivered_at });
+  return { changed: true };
+}
+
+/** The app opened and loaded the member's chats: everything waiting for them has reached this device. */
+export async function markAllDelivered(userId) {
+  const pending = await messageRepo.undeliveredConversations(userId);
+  let changed = 0;
+  for (const p of pending) {
+    if ((await markDelivered(userId, p.conversation_id)).changed) changed += 1;
+  }
+  return { changed };
 }
 
 export async function typing(user, conversationId) {

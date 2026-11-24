@@ -22,7 +22,7 @@ describe('long message preview', () => {
     const text = Array.from({ length: 30 }, (_, i) => `Line ${i + 1}`).join('\n');
     const p = messagePreview(text);
     expect(p.split('\n')).toHaveLength(PREVIEW.previewLines);
-    expect(p.endsWith('Line 10')).toBe(true);
+    expect(p.endsWith(`Line ${PREVIEW.previewLines}`)).toBe(true);
   });
 
   it('never splits an emoji (including joined sequences and skin tones)', () => {

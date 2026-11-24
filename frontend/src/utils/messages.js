@@ -12,7 +12,7 @@ export function mergeMessages(list, incoming) {
 
 // Long messages ---------------------------------------------------------------------------------
 // A message is collapsed only when it is clearly long, so a few characters over never fold away.
-export const PREVIEW = { maxChars: 700, previewChars: 500, maxLines: 14, previewLines: 10, wordWindow: 60 };
+export const PREVIEW = { maxChars: 450, previewChars: 320, maxLines: 10, previewLines: 7, wordWindow: 60 };
 
 function graphemes(text) {
   if (typeof Intl !== 'undefined' && Intl.Segmenter) return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((s) => s.segment);
